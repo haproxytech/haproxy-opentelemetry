@@ -509,6 +509,12 @@ extract <name-prefix> [use-vars | use-headers]
   time, the 'use-vars' option can be used instead to extract context from
   HAProxy variables.
 
+  When the OpenTelemetry context is transferred via the HTTP header and the
+  first character of the context name is '-', the context name is excluded
+  from the header.  This behavior enables the use of OpenTelemetry contexts
+  with external services that do not expect a HAProxy-specific name prefix on
+  the propagation headers.
+
   Arguments :
     name-prefix - data name prefix (ie key element prefix)
     use-vars    - data is extracted from HAProxy variables
@@ -563,6 +569,12 @@ inject <name-prefix> [use-vars] [use-headers]
   be used, but they will be converted to lowercase when creating the prefix.
   The special prefix '-' can be used to generate the name automatically from the
   scope's event name or the span name.
+
+  When the OpenTelemetry context is transferred via the HTTP header and the
+  first character of the context name is '-', the context name is excluded
+  from the header.  This behavior enables the use of OpenTelemetry contexts
+  with external services that do not expect a HAProxy-specific name prefix on
+  the propagation headers.
 
   Arguments :
     name-prefix - data name prefix (ie key element prefix), or '-' for automatic

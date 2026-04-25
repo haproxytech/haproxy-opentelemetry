@@ -280,6 +280,11 @@ Supported keywords:
       automatically.  Default storage: use-headers.  The 'use-vars' option
       requires OTEL_USE_VARS=1 at compile time.
 
+      When transferring the context via HTTP headers, if the first character of
+      the context name is '-', the context name is excluded from the header.
+      This enables the use of OpenTelemetry contexts with external services that
+      do not expect a HAProxy-specific name prefix.
+
       Example:
         span "HAProxy session" root
             inject "otel_ctx_1" use-headers use-vars
@@ -289,6 +294,11 @@ Supported keywords:
       Extract a previously injected span context from an HTTP header or HAProxy
       variables.  The extracted context can then be used as a parent reference
       in 'span ... parent <name-prefix>'.
+
+      When extracting context from HTTP headers, if the first character of the
+      context name is '-', the context name is excluded from the header.  This
+      enables the use of OpenTelemetry contexts with external services that do
+      not expect a HAProxy-specific name prefix.
 
       Example:
         extract "otel_ctx_1" use-vars

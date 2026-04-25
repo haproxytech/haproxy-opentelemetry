@@ -1406,11 +1406,12 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_INJECT) {
 		/*
-		 * Automatic context name generation can be specified here if
-		 * the contents of the FLT_OTEL_PARSE_CTX_AUTONAME macro are
-		 * used as the name.  In that case, if the context is after a
-		 * particular event, it gets its name; otherwise it gets the
-		 * name of the current span.
+		 * The context name is automatically generated when the macro
+		 * FLT_OTEL_PARSE_CTX_AUTONAME is used as the name.
+		 *
+		 * In this case, if the inject directive is defined after the
+		 * event definition, the event name is used as the context name;
+		 * otherwise, the context name is taken from the span name.
 		 */
 		if (flt_otel_current_span->ctx_id != NULL)
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : only one context per span is allowed", args[1]);
@@ -1421,6 +1422,10 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		else {
 			const char *ch;
 
+			/*
+			 * When the context name is derived from the span name,
+			 * only the following characters are valid: [A-Za-z_.-].
+			 */
 			ch = invalid_prefix_char(flt_otel_current_span->id);
 			if (ch == NULL)
 				retval = flt_otel_parse_strdup(&(flt_otel_current_span->ctx_id), &(flt_otel_current_span->ctx_id_len), flt_otel_current_span->id, &err, args[0]);

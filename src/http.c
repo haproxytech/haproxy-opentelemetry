@@ -192,7 +192,9 @@ struct otelc_text_map *flt_otel_http_headers_get(struct channel *chn, const char
  * DESCRIPTION
  *   Sets or removes an HTTP header in the channel's HTX buffer.  The full
  *   header name is constructed by combining <prefix> and <name> with a dash
- *   separator; if only one is provided, it is used directly.  All existing
+ *   separator; if only one is provided, it is used directly.  If the first
+ *   character of <prefix> is FLT_OTEL_PARSE_CTX_IGNORE_NAME, the prefix is
+ *   bypassed and only <name> is used as the HTTP header name.  All existing
  *   occurrences of the header are removed first.  If <name> is NULL, all
  *   headers starting with <prefix> are removed.  If <value> is non-NULL, the
  *   header is then added with the new value.  A NULL <value> causes only the
@@ -226,7 +228,12 @@ int flt_otel_http_header_set(struct channel *chn, const char *prefix, const char
 		OTELC_RETURN_INT(retval);
 	}
 
-	if (!OTELC_STR_IS_VALID(prefix)) {
+	/*
+	 * If the first character of <prefix> is FLT_OTEL_PARSE_CTX_IGNORE_NAME,
+	 * the prefix is bypassed and only <name> is used as the HTTP header
+        * name.
+	 */
+	if (!OTELC_STR_IS_VALID(prefix) || (*prefix == FLT_OTEL_PARSE_CTX_IGNORE_NAME)) {
 		ist_name = ist2((char *)name, strlen(name));
 	}
 	else if (!OTELC_STR_IS_VALID(name)) {
