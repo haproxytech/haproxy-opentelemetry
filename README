@@ -209,6 +209,11 @@ instrumentation sections (see section 4.1).  The YAML configuration for the
 OpenTelemetry SDK is a separate file, referenced by the 'config' keyword inside
 the "otel-instrumentation" section (see section 4.2).
 
+Note: only one instance of the OTel filter is currently allowed per HAProxy
+process.  This limitation comes from the OTel C wrapper, which does not yet
+support simultaneous operation with different configurations.  Once that
+capability is added to the wrapper, this restriction will be lifted.
+
 
 4.1 OTel scope
 ---------------
@@ -235,6 +240,12 @@ For example, this defines two OTel scopes in the same configuration file:
 
   [my-second-otel-filter]
     ...
+
+Although several OTel scopes may coexist in a single configuration file, only
+one of them can be activated at a time, because only one instance of the OTel
+filter is currently allowed per HAProxy process.  Once the OTel C wrapper
+supports simultaneous operation with different configurations, this restriction
+will be lifted.
 
 
 4.2. "otel-instrumentation" section

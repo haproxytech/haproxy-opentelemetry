@@ -65,6 +65,11 @@ configuration, in a proxy section (frontend / listen / backend):
 If no filter id is specified, 'otel-filter' is used as default.  The 'config'
 parameter is mandatory and specifies the path to the OTel configuration file.
 
+Note: only one instance of the OTel filter is currently allowed per HAProxy
+process.  This limitation comes from the OTel C wrapper, which does not yet
+support simultaneous operation with different configurations.  Once that
+capability is added to the wrapper, this restriction will be lifted.
+
 Example (from test/sa/haproxy.cfg):
 
   frontend otel-test-sa-frontend
@@ -117,6 +122,12 @@ file:
   [my-second-filter]
       otel-instrumentation instr2
           ...
+
+Although several OTel scopes may coexist in a single configuration file, only
+one of them can be activated at a time, because only one instance of the OTel
+filter is currently allowed per HAProxy process.  Once the OTel C wrapper
+supports simultaneous operation with different configurations, this restriction
+will be lifted.
 
 
 3.2. "otel-instrumentation" section
