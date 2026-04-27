@@ -30,9 +30,10 @@ static struct flt_otel_conf_span  *flt_otel_current_span = NULL;
  *   err_msg - context label used in error messages
  *
  * DESCRIPTION
- *   Duplicates the string <src> into <*dst> with error handling.  Optionally
- *   stores the string length in <dst_len>.  On failure, an error message is
- *   formatted using <err_msg> as context.
+ *   Duplicates the string <src> into <*dst> with error handling.  When
+ *   <dst_len> is not NULL, stores the duplicated string length on success or 0
+ *   on failure.  On failure, an error message is formatted using <err_msg> as
+ *   context.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -42,14 +43,18 @@ static int flt_otel_parse_strdup(char **dst, size_t *dst_len, const char *src, c
 {
 	int retval = ERR_NONE;
 
-	OTELC_FUNC("%p:%p, %p, %p, %p:%p, \"%s\"", OTELC_DPTR_ARGS(dst), dst_len, src, OTELC_DPTR_ARGS(err), OTELC_STR_ARG(err_msg));
+	OTELC_FUNC("%p:%p, %p, \"%s\", %p:%p, \"%s\"", OTELC_DPTR_ARGS(dst), dst_len, OTELC_STR_ARG(src), OTELC_DPTR_ARGS(err), OTELC_STR_ARG(err_msg));
 
-	/* dst_len is not set if the string has not been copied. */
 	*dst = OTELC_STRDUP(src);
-	if (*dst == NULL)
+	if (*dst == NULL) {
+		if (dst_len != NULL)
+			*dst_len = 0;
+
 		FLT_OTEL_PARSE_ERR_NOMEM(err, err_msg);
-	else if (dst_len != NULL)
+	}
+	else if (dst_len != NULL) {
 		*dst_len = strlen(*dst);
+	}
 
 	OTELC_RETURN_INT(retval);
 }

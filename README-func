@@ -292,8 +292,8 @@ Configuration file parsing for otel-instrumentation, otel-group and otel-scope
 sections.
 
   flt_otel_parse_strdup
-      Duplicates a string with error handling; optionally stores the string
-      length.
+      Duplicates a string with error handling; when requested, stores the
+      duplicated length on success or 0 on failure.
 
   flt_otel_parse_keyword
       Parses a single keyword argument: checks for duplicates and missing
