@@ -1,9 +1,13 @@
-# USE_OTEL      : enable the OpenTelemetry filter
 # OTEL_DEBUG    : compile the OpenTelemetry filter in debug mode
 # OTEL_INC      : force the include path to libopentelemetry-c-wrapper
 # OTEL_LIB      : force the lib path to libopentelemetry-c-wrapper
 # OTEL_RUNPATH  : add libopentelemetry-c-wrapper RUNPATH to haproxy executable
 # OTEL_USE_VARS : allows the use of variables for the OpenTelemetry context
+
+# Absolute path to the directory holding *this* Makefile.inc; resolved at
+# include time so that all source / header references work regardless of the
+# directory make was invoked from.
+OTEL_DIR      := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 
 OTEL_DEFINE    =
 OTEL_CFLAGS    =
@@ -52,21 +56,21 @@ $(error OpenTelemetry C wrapper : can't find library)
 endif
 
 OPTIONS_OBJS += \
-	addons/otel/src/cli.o    \
-	addons/otel/src/conf.o   \
-	addons/otel/src/event.o  \
-	addons/otel/src/filter.o \
-	addons/otel/src/group.o  \
-	addons/otel/src/http.o   \
-	addons/otel/src/otelc.o  \
-	addons/otel/src/parser.o \
-	addons/otel/src/pool.o   \
-	addons/otel/src/scope.o  \
-	addons/otel/src/util.o
+	$(OTEL_DIR)/src/cli.o    \
+	$(OTEL_DIR)/src/conf.o   \
+	$(OTEL_DIR)/src/event.o  \
+	$(OTEL_DIR)/src/filter.o \
+	$(OTEL_DIR)/src/group.o  \
+	$(OTEL_DIR)/src/http.o   \
+	$(OTEL_DIR)/src/otelc.o  \
+	$(OTEL_DIR)/src/parser.o \
+	$(OTEL_DIR)/src/pool.o   \
+	$(OTEL_DIR)/src/scope.o  \
+	$(OTEL_DIR)/src/util.o
 
 ifneq ($(OTEL_USE_VARS:0=),)
 OTEL_DEFINE  += -DUSE_OTEL_VARS
-OPTIONS_OBJS += addons/otel/src/vars.o
+OPTIONS_OBJS += $(OTEL_DIR)/src/vars.o
 
 # Auto-detect whether struct var has a 'name' member.  When present,
 # prefix-based variable scanning can be used instead of the tracking
@@ -77,4 +81,10 @@ OTEL_DEFINE += -DUSE_OTEL_VARS_NAME
 endif
 endif
 
-OTEL_CFLAGS := $(OTEL_CFLAGS) -Iaddons/otel/include $(OTEL_DEFINE)
+OTEL_CFLAGS := $(OTEL_CFLAGS) -I$(OTEL_DIR)/include $(OTEL_DEFINE)
+
+# OTEL is no longer part of haproxy's use_opts list, so $(collect_opts_flags)
+# would not pick these up automatically.  Inject them ourselves; this include
+# runs before COPTS / LDOPTS are assembled.
+OPTIONS_CFLAGS  += $(OTEL_CFLAGS)
+OPTIONS_LDFLAGS += $(OTEL_LDFLAGS)
