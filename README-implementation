@@ -87,6 +87,8 @@ Build options:
   OTEL_INC=<path>   Manual include path for the C wrapper.
   OTEL_LIB=<path>   Manual library path for the C wrapper.
   OTEL_RUNPATH=1    Embed RPATH to the wrapper library.
+  OTEL_STATIC=1     Pass --static to pkg-config so OTEL_LDFLAGS picks up the
+                    full Libs.private chain; needed for static linking.
 
 Compiled objects (11 always, 12 with OTEL_USE_VARS):
 

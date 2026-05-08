@@ -57,6 +57,7 @@ make -j8 USE_OTEL=1 OTEL_INC=/opt/include OTEL_LIB=/opt/lib TARGET=linux-glibc
 | `OTEL_INC`      | Force path to opentelemetry-c-wrapper include files |
 | `OTEL_LIB`      | Force path to opentelemetry-c-wrapper library       |
 | `OTEL_RUNPATH`  | Add opentelemetry-c-wrapper RUNPATH to executable   |
+| `OTEL_STATIC`   | Pass --static to pkg-config for static linking      |
 | `OTEL_USE_VARS` | Enable context propagation via HAProxy variables    |
 
 #### Debug mode

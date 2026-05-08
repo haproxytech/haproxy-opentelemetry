@@ -150,6 +150,7 @@ A summary of all OTel build options:
   OTEL_INC      - force path to opentelemetry-c-wrapper include files
   OTEL_LIB      - force path to opentelemetry-c-wrapper library
   OTEL_RUNPATH  - add opentelemetry-c-wrapper RUNPATH to executable
+  OTEL_STATIC   - pass --static to pkg-config for static linking
   OTEL_USE_VARS - enable context propagation via HAProxy variables
 
 

@@ -2,6 +2,7 @@
 # OTEL_INC      : force the include path to libopentelemetry-c-wrapper
 # OTEL_LIB      : force the lib path to libopentelemetry-c-wrapper
 # OTEL_RUNPATH  : add libopentelemetry-c-wrapper RUNPATH to haproxy executable
+# OTEL_STATIC   : pass --static to pkg-config (for static linking only)
 # OTEL_USE_VARS : allows the use of variables for the OpenTelemetry context
 
 # Absolute path to the directory holding *this* Makefile.inc; resolved at
@@ -41,7 +42,8 @@ endif
 endif
 
 ifeq ($(OTEL_LIB),)
-OTEL_LDFLAGS = $(shell pkg-config --silence-errors --libs $(OTELC_WRAPPER)$(OTEL_DEBUG_EXT))
+OTEL_PKG_STATIC = $(if $(OTEL_STATIC:0=),--static,)
+OTEL_LDFLAGS = $(shell pkg-config --silence-errors $(OTEL_PKG_STATIC) --libs $(OTELC_WRAPPER)$(OTEL_DEBUG_EXT))
 else
 ifneq ($(wildcard $(OTEL_LIB)/lib$(OTELC_WRAPPER).*),)
 OTEL_LDFLAGS = -L$(OTEL_LIB) -l$(OTELC_WRAPPER)$(OTEL_DEBUG_EXT)
