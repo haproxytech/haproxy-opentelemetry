@@ -90,3 +90,22 @@ OTEL_CFLAGS := $(OTEL_CFLAGS) -I$(OTEL_DIR)/include $(OTEL_DEFINE)
 # runs before COPTS / LDOPTS are assembled.
 OPTIONS_CFLAGS  += $(OTEL_CFLAGS)
 OPTIONS_LDFLAGS += $(OTEL_LDFLAGS)
+
+# Hook into haproxy's 'clean' target.  A rule without a recipe only adds
+# prerequisites, so this extends haproxy's clean instead of colliding with its
+# recipe.  The actual cleanup lives in the phony 'otel-clean' target.
+#
+# This fragment is included before haproxy's own first target ('all:'), so any
+# rule below would otherwise become Make's default goal and a bare 'make' would
+# run that rule instead of building.  Clearing .DEFAULT_GOAL after all rules
+# re-enables auto-selection, letting haproxy's 'all:' claim the default.
+clean: otel-clean
+
+.PHONY: otel-clean
+otel-clean:
+	$(Q)rm -f $(OTEL_DIR)/src/*.[oas]
+	$(Q)rm -f $(OTEL_DIR)/src/*~ $(OTEL_DIR)/src/*.rej
+	$(Q)rm -f $(OTEL_DIR)/include/*~ $(OTEL_DIR)/include/*.rej
+	$(Q)rm -f $(OTEL_DIR)/core $(OTEL_DIR)/test/core
+
+.DEFAULT_GOAL :=
