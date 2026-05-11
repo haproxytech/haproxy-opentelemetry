@@ -182,7 +182,7 @@ static void flt_otel_log_handler_cb(otelc_log_level_t level __maybe_unused, cons
  */
 static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
 {
-	char cwd[PATH_MAX], path[PATH_MAX];
+	char cwd[PATH_MAX], path[PATH_MAX], *path_ptr = path;
 	int  rc, retval = FLT_OTEL_RET_ERROR;
 
 	OTELC_FUNC("%p, %p:%p", instr, OTELC_DPTR_ARGS(err));
@@ -201,20 +201,24 @@ static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
 
 	flt_otel_pool_info();
 
-	if (getcwd(cwd, sizeof(cwd)) == NULL) {
-		FLT_OTEL_ERR("failed to get current working directory");
+	if (*(instr->config) == '/') {
+		path_ptr = instr->config;
+	} else {
+		if (getcwd(cwd, sizeof(cwd)) == NULL) {
+			FLT_OTEL_ERR("failed to get current working directory");
 
-		OTELC_RETURN_INT(retval);
+			OTELC_RETURN_INT(retval);
+		}
+
+		rc = snprintf(path, sizeof(path), "%s/%s", cwd, instr->config);
+		if ((rc == -1) || (rc >= sizeof(path))) {
+			FLT_OTEL_ERR("failed to construct the OpenTelemetry configuration path");
+
+			OTELC_RETURN_INT(retval);
+		}
 	}
 
-	rc = snprintf(path, sizeof(path), "%s/%s", cwd, instr->config);
-	if ((rc == -1) || (rc >= sizeof(path))) {
-		FLT_OTEL_ERR("failed to construct the OpenTelemetry configuration path");
-
-		OTELC_RETURN_INT(retval);
-	}
-
-	if (otelc_init(path, err) == OTELC_RET_ERROR) {
+	if (otelc_init(path_ptr, err) == OTELC_RET_ERROR) {
 		if (*err == NULL)
 			FLT_OTEL_ERR("%s", "failed to initialize tracing library");
 
