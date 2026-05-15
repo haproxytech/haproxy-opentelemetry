@@ -905,6 +905,17 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 					retval++;
 				}
 			}
+
+			/*
+			 * The event id and event name must either both be
+			 * unset or both be set; any other combination is a
+			 * configuration error.
+			 */
+			if ((conf_log->event_id == 0) != (conf_log->event_name == NULL)) {
+				FLT_OTEL_ALERT("'" FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : log-record must define both event id and event name, or neither'", conf_scope->id);
+
+				retval++;
+			}
 		}
 	}
 
