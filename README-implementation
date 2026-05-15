@@ -1166,9 +1166,11 @@ keyword.  Each entry's key field holds the attribute name and its sample
 expressions are evaluated at runtime, following the same two-path model
 (bare sample or log-format) as span attributes.
 
-The samples list contains exactly one flt_otel_conf_sample entry, which
-in turn holds either a list of bare sample expressions or a single
-log-format expression (when the value contains "%[").
+The samples list contains exactly one flt_otel_conf_sample entry, which holds
+either a list of bare sample expressions or a single log-format expression.  The
+log-format path is selected when the value begins with the "%[" sequence; an
+explicit '%[ ... ]' wrapper is then stripped before parsing so the inner string
+may use HAProxy log-format aliases such as %ci, %t or %ft.
 
 18.6.2  Log Record Emission
 

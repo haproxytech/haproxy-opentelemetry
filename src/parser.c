@@ -322,12 +322,20 @@ static int flt_otel_parse_cfg_sample_expr(const char *file, int line, char **arg
  *   via flt_otel_conf_sample_init_ex() with the optional <extra> data (an
  *   event name or a status code), then the sample expressions are parsed.
  *
- *   When <args>[<idx>] contains the "%[" sequence, the argument is parsed
+ *   When <args>[<idx>] begins with the "%[" sequence, the argument is parsed
  *   as a log-format string via parse_logformat_string(): the lf_used flag
  *   is set and the result is stored in the lf_expr member while the exprs
  *   list remains empty.  Otherwise the arguments are treated as bare sample
  *   expressions: the proxy configuration context is set and the function
  *   calls flt_otel_parse_cfg_sample_expr() in a loop to populate exprs.
+ *
+ *   An explicit '%[ ... ]' wrapper around the entire argument is treated as
+ *   a marker that the inner string is itself a log-format string (containing
+ *   aliases such as %ci, %ft, ...).  The wrapper is stripped before passing
+ *   the inner string to parse_logformat_string(): without this, the leading
+ *   '%[' would be parsed as the start of a sample expression embed and the
+ *   inner content (which is a log-format string rather than a single sample
+ *   expression) would fail to parse.
  *
  *   When <n> is 0 all remaining valid arguments are consumed; otherwise at
  *   most <n> expressions are parsed.  On error the allocated conf_sample
@@ -352,17 +360,48 @@ static int flt_otel_parse_cfg_sample(const char *file, int line, char **args, in
 	if (retval & ERR_CODE) {
 		/* Do nothing. */
 	}
-	else if (strstr(args[idx], "%[") != NULL) {
+	else if ((args[idx][0] == '%') && (args[idx][1] == '[')) {
 		/*
 		 * Log-format path: parse the single argument as a log-format
 		 * string into the sample structure.
 		 */
+		const char *lf_str = args[idx];
+		char       *lf_buf = NULL;
+		size_t      lf_len = strlen(lf_str);
+
 		sample->lf_used = 1;
 
-		if (parse_logformat_string(args[idx], flt_otel_current_config->proxy, &(sample->lf_expr), LOG_OPT_HTTP, SMP_VAL_FE_LOG_END, err) == 0)
-			retval |= ERR_ABORT | ERR_ALERT;
-		else
-			OTELC_DBG(DEBUG, "sample '%s' -> log-format '%s' added", sample->key, sample->fmt_string);
+		/*
+		 * An explicit '%[ ... ]' wrapper marks the inner string as a
+		 * HAProxy log-format string (with aliases like %ci, %ft) rather
+		 * than a single sample expression embed.  Without the strip,
+		 * parse_logformat_string() would treat the outer '%[' as the
+		 * start of a sample expression and fail.
+		 */
+		if ((lf_len >= 4) && (lf_str[lf_len - 1] == ']') && (memchr(lf_str + 2, '%', lf_len - 3) != NULL)) {
+			lf_buf = OTELC_STRNDUP(lf_str + 2, lf_len - 3);
+			if (lf_buf == NULL)
+				FLT_OTEL_PARSE_ERR(err, "'%s' : out of memory", args[0]);
+			else
+				lf_str = lf_buf;
+		}
+
+		if (!(retval & ERR_CODE)) {
+			/*
+			 * LOG_OPT_HTTP is incompatible with LOG_OPT_ENCODE
+			 * (see include/haproxy/log-t.h): if both flags reach
+			 * postcheck, the encoding flag is silently stripped,
+			 * which makes '%{+json}o' and '%{+cbor}o' produce plain
+			 * text instead of JSON/CBOR.  Pass LOG_OPT_NONE so the
+			 * encoding directive survives.
+			 */
+			if (parse_logformat_string(lf_str, flt_otel_current_config->proxy, &(sample->lf_expr), LOG_OPT_NONE, SMP_VAL_FE_LOG_END, err) == 0)
+				retval |= ERR_ABORT | ERR_ALERT;
+			else
+				OTELC_DBG(DEBUG, "sample '%s' -> log-format '%s' added", sample->key, sample->fmt_string);
+		}
+
+		OTELC_FREE(lf_buf);
 	}
 	else {
 		/*

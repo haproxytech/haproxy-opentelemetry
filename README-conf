@@ -246,11 +246,14 @@ evaluated at runtime.
 The extra field carries type-specific data: event name strings (OTELC_VALUE_DATA)
 for span events, status code integers (OTELC_VALUE_INT32) for span statuses.
 
-When the sample value argument contains the "%[" sequence, the parser treats
+When the sample value argument begins with the "%[" sequence, the parser treats
 it as a log-format string: the lf_used flag is set and the compiled result is
-stored in lf_expr, while the exprs list remains empty.  At runtime, if lf_used
-is true, the log-format expression is evaluated via build_logline() instead of
-the sample expression list.
+stored in lf_expr, while the exprs list remains empty.  An explicit '%[ ... ]'
+wrapper around the entire argument marks the inner string as a log-format string
+that may itself contain HAProxy aliases such as %ci, %t or %ft; the outer '%['
+and trailing ']' are stripped before parse_logformat_string() is called.  At
+runtime, if the lf_used flag is true, the log-format expression is evaluated
+via build_logline() instead of the sample expression list.
 
 4.10  flt_otel_conf_sample_expr
 

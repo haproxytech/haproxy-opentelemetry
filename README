@@ -696,7 +696,9 @@ log-record <severity> [id <integer>] [event <name>] [span <span-name>] [attr <ke
 
   The remaining arguments at the end are sample fetch expressions.  A single
   sample preserves its native type; multiple samples are concatenated as a
-  string.
+  string.  Alternatively, the body may be a HAProxy log-format string wrapped
+  in '%[ ... ]'; the outer wrapper is stripped before parsing, and the inner
+  string may then contain log-format aliases such as %ci, %t or %ft.
 
   Supported severity levels follow the OpenTelemetry specification:
     trace, trace2, trace3, trace4, debug, debug2, debug3, debug4,
@@ -712,6 +714,7 @@ log-record <severity> [id <integer>] [event <name>] [span <span-name>] [attr <ke
     log-record info id 1001 event "http-request" span "Frontend HTTP request" attr "http.method" method method url
     log-record trace id 1000 event "session-start" span "Client session" attr "src_ip" src src str(":") src_port
     log-record warn event "server-unavailable" str("503 Service Unavailable")
+    log-record info id 1002 event "server-session-end" "%[%ci:%cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts]"
 
   Arguments :
     severity - the log severity level (see list above)

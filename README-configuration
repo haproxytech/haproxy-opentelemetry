@@ -389,7 +389,10 @@ Supported keywords:
 
       The remaining arguments at the end are sample fetch expressions that form
       the log record body.  A single sample preserves its native type; multiple
-      samples are concatenated as a string.
+      samples are concatenated as a string.  The body may also be a HAProxy
+      log-format string wrapped in '%[ ... ]'; the outer wrapper is stripped
+      before parsing, and the inner string may then contain log-format aliases
+      such as %ci, %t or %ft.
 
       Supported severity levels follow the OpenTelemetry specification:
         trace, trace2, trace3, trace4
@@ -410,6 +413,7 @@ Supported keywords:
         log-record trace id 1000 event "session-start" span "Client session" attr "src_ip" src attr "src_port" src_port src str(":") src_port
         log-record warn event "server-unavailable" str("503 Service Unavailable")
         log-record info event "session-stop" str("stream stopped")
+        log-record info id 1002 event "server-session-end" "%[%ci:%cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts]"
 
 
   acl <aclname> <criterion> [flags] [operator] <value> ...
