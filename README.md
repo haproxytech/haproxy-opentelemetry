@@ -33,43 +33,50 @@ library, which wraps the OpenTelemetry C++ SDK.
 
 ### Building
 
-The OTel filter is compiled together with HAProxy by adding `USE_OTEL=1` to the
-make command.
+The OTel filter is built as a standalone addon outside the HAProxy source tree
+and is plugged into the HAProxy build via the `EXTRA_MAKE` variable, which lists
+directories whose `Makefile.mk` fragments are included by the HAProxy top-level
+Makefile.  The OTel addon's `Makefile.mk` sits at the top of this source tree,
+so `EXTRA_MAKE` must point to that directory.
+
+The examples below assume that the OTel addon checkout sits next to the HAProxy
+source tree and that `make` is run from the HAProxy directory, referencing the
+addon as `../haproxy-opentelemetry`.  Adjust the path if your layout differs.
 
 #### Using pkg-config
 
 ```
-PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 USE_OTEL=1 TARGET=linux-glibc
+PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry"
 ```
 
 #### Explicit paths
 
 ```
-make -j8 USE_OTEL=1 OTEL_INC=/opt/include OTEL_LIB=/opt/lib TARGET=linux-glibc
+make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_INC=/opt/include OTEL_LIB=/opt/lib
 ```
 
 #### Build options
 
-| Variable        | Description                                         |
-|-----------------|-----------------------------------------------------|
-| `USE_OTEL`      | Enable the OpenTelemetry filter                     |
-| `OTEL_DEBUG`    | Compile in debug mode                               |
-| `OTEL_INC`      | Force path to opentelemetry-c-wrapper include files |
-| `OTEL_LIB`      | Force path to opentelemetry-c-wrapper library       |
-| `OTEL_RUNPATH`  | Add opentelemetry-c-wrapper RUNPATH to executable   |
-| `OTEL_STATIC`   | Pass --static to pkg-config for static linking      |
-| `OTEL_USE_VARS` | Enable context propagation via HAProxy variables    |
+| Variable        | Description                                           |
+|-----------------|-------------------------------------------------------|
+| `EXTRA_MAKE`    | Path to the OTel addon directory (enables the filter) |
+| `OTEL_DEBUG`    | Compile in debug mode                                 |
+| `OTEL_INC`      | Force path to opentelemetry-c-wrapper include files   |
+| `OTEL_LIB`      | Force path to opentelemetry-c-wrapper library         |
+| `OTEL_RUNPATH`  | Add opentelemetry-c-wrapper RUNPATH to executable     |
+| `OTEL_STATIC`   | Pass --static to pkg-config for static linking        |
+| `OTEL_USE_VARS` | Enable context propagation via HAProxy variables      |
 
 #### Debug mode
 
 ```
-PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 USE_OTEL=1 OTEL_DEBUG=1 TARGET=linux-glibc
+PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_DEBUG=1
 ```
 
 #### Variable-based context propagation
 
 ```
-PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 USE_OTEL=1 OTEL_USE_VARS=1 TARGET=linux-glibc
+PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_USE_VARS=1
 ```
 
 #### Verifying the build
@@ -95,7 +102,7 @@ LD_LIBRARY_PATH=/opt/lib ./haproxy ...
 ```
 
 ```
-make -j8 USE_OTEL=1 OTEL_RUNPATH=1 OTEL_INC=/opt/include OTEL_LIB=/opt/lib TARGET=linux-glibc
+make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_INC=/opt/include OTEL_LIB=/opt/lib OTEL_RUNPATH=1
 ```
 
 ### Configuration

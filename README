@@ -79,6 +79,16 @@ we want to compile or use HAProxy.
 Instructions for compiling and installing the required library can be found at
 https://github.com/haproxytech/opentelemetry-c-wrapper .
 
+The OTel filter is built as a standalone addon outside the HAProxy source tree
+and is plugged into the HAProxy build via the EXTRA_MAKE variable, which lists
+directories whose Makefile.mk fragments are included by the HAProxy top-level
+Makefile.  The OTel addon's Makefile.mk sits at the top of this source tree, so
+EXTRA_MAKE must point to that directory.
+
+The examples below assume that the OTel addon checkout sits next to the HAProxy
+source tree and that make is run from the HAProxy directory, referencing the
+addon as "../haproxy-opentelemetry".  Adjust the path if your layout differs.
+
 The OTel filter can be more easily compiled using the pkg-config tool, if we
 have the OpenTelemetry C Wrapper library installed so that it contains
 pkg-config files (which have the .pc extension).  If the pkg-config tool cannot
@@ -96,25 +106,25 @@ Note: prompt '%' indicates that the command is executed under an unprivileged
 Example of compiling HAProxy using the pkg-config tool (assuming the
 OpenTelemetry C Wrapper library is installed in the /opt directory):
 
-  % PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 USE_OTEL=1 TARGET=linux-glibc
+  % PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry"
 
 The OTel filter can also be compiled in debug mode as follows:
 
-  % PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 USE_OTEL=1 OTEL_DEBUG=1 TARGET=linux-glibc
+  % PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_DEBUG=1
 
 HAProxy compilation example explicitly specifying path to the OpenTelemetry C
 Wrapper include and library:
 
-  % make -j8 USE_OTEL=1 OTEL_INC=/opt/include OTEL_LIB=/opt/lib TARGET=linux-glibc
+  % make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_INC=/opt/include OTEL_LIB=/opt/lib
 
 In case we want to use debug mode, then it looks like this:
 
-  % make -j8 USE_OTEL=1 OTEL_DEBUG=1 OTEL_INC=/opt/include OTEL_LIB=/opt/lib TARGET=linux-glibc
+  % make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_INC=/opt/include OTEL_LIB=/opt/lib OTEL_DEBUG=1
 
 To enable OpenTelemetry context propagation via HAProxy variables (in addition
 to HTTP headers), add the OTEL_USE_VARS=1 option:
 
-  % PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 USE_OTEL=1 OTEL_USE_VARS=1 TARGET=linux-glibc
+  % PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_USE_VARS=1
 
 If the library we want to use is not installed on a unix system, then a locally
 installed library can be used (say, which is compiled and installed in the user
@@ -134,18 +144,19 @@ library is located before starting the HAProxy.
 Another way is to add RUNPATH to HAProxy executable that contains the path to
 the library in question.
 
-  % make -j8 USE_OTEL=1 OTEL_RUNPATH=1 OTEL_INC=/opt/include OTEL_LIB=/opt/lib TARGET=linux-glibc
+  % make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_INC=/opt/include OTEL_LIB=/opt/lib OTEL_RUNPATH=1
 
 After HAProxy is compiled, we can check if the OTel filter is enabled:
 
-  % ./haproxy -vv | grep opentelemetry
+  % ./haproxy -vv | grep -i opentelemetry
   --- command output ----------
-          [  OTel] opentelemetry
+  Built with OpenTelemetry support (C++ version 1.26.0, C Wrapper version 1.0.0-842).
+          [OTEL] opentelemetry
   --- command output ----------
 
 A summary of all OTel build options:
 
-  USE_OTEL      - enable the OpenTelemetry filter
+  EXTRA_MAKE    - path to the OTel addon directory (enables the filter)
   OTEL_DEBUG    - compile the filter in debug mode
   OTEL_INC      - force path to opentelemetry-c-wrapper include files
   OTEL_LIB      - force path to opentelemetry-c-wrapper library

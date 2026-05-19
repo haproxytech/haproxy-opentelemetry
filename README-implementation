@@ -11,16 +11,16 @@ The filter hooks into the HAProxy stream processing pipeline through the
 filter API and maps HAProxy channel analyzer events to OpenTelemetry span
 lifecycle operations, metric recordings and log-record emissions.
 
-The implementation is located entirely under addons/otel/ and consists of
-header files, C source files, a Makefile, and a set of test configurations
+The implementation lives at the top of this addon checkout, consisting of header
+files, C source files, a Makefile.mk fragment, and a set of test configurations
 with runner scripts.
 
 
 2  Directory Structure
 ----------------------------------------------------------------------
 
-  addons/otel/
-  |-- Makefile           Build integration (USE_OTEL option)
+  haproxy-opentelemetry/
+  |-- Makefile.mk        Build integration (loaded via EXTRA_MAKE)
   |-- include/
   |   |-- include.h      Master include (pulls all headers)
   |   |-- config.h       Build-time tunables (pool sizes, limits)
@@ -70,13 +70,16 @@ with runner scripts.
 3  Build System
 ----------------------------------------------------------------------
 
-The Makefile is included from the main HAProxy build when USE_OTEL is set.
-It detects the opentelemetry-c-wrapper library via pkg-config or manual
-OTEL_INC/OTEL_LIB paths.
+The Makefile.mk fragment is pulled in by the HAProxy top-level Makefile via the
+EXTRA_MAKE variable, which lists addon directories whose Makefile.mk fragments
+are included unconditionally.  The fragment detects the opentelemetry-c-wrapper
+library via pkg-config or manual OTEL_INC/OTEL_LIB paths.
 
 Build options:
 
-  USE_OTEL=1        Enable the filter (required).
+  EXTRA_MAKE=<path> Addon directory containing Makefile.mk.  Listing this
+                    directory is what enables the filter.  Multiple directories
+                    may be passed, space-separated.
   OTEL_DEBUG=1      Compile with DEBUG_OTEL; links the _dbg variant of the
                     wrapper library and enables additional debug callbacks in
                     filter.c (stream_set_backend, http_headers, http_payload,
