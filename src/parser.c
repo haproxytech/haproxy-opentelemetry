@@ -1715,7 +1715,7 @@ static int flt_otel_parse_cfg(struct flt_otel_conf *conf, const char *flt_name, 
 		 * and replaced with a fresh one before parsing.  The OTel
 		 * config parser adds only ARGC_OTEL entries to the new list.
 		 * After parsing, those entries are moved to conf->smp_args and
-		 * resolved later in flt_otel_check(), which runs after all
+		 * resolved later in flt_otel_ops_check(), which runs after all
 		 * configuration sections have been parsed so that backends and
 		 * servers are available.
 		 */

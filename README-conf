@@ -98,7 +98,7 @@ threaded through the FLT_OTEL_CONF_HDR embedded in each child structure.
 
 The flt_otel_conf_ph structure serves as an indirection node.  During parsing,
 placeholder entries record names of groups and scopes.  At check time
-(flt_otel_check), these names are resolved to pointers to the actual
+(flt_otel_ops_check), these names are resolved to pointers to the actual
 flt_otel_conf_group or flt_otel_conf_scope structures via the ptr field.
 Two type aliases exist for clarity:
 
