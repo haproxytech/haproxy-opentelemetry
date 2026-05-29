@@ -653,8 +653,11 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	 * Checking that defined 'otel-group' sections are not empty.
 	 */
 	list_for_each_entry(conf_group, &(conf->groups), list)
-		if (LIST_ISEMPTY(&(conf_group->ph_scopes)))
+		if (LIST_ISEMPTY(&(conf_group->ph_scopes))) {
 			FLT_OTEL_ALERT("''%s' : " FLT_OTEL_PARSE_SECTION_GROUP_ID " '%s' has no scopes'", conf->id, conf_group->id);
+
+			retval++;
+		}
 
 	/*
 	 * Checking that all defined 'otel-group' sections have correctly declared
