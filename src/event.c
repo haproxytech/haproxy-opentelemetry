@@ -476,7 +476,7 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 		list_for_each_entry(link, &(data->links), list) {
 			OTELC_DBG(DEBUG, "adding link %p %p", link->span, link->context);
 
-			if (OTELC_OPS(span->span, add_link, link->span, link->context, NULL, 0) == -1)
+			if (OTELC_OPS(span->span, add_link, link->span, link->context, link->attributes.attr, link->attributes.cnt) == -1)
 				retval = FLT_OTEL_RET_ERROR;
 		}
 	}
@@ -858,6 +858,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 				struct otelc_span_context       *link_ctx = NULL;
 				struct flt_otel_scope_span      *sc_span;
 				struct flt_otel_scope_context   *sc_ctx;
+				struct flt_otel_conf_sample     *conf_attr;
 
 				/* Try to find a matching span first. */
 				list_for_each_entry(sc_span, &(rt_ctx->spans), list)
@@ -892,6 +893,11 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 
 				data_link->span    = link_span;
 				data_link->context = link_ctx;
+
+				list_for_each_entry(conf_attr, &(conf_link->attributes), list)
+					if (flt_otel_sample_add_attr(s, dir, conf_attr, &(data_link->attributes), err) == FLT_OTEL_RET_ERROR)
+						retval = FLT_OTEL_RET_ERROR;
+
 				LIST_APPEND(&(data.links), &(data_link->list));
 
 				OTELC_DBG(DEBUG, "resolved link '%s' -> %p %p", conf_link->ref, link_span, link_ctx);

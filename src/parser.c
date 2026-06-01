@@ -1597,9 +1597,37 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		}
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_LINK) {
-		for (i = 1; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++)
-			if (flt_otel_conf_link_init(args[i], line, &(flt_otel_current_span->links), &err) == NULL)
+		if (!FLT_OTEL_PARSE_KEYWORD(2, FLT_OTEL_PARSE_LINK_ATTR)) {
+			/* One or more bare link names, without attributes. */
+			for (i = 1; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++)
+				if (flt_otel_conf_link_init(args[i], line, &(flt_otel_current_span->links), &err) == NULL)
+					retval |= ERR_ABORT | ERR_ALERT;
+		}
+		else if (!FLT_OTEL_ARG_ISVALID(3)) {
+			FLT_OTEL_PARSE_ERR(&err, "'%s' : too few arguments (use '%s%s')", args[2], pdata->name, pdata->usage);
+		}
+		else {
+			struct flt_otel_conf_link *conf_link;
+
+			/*
+			 * A single link to args[1] followed by 'attr <key>
+			 * <sample>' attribute pairs.
+			 */
+			conf_link = flt_otel_conf_link_init(args[1], line, &(flt_otel_current_span->links), &err);
+			if (conf_link == NULL) {
 				retval |= ERR_ABORT | ERR_ALERT;
+			} else {
+				for (i = 3; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++) {
+					if (!FLT_OTEL_ARG_ISVALID(i + 1)) {
+						FLT_OTEL_PARSE_ERR(&err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+					} else {
+						retval = flt_otel_parse_cfg_sample(file, line, args, i + 1, 1, NULL, &(conf_link->attributes), &err);
+						if (!(retval & ERR_CODE))
+							i++;
+					}
+				}
+			}
+		}
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_ATTRIBUTE) {
 		retval = flt_otel_parse_cfg_sample(file, line, args, 2, 0, NULL, &(flt_otel_current_span->attributes), &err);

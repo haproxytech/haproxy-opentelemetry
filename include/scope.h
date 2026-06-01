@@ -70,9 +70,10 @@ struct flt_otel_scope_data_event {
 
 /* Span link referencing another span or span context. */
 struct flt_otel_scope_data_link {
-	struct otelc_span         *span;    /* Linked span, or NULL. */
-	struct otelc_span_context *context; /* Linked span context, or NULL. */
-	struct list                list;    /* Used to chain this structure. */
+	struct otelc_span             *span;       /* Linked span, or NULL. */
+	struct otelc_span_context     *context;    /* Linked span context, or NULL. */
+	struct flt_otel_scope_data_kv  attributes; /* Resolved link attributes. */
+	struct list                    list;       /* Used to chain this structure. */
 };
 
 /* Span status code and description. */

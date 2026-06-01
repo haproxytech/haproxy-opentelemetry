@@ -21,6 +21,7 @@
 #define FLT_OTEL_PARSE_SPAN_PARENT            "parent"
 #define FLT_OTEL_PARSE_SPAN_LINK              "link"
 #define FLT_OTEL_PARSE_SPAN_KIND              "kind"
+#define FLT_OTEL_PARSE_LINK_ATTR              "attr"
 #define FLT_OTEL_PARSE_INSTRUMENT_DESC        "desc"
 #define FLT_OTEL_PARSE_INSTRUMENT_VALUE       "value"
 #define FLT_OTEL_PARSE_INSTRUMENT_ATTR        "attr"
@@ -129,7 +130,7 @@
 #define FLT_OTEL_PARSE_SCOPE_DEFINES                                                                                                                                           \
 	FLT_OTEL_PARSE_SCOPE_DEF(          ID, 0, CHAR, 2, 2, "otel-scope",   " <name>")                                                                                       \
 	FLT_OTEL_PARSE_SCOPE_DEF(        SPAN, 0, NONE, 2, 9, "span",         " <name> [parent <ref>] [link <ref>] [root] [kind <kind>]")                                      \
-	FLT_OTEL_PARSE_SCOPE_DEF(        LINK, 1, NONE, 2, 0,   "link",       " <ref> ...")                                                                                    \
+	FLT_OTEL_PARSE_SCOPE_DEF(        LINK, 1, NONE, 2, 0,   "link",       " { <ref> ... | <ref> attr <key> <sample> ... }")                                                \
 	FLT_OTEL_PARSE_SCOPE_DEF(   ATTRIBUTE, 1, NONE, 3, 0,   "attribute",  " <key> <sample> ...")                                                                           \
 	FLT_OTEL_PARSE_SCOPE_DEF(       EVENT, 1, NONE, 4, 0,   "event",      " <name> [time [<unit>] <sample>] <key> <sample> ...")                                           \
 	FLT_OTEL_PARSE_SCOPE_DEF(     BAGGAGE, 1,  VAR, 3, 0,   "baggage",    " <key> <sample> ...")                                                                           \

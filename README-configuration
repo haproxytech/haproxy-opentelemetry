@@ -286,13 +286,20 @@ Supported keywords:
         status "error" str("http.status_code: ") status
 
 
-  link <ref> ...
+  link { <ref> ... | <ref> attr <key> <sample> ... }
       Add non-hierarchical links to the currently active span.  Multiple span
       or context names can be specified.  Use this keyword for multiple links
       (the inline 'link' in 'span' is limited to one).
 
-      Example:
+      A single link may carry attributes: when 'attr' follows the one span
+      name, the rest of the line is <key> <sample> pairs, each a single sample
+      expression.  Link attributes require this standalone keyword.
+      Because 'attr' right after the first name selects this form, a link
+      target in that position cannot itself be the literal word 'attr'.
+
+      Examples:
         link "HAProxy session" "Client session"
+        link "HAProxy session" attr "link.kind" str("follows_from")
 
 
   inject <name-prefix> [use-vars] [use-headers]

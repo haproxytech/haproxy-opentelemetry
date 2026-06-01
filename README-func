@@ -699,6 +699,11 @@ Utility and conversion functions.
       Adds a sample value as a key-value attribute or baggage entry.
       Dynamically grows the key-value array.
 
+  flt_otel_sample_add_attr
+      Evaluates a sample definition and appends the result to a given key-value
+      array.  Used for attributes not held in the scope data directly, such as
+      span link attributes.
+
   flt_otel_sample_eval
       Evaluates all sample expressions for a configured sample definition and
       stores the result in an otelc_value.  Supports both log-format and bare

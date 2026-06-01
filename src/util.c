@@ -1422,6 +1422,51 @@ int flt_otel_ctx_field_to_str(const struct otelc_span *span, const struct otelc_
 	OTELC_RETURN_INT(retval);
 }
 
+
+/***
+ * NAME
+ *   flt_otel_sample_add_attr - sample evaluation into a key-value array
+ *
+ * SYNOPSIS
+ *   int flt_otel_sample_add_attr(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, struct flt_otel_scope_data_kv *kv, char **err)
+ *
+ * ARGUMENTS
+ *   s      - current stream
+ *   dir    - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
+ *   sample - configured sample definition to evaluate
+ *   kv     - destination key-value array
+ *   err    - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Evaluates <sample>, preserving the native type for a single expression,
+ *   and appends the result to <kv> under the sample key.  Used for attributes
+ *   that are not held in the scope data directly, such as span link
+ *   attributes.  On a storage failure the evaluated value is released.
+ *
+ * RETURN VALUE
+ *   Returns the key-value count on success, or FLT_OTEL_RET_ERROR on failure.
+ */
+int flt_otel_sample_add_attr(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, struct flt_otel_scope_data_kv *kv, char **err)
+{
+	struct otelc_value value;
+	int                retval;
+
+	OTELC_FUNC("%p, %u, %p, %p, %p:%p", s, dir, sample, kv, OTELC_DPTR_ARGS(err));
+
+	retval = flt_otel_sample_eval(s, dir, sample, true, &value, err);
+	if (retval != FLT_OTEL_RET_ERROR) {
+		retval = flt_otel_sample_add_kv(kv, sample->key, &value);
+		if (retval == FLT_OTEL_RET_ERROR) {
+			FLT_OTEL_ERR("out of memory");
+
+			if (value.u_type == OTELC_VALUE_DATA)
+				OTELC_SFREE(value.u.value_data);
+		}
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

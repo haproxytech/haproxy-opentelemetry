@@ -152,7 +152,7 @@ executes all referenced scopes when the rule fires.
       otel-event <event-name> [if|unless <condition>]
       extract <name-prefix> [use-vars | use-headers]
       span <name> [parent <ref>] [link <ref>] [root] [kind <kind>]
-        link <ref> ...
+        link { <ref> ... | <ref> attr <key> <sample> ... }
         attribute <key> <sample> ...
         event <name> [time [<unit>] <sample>] <key> <sample> ...
         baggage <key> <sample> ...
@@ -540,11 +540,12 @@ Two syntaxes are supported:
   Inline (one link per span declaration):
     span <name> [parent <ref>] link <ref> [root]
 
-  Standalone (multiple links, requires a preceding span):
-    link <ref> [<ref> ...]
+  Standalone (multiple links, or one link with attributes):
+    link { <ref> [<ref> ...] | <ref> attr <key> <sample> ... }
 
-The flt_otel_conf_link structure stores each link target name.  Duplicate link
-names within the same span are rejected by the init macro's duplicate check.
+The flt_otel_conf_link structure stores each link target name and, for the
+single-link form, a list of attribute samples.  Duplicate link names within
+the same span are rejected by the init macro's duplicate check.
 The links list is initialized in flt_otel_conf_span_init() and destroyed in
 flt_otel_conf_span_free().
 

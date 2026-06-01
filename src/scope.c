@@ -448,7 +448,7 @@ void flt_otel_scope_data_dump(const struct flt_otel_scope_data *data)
 
 		OTELC_DBG(WORKER, "links %p:{", &(data->links));
 		list_for_each_entry(link, &(data->links), list)
-			OTELC_DBG(WORKER, "  %p %p", link->span, link->context);
+			OTELC_DBG(WORKER, "  %p %p %zu", link->span, link->context, link->attributes.cnt);
 		OTELC_DBG(WORKER, "}");
 	}
 
@@ -532,8 +532,10 @@ void flt_otel_scope_data_free(struct flt_otel_scope_data *ptr)
 		OTELC_SFREE(event);
 	}
 	/* Free all resolved link entries. */
-	list_for_each_entry_safe(link, link_back, &(ptr->links), list)
+	list_for_each_entry_safe(link, link_back, &(ptr->links), list) {
+		otelc_kv_destroy(&(link->attributes.attr), link->attributes.cnt);
 		OTELC_SFREE(link);
+	}
 	OTELC_SFREE(ptr->status.description);
 
 	(void)memset(ptr, 0, sizeof(*ptr));

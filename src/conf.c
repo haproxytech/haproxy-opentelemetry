@@ -117,7 +117,9 @@ FLT_OTEL_CONF_FUNC_FREE(str, str,
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-FLT_OTEL_CONF_FUNC_INIT(link, ref, )
+FLT_OTEL_CONF_FUNC_INIT(link, ref,
+	LIST_INIT(&(retptr->attributes));
+)
 
 
 /***
@@ -138,7 +140,9 @@ FLT_OTEL_CONF_FUNC_INIT(link, ref, )
  *   This function does not return a value.
  */
 FLT_OTEL_CONF_FUNC_FREE(link, ref,
-	FLT_OTEL_DBG_CONF_HDR("- conf_link free ", *ptr, ref);
+	FLT_OTEL_DBG_CONF_LINK("- conf_link free ", *ptr);
+
+	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->attributes));
 )
 
 
