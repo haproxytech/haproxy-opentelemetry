@@ -762,6 +762,16 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 			if (conf_scope->event == FLT_OTEL_EVENT__IDLE_TIMEOUT)
 				if ((conf->instr->idle_timeout == 0) || (conf_scope->idle_timeout < conf->instr->idle_timeout))
 					conf->instr->idle_timeout = conf_scope->idle_timeout;
+
+			/*
+			 * The http_end callback is delivered to data filters
+			 * only, so flag the direction whose channel must
+			 * register one.
+			 */
+			if (conf_scope->event == FLT_OTEL_EVENT_REQ_HTTP_END)
+				conf->instr->flag_data_req = 1;
+			else if (conf_scope->event == FLT_OTEL_EVENT_RES_HTTP_END)
+				conf->instr->flag_data_res = 1;
 		} else {
 			FLT_OTEL_ALERT("''%s' : unused " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s''", conf->id, conf_scope->id);
 
@@ -1403,12 +1413,13 @@ static int flt_otel_ops_channel_start_analyze(struct stream *s, struct filter *f
 	}
 
 	/*
-	 * Data filter registration is intentionally disabled.  The http_payload
-	 * and tcp_payload callbacks are debug-only stubs (registered via
-	 * OTELC_DBG_IFDEF) and do not process data.
-	 *
-	 * register_data_filter(s, chn, f);
+	 * Register as a data filter only where an on-http-end-* scope is
+	 * configured for this direction.  HAProxy delivers the http_end
+	 * callback to data filters alone, and data filtering disables body
+	 * fast-forwarding, so it is enabled only where actually required.
 	 */
+	if ((chn->flags & CF_ISRESP) ? FLT_OTEL_CONF(f)->instr->flag_data_res : FLT_OTEL_CONF(f)->instr->flag_data_req)
+		register_data_filter(s, chn, f);
 
 	/*
 	 * Propagate the idle-timeout expiry to the channel so the stream task
