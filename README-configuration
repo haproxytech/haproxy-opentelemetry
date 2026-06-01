@@ -484,8 +484,14 @@ Supported keywords:
       The on-http-end-request and on-http-end-response events fire when all HTTP
       data has been processed and forwarded.
 
-      The on-http-reply event fires when HAProxy generates an internal reply
-      (error page, deny response, redirect).
+      The on-http-reply event is meant to fire when HAProxy returns an internal
+      reply (error page, deny response, redirect), but it never fires on any
+      current HAProxy.  The http_reply filter callback has had no caller since
+      HAProxy 2.2-dev8 (2020), when its HTTP error handling was reworked around
+      the 'struct http_reply' mechanism; the flt_http_reply() dispatcher still
+      exists but nothing ever calls it.  To trace such replies, attach the scope
+      through an 'http-after-response otel-group' action instead, which runs on
+      every response, including the ones that HAProxy synthesises.
 
       Examples:
         otel-event on-stream-start if acl-test-src-ip

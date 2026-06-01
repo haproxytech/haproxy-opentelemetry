@@ -127,7 +127,8 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
 
   flt_otel_ops_http_reply
       HTTP reply callback (flt_ops.http_reply).  Fires the on-http-reply event
-      when HAProxy generates an internal reply.
+      when HAProxy generates an internal reply.  HAProxy has not invoked this
+      callback since 2.2-dev8 (2020), so the event never fires in practice.
 
   flt_otel_ops_tcp_payload [D]
       TCP payload callback (flt_ops.tcp_payload).

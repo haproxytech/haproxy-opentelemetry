@@ -326,6 +326,10 @@ Four fire from HTTP lifecycle callbacks:
   - on-http-end-request / on-http-end-response         (flt_otel_ops_http_end)
   - on-http-reply                                      (flt_otel_ops_http_reply)
 
+But on-http-reply never actually fires on current HAProxy: nothing has invoked
+its flt_http_reply() dispatcher since 2.2-dev8 (2020), so the filter callback
+above is dead.  See README and README-configuration for the full explanation.
+
 The remaining pseudo-events fire from channel start/end callbacks:
   - on-client-session-start / on-client-session-end
   - on-server-session-start / on-server-session-end
@@ -385,6 +389,8 @@ and response fetches.
 
   http_reply(s, f, status, msg):
     - Fires on-http-reply with chn=&s->res.
+    - Never reached on current HAProxy: HAProxy dropped the flt_http_reply()
+      call in 2.2-dev8 (commit 8dfeccf6d, 2020), so this callback has no caller.
 
 6.3  Scope Execution
 
