@@ -1606,8 +1606,40 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_EVENT) {
 		struct otelc_value extra = { .u_type = OTELC_VALUE_STRING, .u.value_string = args[1] };
+		struct list        time_list = LIST_HEAD_INIT(time_list);
+		int                key_pos = 2;
 
-		retval = flt_otel_parse_cfg_sample(file, line, args, 3, 0, &extra, &(flt_otel_current_span->events), &err);
+		/*
+		 * An optional 'time [s|ms|us|ns] <sample>' clause may appear
+		 * between the event name and the attribute key.  It is parsed
+		 * into a local list and moved onto the event sample once that
+		 * has been created.
+		 */
+		if (FLT_OTEL_PARSE_KEYWORD(2, FLT_OTEL_PARSE_LOG_RECORD_TIME)) {
+			int idx = 2;
+
+			if (!FLT_OTEL_ARG_ISVALID(3))
+				FLT_OTEL_PARSE_ERR(&err, "'%s' : too few arguments (use '%s%s')", args[2], pdata->name, pdata->usage);
+			else
+				retval = flt_otel_parse_cfg_time(file, line, args, &idx, pdata, &time_list, &err);
+
+			if (!(retval & ERR_CODE))
+				key_pos = idx + 1;
+		}
+
+		if (!(retval & ERR_CODE))
+			retval = flt_otel_parse_cfg_sample(file, line, args, key_pos + 1, 0, &extra, &(flt_otel_current_span->events), &err);
+
+		if (!(retval & ERR_CODE) && !LIST_ISEMPTY(&time_list)) {
+			struct flt_otel_conf_sample *event_sample;
+
+			event_sample = LIST_PREV(&(flt_otel_current_span->events), typeof(event_sample), list);
+			LIST_SPLICE(&(event_sample->time), &time_list);
+		}
+
+		/* On error, release a parsed timestamp that was not attached. */
+		if (retval & ERR_CODE)
+			FLT_OTEL_LIST_DESTROY(sample, &time_list);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_BAGGAGE) {
 		retval = flt_otel_parse_cfg_sample(file, line, args, 2, 0, NULL, &(flt_otel_current_span->baggages), &err);

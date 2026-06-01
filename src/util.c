@@ -635,12 +635,15 @@ int flt_otel_sample_to_value(const char *key, const struct sample_data *data, st
  *   flt_otel_sample_add_event - span event attribute addition
  *
  * SYNOPSIS
- *   static int flt_otel_sample_add_event(struct list *events, struct flt_otel_conf_sample *sample, const struct otelc_value *value)
+ *   static int flt_otel_sample_add_event(struct stream *s, uint dir, struct list *events, struct flt_otel_conf_sample *sample, const struct otelc_value *value, char **err)
  *
  * ARGUMENTS
+ *   s      - current stream
+ *   dir    - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
  *   events - list of span events (flt_otel_scope_data_event)
  *   sample - configured sample with event name and key
  *   value  - OTel value to add as an attribute
+ *   err    - indirect pointer to error message string
  *
  * DESCRIPTION
  *   Adds a sample value as a span event attribute.  Searches the existing
@@ -648,19 +651,20 @@ int flt_otel_sample_to_value(const char *key, const struct sample_data *data, st
  *   event entry with an initial attribute array of FLT_OTEL_ATTR_INIT_SIZE
  *   elements.  If the attribute array is full, it is grown by
  *   FLT_OTEL_ATTR_INC_SIZE elements.  The key-value pair is appended to the
- *   event's attribute array.
+ *   event's attribute array.  When the sample carries a 'time' expression it
+ *   is evaluated, once per event, into the event's timestamp.
  *
  * RETURN VALUE
  *   Returns the attribute count for the event, or FLT_OTEL_RET_ERROR on
  *   failure.
  */
-static int flt_otel_sample_add_event(struct list *events, struct flt_otel_conf_sample *sample, const struct otelc_value *value)
+static int flt_otel_sample_add_event(struct stream *s, uint dir, struct list *events, struct flt_otel_conf_sample *sample, const struct otelc_value *value, char **err)
 {
 	struct flt_otel_scope_data_event *ptr, *event = NULL;
 	struct otelc_kv                  *attr = NULL;
 	bool                              flag_list_insert = 0;
 
-	OTELC_FUNC("%p, %p, %p", events, sample, value);
+	OTELC_FUNC("%p, %u, %p, %p, %p, %p:%p", s, dir, events, sample, value, OTELC_DPTR_ARGS(err));
 
 	if ((events == NULL) || (sample == NULL) || (value == NULL))
 		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
@@ -702,6 +706,19 @@ static int flt_otel_sample_add_event(struct list *events, struct flt_otel_conf_s
 		flag_list_insert = 1;
 
 		OTELC_DBG(DEBUG, "scope event data initialized");
+	}
+
+	/*
+	 * Evaluate the optional per-event timestamp the first time the event is
+	 * seen; later attributes for the same event keep that timestamp.
+	 */
+	if (!LIST_ISEMPTY(&(sample->time)) && !event->ts_set) {
+		struct flt_otel_conf_sample *time_sample;
+
+		time_sample = LIST_NEXT(&(sample->time), typeof(time_sample), list);
+
+		if (flt_otel_sample_eval_time(s, dir, time_sample, &(event->ts), err) == 1)
+			event->ts_set = true;
 	}
 
 	/*
@@ -1128,7 +1145,7 @@ int flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample 
 			FLT_OTEL_ERR("out of memory");
 	}
 	else if (type == FLT_OTEL_EVENT_SAMPLE_EVENT) {
-		retval = flt_otel_sample_add_event(&(data->events), sample, &value);
+		retval = flt_otel_sample_add_event(s, dir, &(data->events), sample, &value, err);
 		if (retval == FLT_OTEL_RET_ERROR)
 			FLT_OTEL_ERR("out of memory");
 	}

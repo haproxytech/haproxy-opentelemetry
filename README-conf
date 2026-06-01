@@ -260,6 +260,7 @@ the wall-clock value is passed as the observed timestamp.
   num_exprs               Number of defined expressions.
   lf_expr                 The log-format expression.
   lf_used                 Whether lf_expr is used instead of exprs.
+  time                    Optional per-event timestamp (single sample).
 
 The extra field carries type-specific data: event name strings (OTELC_VALUE_DATA)
 for span events, status code integers (OTELC_VALUE_INT32) for span statuses.
@@ -409,7 +410,7 @@ freed while the parent is still valid:
   conf_sample:
     Frees fmt_string.  If extra is OTELC_VALUE_DATA, frees the data pointer.
     Destroys the exprs list (sample_expr entries).  Deinitializes lf_expr via
-    lf_expr_deinit.
+    lf_expr_deinit.  Destroys the time list (per-event timestamp sample).
 
   conf_sample_expr:
     Releases the HAProxy sample expression via release_sample_expr.
@@ -479,7 +480,7 @@ header.
   conf_link        ref        macro   (none)
   conf_ph          id         macro   (none)
   conf_sample_expr fmt_expr   macro   (none)
-  conf_sample      key        macro   exprs, lf_expr
+  conf_sample      key        macro   exprs, lf_expr, time
   conf_sample (ex) key        manual  extra, fmt_string, exprs
   conf_context     id         macro   (none)
   conf_span        id         macro   5 sub-lists

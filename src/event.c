@@ -496,7 +496,7 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 		struct flt_otel_scope_data_event *event;
 
 		list_for_each_entry_rev(event, &(data->events), list)
-			if (OTELC_OPS(span->span, add_event_kv_n, event->name, ts_system, event->attr, event->cnt) == -1)
+			if (OTELC_OPS(span->span, add_event_kv_n, event->name, event->ts_set ? &(event->ts) : ts_system, event->attr, event->cnt) == -1)
 				retval = FLT_OTEL_RET_ERROR;
 	}
 

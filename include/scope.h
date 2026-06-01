@@ -59,11 +59,13 @@ struct flt_otel_scope_data_kv {
 
 /* Named event with its own key-value attribute array. */
 struct flt_otel_scope_data_event {
-	char            *name; /* Event name, not used for other data types. */
-	struct otelc_kv *attr; /* Key-value array for storing attributes. */
-	size_t           cnt;  /* Number of currently used array elements. */
-	size_t           size; /* Total number of array elements. */
-	struct list      list; /* Used to chain this structure. */
+	char            *name;   /* Event name, not used for other data types. */
+	struct otelc_kv *attr;   /* Key-value array for storing attributes. */
+	size_t           cnt;    /* Number of currently used array elements. */
+	size_t           size;   /* Total number of array elements. */
+	struct timespec  ts;     /* Per-event timestamp (valid when ts_set). */
+	bool             ts_set; /* Whether a per-event timestamp is set. */
+	struct list      list;   /* Used to chain this structure. */
 };
 
 /* Span link referencing another span or span context. */

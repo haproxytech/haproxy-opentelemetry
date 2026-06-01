@@ -260,6 +260,7 @@ FLT_OTEL_CONF_FUNC_FREE(sample_expr, fmt_expr,
 FLT_OTEL_CONF_FUNC_INIT(sample, key,
 	LIST_INIT(&(retptr->exprs));
 	lf_expr_init(&(retptr->lf_expr));
+	LIST_INIT(&(retptr->time));
 )
 
 
@@ -417,6 +418,7 @@ FLT_OTEL_CONF_FUNC_FREE(sample, key,
 		OTELC_SFREE((*ptr)->extra.u.value_data);
 	FLT_OTEL_LIST_DESTROY(sample_expr, &((*ptr)->exprs));
 	lf_expr_deinit(&((*ptr)->lf_expr));
+	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->time));
 )
 
 

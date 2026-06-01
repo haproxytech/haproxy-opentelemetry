@@ -253,13 +253,20 @@ Supported keywords:
         attribute "http.version" str("HTTP/") req.ver
 
 
-  event <name> <key> <sample> ...
+  event <name> [time [<unit>] <sample>] <key> <sample> ...
       Add a span event (timestamped annotation) to the currently active span.
       The data type is always string.
+
+      - 'time [<unit>] <sample>' overrides the event timestamp.  The optional
+        unit is 's' (default), 'ms', 'us' or 'ns', and <sample> must evaluate
+        to a number.  Without it, the event inherits the span timestamp.
+        Note that a 'time' token directly after <name> is read as this clause,
+        so it cannot also serve as an attribute key in that position.
 
       Examples:
         event "event_ip" "src" src str(":") src_port
         event "event_be" "be" be_id str(" ") be_name
+        event "received" time ms req.hdr("x-start-ms") "stage" str("recv")
 
 
   baggage <key> <sample> ...
