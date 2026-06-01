@@ -219,7 +219,7 @@ Syntax:
 
 Supported keywords:
 
-  span <name> [parent <ref>] [link <ref>] [root]
+  span <name> [parent <ref>] [link <ref>] [root] [kind <kind>]
       Create a new span or reference an already opened one.
 
       - 'root' marks this span as the trace root (only one per trace).
@@ -227,6 +227,8 @@ Supported keywords:
         name.
       - 'link <ref>' adds an inline link to another span or context.  Multiple
         inline links can be specified within the argument limit.
+      - 'kind <kind>' sets the span kind to one of the following: 'internal',
+        'server' (default), 'client', 'producer' or 'consumer'.
       - If no reference is given, the span becomes a root span.
 
       A span declaration opens a "sub-context" within the scope: the keywords
@@ -238,6 +240,7 @@ Supported keywords:
         span "Client session" parent "HAProxy session"
         span "HTTP request" parent "TCP request" link "HAProxy session"
         span "Client session" parent "otel_ctx_1"
+        span "Backend request" parent "Client session" kind client
 
 
   attribute <key> <sample> ...

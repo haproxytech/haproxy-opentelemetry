@@ -191,6 +191,7 @@ through groups).
   FLT_OTEL_CONF_STR(ctx_id)  The span context name, if used.
   ctx_flags                  The type of storage used for the span context.
   flag_root                  Whether this is a root span.
+  kind                       The span kind (default SERVER).
   links                      The set of linked span or context names.
   attributes                 The set of key:value attributes.
   events                     The set of events with key-value attributes.

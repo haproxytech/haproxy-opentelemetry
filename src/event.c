@@ -464,7 +464,7 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 
 	/* Create the OTel span on first invocation. */
 	if (span->span == NULL) {
-		span->span = OTELC_OPS(conf->instr->tracer, start_span_with_options, span->id, span->ref_span, span->ref_ctx, ts_steady, ts_system, OTELC_SPAN_KIND_SERVER, NULL, 0);
+		span->span = OTELC_OPS(conf->instr->tracer, start_span_with_options, span->id, span->ref_span, span->ref_ctx, ts_steady, ts_system, conf_span->kind, NULL, 0);
 		if (span->span == NULL)
 			OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
 	}

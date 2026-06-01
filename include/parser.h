@@ -20,6 +20,7 @@
 #define FLT_OTEL_PARSE_SPAN_ROOT              "root"
 #define FLT_OTEL_PARSE_SPAN_PARENT            "parent"
 #define FLT_OTEL_PARSE_SPAN_LINK              "link"
+#define FLT_OTEL_PARSE_SPAN_KIND              "kind"
 #define FLT_OTEL_PARSE_INSTRUMENT_DESC        "desc"
 #define FLT_OTEL_PARSE_INSTRUMENT_VALUE       "value"
 #define FLT_OTEL_PARSE_INSTRUMENT_ATTR        "attr"
@@ -80,6 +81,17 @@
 	FLT_OTEL_PARSE_SCOPE_STATUS_DEF(    OK, "ok"    ) \
 	FLT_OTEL_PARSE_SCOPE_STATUS_DEF( ERROR, "error" )
 
+/*
+ * The first argument of the FLT_OTEL_PARSE_SPAN_KIND_DEF() macro is defined
+ * as otelc_span_kind_t in <opentelemetry-c-wrapper/otel_cpp.h> .
+ */
+#define FLT_OTEL_PARSE_SPAN_KIND_DEFINES                   \
+	FLT_OTEL_PARSE_SPAN_KIND_DEF(INTERNAL, "internal") \
+	FLT_OTEL_PARSE_SPAN_KIND_DEF(  SERVER, "server"  ) \
+	FLT_OTEL_PARSE_SPAN_KIND_DEF(  CLIENT, "client"  ) \
+	FLT_OTEL_PARSE_SPAN_KIND_DEF(PRODUCER, "producer") \
+	FLT_OTEL_PARSE_SPAN_KIND_DEF(CONSUMER, "consumer")
+
 /* Sentinel: instrument has not been created yet. */
 #define OTELC_METRIC_INSTRUMENT_UNSET         -1
 
@@ -116,7 +128,7 @@
  */
 #define FLT_OTEL_PARSE_SCOPE_DEFINES                                                                                                                                           \
 	FLT_OTEL_PARSE_SCOPE_DEF(          ID, 0, CHAR, 2, 2, "otel-scope",   " <name>")                                                                                       \
-	FLT_OTEL_PARSE_SCOPE_DEF(        SPAN, 0, NONE, 2, 7, "span",         " <name> [parent <ref>] [link <ref>] [root]")                                                    \
+	FLT_OTEL_PARSE_SCOPE_DEF(        SPAN, 0, NONE, 2, 9, "span",         " <name> [parent <ref>] [link <ref>] [root] [kind <kind>]")                                      \
 	FLT_OTEL_PARSE_SCOPE_DEF(        LINK, 1, NONE, 2, 0,   "link",       " <ref> ...")                                                                                    \
 	FLT_OTEL_PARSE_SCOPE_DEF(   ATTRIBUTE, 1, NONE, 3, 0,   "attribute",  " <key> <sample> ...")                                                                           \
 	FLT_OTEL_PARSE_SCOPE_DEF(       EVENT, 1, NONE, 4, 0,   "event",      " <name> <key> <sample> ...")                                                                    \

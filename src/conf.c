@@ -494,6 +494,8 @@ FLT_OTEL_CONF_FUNC_INIT(span, id,
 	LIST_INIT(&(retptr->events));
 	LIST_INIT(&(retptr->baggages));
 	LIST_INIT(&(retptr->statuses));
+
+	retptr->kind = OTELC_SPAN_KIND_SERVER;
 )
 
 

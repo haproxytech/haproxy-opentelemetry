@@ -1558,6 +1558,31 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 						FLT_OTEL_PARSE_ERR(&err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
 					}
 				}
+				else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_SPAN_KIND)) {
+#define FLT_OTEL_PARSE_SPAN_KIND_DEF(a,b)   { OTELC_SPAN_KIND_##a, b },
+					static const struct {
+						otelc_span_kind_t  kind;
+						const char        *keyword;
+					} span_kind[] = { FLT_OTEL_PARSE_SPAN_KIND_DEFINES };
+#undef FLT_OTEL_PARSE_SPAN_KIND_DEF
+					int k;
+
+					if (!FLT_OTEL_ARG_ISVALID(i + 1)) {
+						FLT_OTEL_PARSE_ERR(&err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+					} else {
+						for (k = 0; k < OTELC_TABLESIZE(span_kind); k++)
+							if (FLT_OTEL_PARSE_KEYWORD(i + 1, span_kind[k].keyword)) {
+								flt_otel_current_span->kind = span_kind[k].kind;
+
+								break;
+							}
+
+						if (k >= OTELC_TABLESIZE(span_kind))
+							FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid span kind", args[i + 1]);
+						else
+							i++;
+					}
+				}
 				else {
 					FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid argument (use '%s%s')", args[i], pdata->name, pdata->usage);
 				}
