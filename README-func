@@ -170,6 +170,10 @@ Event dispatching, metrics recording and scope/span execution engine.
       baggage, attributes, events and status, then injects the context into HTTP
       headers or HAProxy variables.
 
+  flt_otel_cond_pass
+      Evaluates an optional if/unless ACL condition against the stream,
+      honouring the 'unless' polarity; a NULL condition always passes.
+
   flt_otel_scope_run
       Executes a complete scope: evaluates ACL conditions, extracts contexts,
       iterates over configured spans (resolving links, evaluating sample

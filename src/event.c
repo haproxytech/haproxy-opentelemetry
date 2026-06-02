@@ -541,6 +541,43 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 
 /***
  * NAME
+ *   flt_otel_cond_pass - ACL condition evaluation
+ *
+ * SYNOPSIS
+ *   static int flt_otel_cond_pass(struct acl_cond *cond, struct stream *s, uint dir)
+ *
+ * ARGUMENTS
+ *   cond - the ACL condition to evaluate, or NULL
+ *   s    - the stream being processed
+ *   dir  - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
+ *
+ * DESCRIPTION
+ *   Evaluates an optional if/unless ACL <cond> against the stream, honouring
+ *   the 'unless' polarity.  A NULL condition is treated as an unconditional
+ *   match, so callers can gate an action with a single uniform check.
+ *
+ * RETURN VALUE
+ *   Returns a non-zero value when the gated action should run, 0 otherwise.
+ */
+static int flt_otel_cond_pass(struct acl_cond *cond, struct stream *s, uint dir)
+{
+	enum acl_test_res res;
+	int               rc = 1;
+
+	if (cond == NULL)
+		return rc;
+
+	res = acl_exec_cond(cond, s->be, s->sess, s, dir | SMP_OPT_FINAL);
+	rc  = acl_pass(res);
+	if (cond->pol == ACL_COND_UNLESS)
+		rc = !rc;
+
+	return rc;
+}
+
+
+/***
+ * NAME
  *   flt_otel_scope_run - scope execution engine
  *
  * SYNOPSIS
@@ -595,13 +632,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 
 	/* Evaluate the scope's ACL condition; skip this scope on mismatch. */
 	if (conf_scope->cond != NULL) {
-		enum acl_test_res res;
-		int               rc;
-
-		res = acl_exec_cond(conf_scope->cond, s->be, s->sess, s, dir | SMP_OPT_FINAL);
-		rc  = acl_pass(res);
-		if (conf_scope->cond->pol == ACL_COND_UNLESS)
-			rc = !rc;
+		int rc = flt_otel_cond_pass(conf_scope->cond, s, dir);
 
 		OTELC_DBG(DEBUG, "the ACL rule %s", rc ? "matches" : "does not match");
 
