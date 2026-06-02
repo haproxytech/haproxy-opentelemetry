@@ -287,6 +287,8 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 		struct otelc_span                *otel_span = NULL;
 		struct flt_otel_scope_data_kv     log_attr;
 		struct buffer                     buffer;
+		const struct timespec            *ts_ptr;
+		struct timespec                   ts_log;
 		int                               rc;
 
 		OTELC_DBG(DEBUG, "run log-record '%s' -> '%s'", scope->id, conf_log->id);
@@ -393,7 +395,24 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 				OTELC_DBG(NOTICE, "WARNING: cannot find span '%s' for log-record", conf_log->span);
 		}
 
-		if (OTELC_OPS(logger, log_span, conf_log->severity, conf_log->event_id, conf_log->event_name, otel_span, ts, log_attr.attr, log_attr.cnt, "%s", buffer.area) == OTELC_RET_ERROR)
+		/*
+		 * If the log record carries a 'time' expression, evaluate it
+		 * and derive a struct timespec from the configured unit.  The
+		 * default (caller-provided) timestamp is used when 'time' is
+		 * absent or its evaluation fails.
+		 */
+		ts_ptr = ts;
+
+		if (!LIST_ISEMPTY(&(conf_log->time))) {
+			struct flt_otel_conf_sample *time_sample;
+
+			time_sample = LIST_NEXT(&(conf_log->time), typeof(time_sample), list);
+
+			if (flt_otel_sample_eval_time(s, dir, time_sample, &ts_log, err) == 1)
+				ts_ptr = &ts_log;
+		}
+
+		if (OTELC_OPS(logger, log_span, conf_log->severity, conf_log->event_id, conf_log->event_name, otel_span, ts_ptr, log_attr.attr, log_attr.cnt, "%s", buffer.area) == OTELC_RET_ERROR)
 			retval = FLT_OTEL_RET_ERROR;
 
 		otelc_kv_destroy(&(log_attr.attr), log_attr.cnt);

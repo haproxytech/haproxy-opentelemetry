@@ -569,6 +569,7 @@ FLT_OTEL_CONF_FUNC_FREE(instrument, id,
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
 FLT_OTEL_CONF_FUNC_INIT(log_record, id,
+	LIST_INIT(&(retptr->time));
 	LIST_INIT(&(retptr->attributes));
 	LIST_INIT(&(retptr->samples));
 )
@@ -596,6 +597,7 @@ FLT_OTEL_CONF_FUNC_FREE(log_record, id,
 
 	OTELC_SFREE((*ptr)->event_name);
 	OTELC_SFREE((*ptr)->span);
+	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->time));
 	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->attributes));
 	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->samples));
 )

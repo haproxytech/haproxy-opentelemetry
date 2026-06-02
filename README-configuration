@@ -373,17 +373,28 @@ Supported keywords:
         instrument update "name_cnt_int" attr "attr_1_key" str("attr_1_value")
 
 
-  log-record <severity> [id <integer> event <name>] [span <span-name>] [attr <key> <sample>] ... <sample> ...
+  log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span <span-name>] [attr <key> <sample>] ... <sample> ...
       Emit an OpenTelemetry log record.  The first argument is a required
       severity level.  Optional keywords follow in any order:
 
-        id <integer>        - numeric event identifier
-        event <name>        - event name string
-        span <span-name>    - associate the log record with an open span
-        attr <key> <sample> - add an attribute evaluated at runtime (repeatable)
+        id <integer>           - numeric event identifier
+        event <name>           - event name string
+        time [<unit>] <sample> - override the log event timestamp at runtime
+        span <span-name>       - associate the log record with an open span
+        attr <key> <sample>    - add an attribute evaluated at runtime (repeatable)
 
       The 'id' and 'event' keywords must be specified together or both omitted;
       any other combination is a configuration error.
+
+      The 'time' keyword takes an optional unit and a single HAProxy sample
+      expression.  The supported units are 's' (seconds, the default), 'ms'
+      (milliseconds), 'us' (microseconds) and 'ns' (nanoseconds); the value
+      is interpreted as a count since the Unix epoch in the given unit.  The
+      sample is evaluated at runtime and must yield an integer (or a string
+      convertible to one); if evaluation or numeric conversion fails, the log
+      record falls back to the default wall-clock timestamp.  Typical sources
+      are HAProxy's 'date' fetch family (e.g. date, date(0,ms), date(0,us)) or
+      a numeric value extracted from a header or variable.
 
       The 'attr' keyword takes an attribute name and a single HAProxy sample
       expression.  The expression is evaluated at runtime, following the same
@@ -417,6 +428,8 @@ Supported keywords:
         log-record warn id 1018 event "server-unavailable" str("503 Service Unavailable")
         log-record info id 1001 event "session-stop" str("stream stopped")
         log-record info id 1002 event "server-session-end" "%[%ci:%cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts]"
+        log-record info time us date(0,us) str("microsecond-accurate event")
+        log-record info time ns hdr(x-event-time-ns) str("client-supplied timestamp")
 
 
   acl <aclname> <criterion> [flags] [operator] <value> ...

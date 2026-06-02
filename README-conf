@@ -219,6 +219,7 @@ as flt_otel_conf_sample entries and evaluated at runtime.
   event_id               Optional event identifier.
   event_name             Optional event name.
   span                   Optional span reference.
+  time                   Optional timestamp expression (single conf_sample).
   attributes             Log record attributes (flt_otel_conf_sample list).
   samples                Sample expressions for the body.
 
@@ -227,6 +228,13 @@ optional span reference associates the log record with an open span at runtime.
 Attributes are stored as flt_otel_conf_sample entries added via the 'attr'
 keyword, which can be repeated.  Attribute values are HAProxy sample expressions
 evaluated at runtime.
+
+The optional timestamp expression, set via the 'time' keyword, is stored as a
+single-entry list of flt_otel_conf_sample with the unit selector (s, ms, us
+or ns) packed into the sample's 'extra' data field as an OTELC_VALUE_INT32.
+At runtime the sample is evaluated, normalised to int64, scaled by the chosen
+unit, and packed into a struct timespec that replaces the default wall-clock
+timestamp passed to the logger.
 
 4.8  flt_otel_conf_context
 
@@ -320,7 +328,7 @@ insertion succeed:
     OTELC_METRIC_AGGREGATION_UNSET.  LIST_INIT for samples.
 
   conf_log_record:
-    LIST_INIT for samples.
+    LIST_INIT for time, attributes, samples.
 
   conf_instr:
     Sets rate_limit to FLT_OTEL_FLOAT_U32(100.0) (100%).  Calls init_new_proxy
@@ -395,8 +403,8 @@ freed while the parent is still valid:
     Destroys the attr key-value array via otelc_kv_destroy.
 
   conf_log_record:
-    Frees event_name and span strings.  Destroys the attr key-value array via
-    otelc_kv_destroy.  Destroys the samples list.
+    Frees event_name and span strings.  Destroys the time, attributes and
+    samples lists.
 
   conf_scope:
     Prunes and frees each ACL entry.  Frees the ACL condition via free_acl_cond.
@@ -453,7 +461,7 @@ header.
   conf_context     id         macro   (none)
   conf_span        id         macro   5 sub-lists
   conf_instrument  id         macro   idx, type, samples
-  conf_log_record  id         macro   samples
+  conf_log_record  id         macro   time, attributes, samples
   conf_scope       id         macro   6 sub-lists
   conf_group       id         macro   ph_scopes
   conf_instr       id         macro   rate_limit, proxy_log, acls, ph_groups, ph_scopes

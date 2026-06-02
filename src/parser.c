@@ -1315,6 +1315,14 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
 			else
 				retval = flt_otel_parse_strdup(&(log->event_name), NULL, args[++i], err, args[0]);
 		}
+		else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_TIME)) {
+			if (!FLT_OTEL_ARG_ISVALID(i + 1))
+				FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+			else if (!LIST_ISEMPTY(&(log->time)))
+				FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+			else
+				retval = flt_otel_parse_cfg_time(file, line, args, &i, pdata, &(log->time), err);
+		}
 		else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_SPAN)) {
 			if (!FLT_OTEL_ARG_ISVALID(i + 1))
 				FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
