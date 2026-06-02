@@ -62,12 +62,13 @@
 	                 flt_otel_list_dump(&((p)->events)), flt_otel_list_dump(&((p)->baggages)),            \
 	                 flt_otel_list_dump(&((p)->statuses)))
 
-#define FLT_OTEL_DBG_CONF_SCOPE(h,p)                                                                        \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%hhu %d %u %s %p %s %s %s %s %s }", (p),        \
-	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->flag_used, (p)->event, (p)->idle_timeout,      \
-	                 flt_otel_list_dump(&((p)->acls)), (p)->cond, flt_otel_list_dump(&((p)->contexts)), \
-	                 flt_otel_list_dump(&((p)->spans)), flt_otel_list_dump(&((p)->spans_to_finish)),    \
-	                 flt_otel_list_dump(&((p)->instruments)), flt_otel_list_dump(&((p)->log_records)))
+#define FLT_OTEL_DBG_CONF_SCOPE(h,p)                                                                            \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%hhu %hhu %d %u %s %p %p %s %s %s %s %s }", (p),    \
+	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->flag_used, (p)->flag_stop, (p)->event,             \
+	                 (p)->idle_timeout, flt_otel_list_dump(&((p)->acls)), (p)->cond, (p)->stop_cond,        \
+	                 flt_otel_list_dump(&((p)->contexts)), flt_otel_list_dump(&((p)->spans)),               \
+	                 flt_otel_list_dump(&((p)->spans_to_finish)), flt_otel_list_dump(&((p)->instruments)),  \
+	                 flt_otel_list_dump(&((p)->log_records)))
 
 #define FLT_OTEL_DBG_CONF_GROUP(h,p)                                         \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%hhu %s }", (p), \
@@ -229,10 +230,12 @@ struct flt_otel_conf_log_record {
 struct flt_otel_conf_scope {
 	FLT_OTEL_CONF_HDR(id);            /* The scope name. */
 	bool             flag_used;       /* The indication that the scope is being used. */
+	bool             flag_stop;       /* Whether the scope stops tracing for the connection. */
 	int              event;           /* FLT_OTEL_EVENT_* */
 	uint             idle_timeout;    /* Idle timeout interval in milliseconds (0 = off). */
 	struct list      acls;            /* ACLs declared on this scope. */
 	struct acl_cond *cond;            /* ACL condition to meet. */
+	struct acl_cond *stop_cond;       /* ACL condition gating the stop, or NULL if unconditional. */
 	struct list      contexts;        /* Declared contexts. */
 	struct list      spans;           /* Declared spans. */
 	struct list      spans_to_finish; /* The list of spans scheduled for finishing. */

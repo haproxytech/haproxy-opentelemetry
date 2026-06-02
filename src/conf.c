@@ -664,6 +664,7 @@ FLT_OTEL_CONF_FUNC_FREE(scope, id,
 		OTELC_SFREE(acl);
 	}
 	free_acl_cond((*ptr)->cond);
+	free_acl_cond((*ptr)->stop_cond);
 	FLT_OTEL_LIST_DESTROY(context, &((*ptr)->contexts));
 	FLT_OTEL_LIST_DESTROY(span, &((*ptr)->spans));
 	FLT_OTEL_LIST_DESTROY(str, &((*ptr)->spans_to_finish));

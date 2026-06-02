@@ -612,12 +612,21 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 	struct flt_otel_conf_str     *span_to_finish;
 	struct timespec               ts_now_steady, ts_now_system;
 	int                           retval = FLT_OTEL_RET_OK;
+	bool                          flag_stop = 0;
 
 	OTELC_FUNC("%p, %p, %p, %p, %p, %p, %u, %p:%p", s, f, chn, conf_scope, ts_steady, ts_system, dir, OTELC_DPTR_ARGS(err));
 
 	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s)", flt_otel_chn_label(chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s));
 	OTELC_DBG(DEBUG, "run scope '%s' %d", conf_scope->id, conf_scope->event);
 	FLT_OTEL_DBG_CONF_SCOPE("run scope ", conf_scope);
+
+	/*
+	 * A previous 'otel-stop', or a hard error in an earlier scope of the
+	 * same event or group, disables the filter for the rest of the stream.
+	 * Skip this scope so that no further spans are created.
+	 */
+	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, conf_scope->event)))
+		OTELC_RETURN_INT(retval);
 
 	if (ts_steady == NULL) {
 		(void)clock_gettime(CLOCK_MONOTONIC, &ts_now_steady);
@@ -814,8 +823,36 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 		if (flt_otel_scope_finish_mark(f->ctx, span_to_finish->str, span_to_finish->str_len) == FLT_OTEL_RET_ERROR)
 			retval = FLT_OTEL_RET_ERROR;
 
+	/*
+	 * Evaluate the 'otel-stop' directive.  A bare directive always fires;
+	 * a conditional one fires only when its if/unless condition holds.  It
+	 * is evaluated here, after the scope's own spans and records have run,
+	 * so that a stopping scope still emits its final telemetry.
+	 */
+	if (conf_scope->flag_stop)
+		flag_stop = (flt_otel_cond_pass(conf_scope->stop_cond, s, dir) != 0);
+
+	/* A firing 'otel-stop' finishes every remaining span and context. */
+	if (flag_stop)
+		(void)flt_otel_scope_finish_mark(f->ctx, FLT_OTEL_STR_ADDRSIZE(FLT_OTEL_SCOPE_SPAN_FINISH_ALL));
+
 	flt_otel_scope_finish_marked(f->ctx, ts_steady);
 	flt_otel_scope_free_unused(f->ctx, chn);
+
+	/*
+	 * The directive then disables the filter for the remainder of the
+	 * stream; the guard at the top of this function skips any further
+	 * scopes belonging to the same connection.
+	 */
+	if (flag_stop) {
+		OTELC_DBG(LOG, "session stopped");
+
+		FLT_OTEL_RT_CTX(f->ctx)->flag_disabled = 1;
+
+#ifdef FLT_OTEL_USE_COUNTERS
+		_HA_ATOMIC_ADD(conf->cnt.disabled + 0, 1);
+#endif
+	}
 
 	OTELC_RETURN_INT(retval);
 }

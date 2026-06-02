@@ -233,10 +233,10 @@ never interrupts stream processing.
 
 flt_otel_is_disabled() (filter.c) is called at the top of every filter callback
 that processes events.  It reports whether the stream's runtime context has its
-flag_disabled field set, which a hard error (in hard-error mode) does.  The
-runtime context is per-stream and therefore single-threaded, so the field is
-read directly, without atomic access; when set, the callback returns at once
-without processing.
+flag_disabled field set, which a hard error (in hard-error mode) or a fired
+'otel-stop' directive does.  The runtime context is per-stream and therefore
+single-threaded, so the field is read directly, without atomic access; when it
+is set, the callback returns immediately without processing.
 
 The global "otel disable" CLI command uses a separate instrumentation field,
 conf->instr->flag_disabled, which flt_otel_ops_attach() checks atomically when
@@ -443,6 +443,21 @@ The filter can be disabled globally via the CLI ("otel disable") or the
 configuration ("option disabled").  The flag_disabled field on the
 instrumentation configuration is checked atomically in flt_otel_ops_attach()
 before any per-stream allocation occurs.
+
+6.4  Per-Connection Stop
+
+The 'otel-stop' scope keyword stops tracing for a single connection.  When the
+keyword fires, flt_otel_scope_run() marks every open span and context with the
+"*" wildcard, finishes them via flt_otel_scope_finish_marked(), and then sets
+rt_ctx->flag_disabled = 1.  A guard at the top of flt_otel_scope_run() skips
+any further scopes for that stream, so that sibling scopes on the same event or
+in the same otel-group no longer run.
+
+The directive is evaluated after the scope's own spans, log records and metric
+instruments, so a stopping scope still emits its telemetry before tracing ends.
+A bare 'otel-stop' always fires; an optional if/unless condition, kept in the
+stop_cond field separately from the scope's own condition, makes it conditional.
+This is the per-stream counterpart to the global "otel disable" of section 6.3.
 
 
 7  Memory Management Strategy

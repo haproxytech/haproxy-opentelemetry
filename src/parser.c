@@ -1374,8 +1374,9 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
  * DESCRIPTION
  *   Section parser for the otel-scope configuration block.  Handles keywords:
  *   scope ID, span (with optional root/parent/link modifiers), link, attribute,
- *   event, baggage, status, inject, extract, finish, instrument, log-record,
- *   acl, and otel-event (with optional if/unless conditions).
+ *   event, baggage, status, inject, extract, finish, otel-stop, instrument,
+ *   log-record, acl, and otel-event (otel-stop and otel-event accept an
+ *   optional if/unless condition).
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -1582,6 +1583,30 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_FINISH) {
 		retval = flt_otel_parse_cfg_str(file, line, args, &(flt_otel_current_scope->spans_to_finish), &err);
+	}
+	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_STOP) {
+		flt_otel_current_scope->flag_stop = 1;
+
+		/*
+		 * A bare 'otel-stop' is unconditional.  An optional if/unless
+		 * condition is built the same way as for the 'otel-event'
+		 * keyword.
+		 */
+		if (!FLT_OTEL_ARG_ISVALID(1)) {
+			/* Do nothing. */
+		}
+		else if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_CONDITION_UNLESS)) {
+			if (flt_otel_current_config->instr == NULL) {
+				FLT_OTEL_PARSE_ERR(&err, "'%s' : instrumentation not defined", args[0]);
+			} else {
+				flt_otel_current_scope->stop_cond = flt_otel_parse_acl(file, line, flt_otel_current_config->proxy, (const char **)args + 1, &err, &(flt_otel_current_scope->acls), &(flt_otel_current_config->instr->acls), &(flt_otel_current_config->proxy->acl), NULL);
+				if (flt_otel_current_scope->stop_cond == NULL)
+					retval |= ERR_ABORT | ERR_ALERT;
+			}
+		}
+		else {
+			FLT_OTEL_PARSE_ERR(&err, "'%s' : expects either 'if' or 'unless' followed by a condition but found '%s'", args[0], args[1]);
+		}
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_INSTRUMENT) {
 		retval = flt_otel_parse_cfg_instrument(file, line, args, pdata, &err);

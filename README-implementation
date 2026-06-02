@@ -162,10 +162,11 @@ executes all referenced scopes when the rule fires.
       instrument <type> <name> ... / instrument update <name> ...
       log-record <severity> [id <int> event <name>] [time [<unit>] <sample>] [span <ref>] [attr <key> <sample>] ... <sample> ...
       acl <name> <criterion> ...
+      otel-stop [if|unless <condition>]
 
 Each scope ties to a single HAProxy analyzer event (or none, if used only
 through groups).  Scopes contain context extraction directives, span
-definitions, metric instruments, log records, and finish directives.
+definitions, metric instruments, log records, finish and otel-stop directives.
 
 A span may specify:
   - A parent reference (another span or extracted context).
@@ -432,10 +433,13 @@ and response fetches.
        the scope's log-record list, skips entries below the logger's severity
        threshold, evaluates sample expressions into a body string, resolves
        the optional span reference, and emits the record via the logger.
-    6. Marks spans listed in "finish" directives.
+    6. Marks spans listed in "finish" directives; a fired "otel-stop" marks
+       every open span and context for completion.
     7. Calls flt_otel_scope_finish_marked() to end marked spans/contexts.
     8. Calls flt_otel_scope_free_unused() to remove finished and destroyed
        scope_span/scope_context entries from the runtime lists.
+    9. If "otel-stop" fired, sets rt_ctx->flag_disabled = 1; the guard at the
+       top of flt_otel_scope_run() then skips the stream's remaining scopes.
 
 
 7  Runtime Data Structures

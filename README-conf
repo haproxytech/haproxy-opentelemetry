@@ -162,10 +162,12 @@ Groups bundle scopes for use with the "otel-group" HAProxy action.
 
   FLT_OTEL_CONF_HDR(id)  The scope name.
   flag_used              The indication that the scope is being used.
+  flag_stop              Whether the scope stops tracing for the connection.
   event                  FLT_OTEL_EVENT_* identifier.
   idle_timeout           Idle timeout interval in milliseconds (0 = off).
   acls                   ACLs declared on this scope.
   cond                   ACL condition to meet.
+  stop_cond              ACL condition gating the stop (NULL if unconditional).
   contexts               Declared contexts.
   spans                  Declared spans.
   spans_to_finish        The list of spans scheduled for finishing.

@@ -516,6 +516,24 @@ Supported keywords:
         otel-event on-idle-timeout
 
 
+  otel-stop [{ if | unless } <condition>]
+      Stop the OpenTelemetry filter for the current connection.  Every span and
+      span context still open on the stream is finished, and the filter is then
+      disabled for the rest of that connection, so no further scopes run for it,
+      whether triggered by a later event or by an 'otel-group' action.  It is
+      the per-connection counterpart to the global 'otel disable' CLI command.
+
+      The stop is evaluated after the rest of the scope has run, so a stopping
+      scope still emits the spans, log records and metrics it defines first.
+
+      Without a condition the stop always fires.  An optional 'if' or 'unless'
+      condition (same syntax as 'otel-event') makes the stop conditional.
+
+      Examples:
+        otel-stop
+        otel-stop if { path_beg /health }
+
+
   idle-timeout <time>
       Set the idle timeout interval for a scope bound to the 'on-idle-timeout'
       event.  The timer fires periodically at the given interval when the stream

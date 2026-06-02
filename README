@@ -452,6 +452,7 @@ otel-scope <name>
     - link
     - log-record
     - otel-event
+    - otel-stop
     - span
     - status
 
@@ -933,6 +934,30 @@ otel-event <name> [{ if | unless } <condition>]
   which runs on every response, including the ones that HAProxy synthesises.
 
   The on-server-session-end event fires when the response channel analysis ends.
+
+
+otel-stop [{ if | unless } <condition>]
+  Stop the OpenTelemetry filter for the current connection.  When this keyword
+  is reached, every span and span context still open on the stream is finished
+  and the filter is disabled for the rest of that connection: no further scopes
+  run for it, whether triggered by a later event or by an 'otel-group' action.
+  It is the per-connection counterpart to the global 'otel disable' CLI command
+  that disables the filter for every connection at once.
+
+  The stop is evaluated after the rest of the scope has run, so a stopping scope
+  still emits the spans, log records and metrics it defines before tracing ends.
+
+  Without a condition the directive always fires.  An optional 'if' or 'unless'
+  condition, using the same syntax as the 'otel-event' keyword, makes the stop
+  conditional; the filter is left active when the condition is not met.
+
+  Arguments :
+    condition - an optional ACL-based 'if' or 'unless' condition
+
+  Example :
+    otel-scope skip_healthchecks
+        otel-event on-client-session-start
+        otel-stop if { path_beg /health }
 
 
 idle-timeout <time>
