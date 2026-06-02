@@ -201,6 +201,14 @@ struct flt_otel_conf_instrument {
 	struct flt_otel_conf_instrument   *ref;         /* Resolved create-form instrument (update only). */
 };
 
+/* Unit of the optional log-record timestamp expression. */
+enum FLT_OTEL_TIME_UNIT_enum {
+	FLT_OTEL_TIME_UNIT_S = 0,
+	FLT_OTEL_TIME_UNIT_MS,
+	FLT_OTEL_TIME_UNIT_US,
+	FLT_OTEL_TIME_UNIT_NS,
+};
+
 /*
  * Log record configuration within a scope.
  *   flt_otel_conf_scope->log_records

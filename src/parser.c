@@ -432,6 +432,68 @@ static int flt_otel_parse_cfg_sample(const char *file, int line, char **args, in
 
 /***
  * NAME
+ *   flt_otel_parse_cfg_time - optional timestamp clause parser
+ *
+ * SYNOPSIS
+ *   static int flt_otel_parse_cfg_time(const char *file, int line, char **args, int *idx, const struct flt_otel_parse_data *pdata, struct list *head, char **err)
+ *
+ * ARGUMENTS
+ *   file  - configuration file path
+ *   line  - configuration file line number
+ *   args  - configuration line arguments array
+ *   idx   - on entry the 'time' keyword position; advanced to the parsed sample
+ *   pdata - keyword metadata (name, usage) used in error messages
+ *   head  - list head receiving the parsed timestamp sample
+ *   err   - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Parses the value part of a 'time [s|ms|us|ns] <sample>' clause.  An
+ *   optional unit keyword immediately after 'time' selects the time unit
+ *   (seconds when omitted) and is stored in the sample's extra data.  The
+ *   single sample expression that follows is parsed into <head> and <*idx> is
+ *   advanced onto it.  The caller verifies that the clause is present and not
+ *   already set.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE (== 0) in case of success,
+ *   or a combination of ERR_* flags if an error is encountered.
+ */
+static int flt_otel_parse_cfg_time(const char *file, int line, char **args, int *idx, const struct flt_otel_parse_data *pdata, struct list *head, char **err)
+{
+	struct otelc_value extra = { .u_type = OTELC_VALUE_INT32, .u.value_int32 = FLT_OTEL_TIME_UNIT_S };
+	int                offset = 2, retval = ERR_NONE;
+
+	OTELC_FUNC("\"%s\", %d, %p, %p, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, idx, pdata, head, OTELC_DPTR_ARGS(err));
+
+	/*
+	 * Optional unit keyword between 'time' and the sample expression: s,
+	 * ms, us, or ns.  Default is seconds when no unit is provided.
+	 */
+	if (FLT_OTEL_PARSE_KEYWORD(*idx + 1, FLT_OTEL_PARSE_LOG_RECORD_TIME_S))
+		extra.u.value_int32 = FLT_OTEL_TIME_UNIT_S;
+	else if (FLT_OTEL_PARSE_KEYWORD(*idx + 1, FLT_OTEL_PARSE_LOG_RECORD_TIME_MS))
+		extra.u.value_int32 = FLT_OTEL_TIME_UNIT_MS;
+	else if (FLT_OTEL_PARSE_KEYWORD(*idx + 1, FLT_OTEL_PARSE_LOG_RECORD_TIME_US))
+		extra.u.value_int32 = FLT_OTEL_TIME_UNIT_US;
+	else if (FLT_OTEL_PARSE_KEYWORD(*idx + 1, FLT_OTEL_PARSE_LOG_RECORD_TIME_NS))
+		extra.u.value_int32 = FLT_OTEL_TIME_UNIT_NS;
+	else
+		offset = 1;
+
+	if (!FLT_OTEL_ARG_ISVALID(*idx + offset)) {
+		FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[*idx], pdata->name, pdata->usage);
+	} else {
+		retval = flt_otel_parse_cfg_sample(file, line, args, *idx + offset, 1, &extra, head, err);
+		if (!(retval & ERR_CODE))
+			*idx += offset;
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_parse_cfg_str - string list parser
  *
  * SYNOPSIS

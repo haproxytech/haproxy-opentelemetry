@@ -996,6 +996,90 @@ int flt_otel_sample_eval(struct stream *s, uint dir, struct flt_otel_conf_sample
 
 /***
  * NAME
+ *   flt_otel_sample_eval_time - 'time' sample expression evaluation
+ *
+ * SYNOPSIS
+ *   int flt_otel_sample_eval_time(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, struct timespec *ts, char **err)
+ *
+ * ARGUMENTS
+ *   s      - current stream
+ *   dir    - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
+ *   sample - configured 'time' sample, with the time unit in its extra data
+ *   ts     - destination timestamp, filled only on success
+ *   err    - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Evaluates the 'time' <sample> expression and converts the resulting numeric
+ *   value into a struct timespec according to the unit stored in the sample's
+ *   extra data (FLT_OTEL_TIME_UNIT_S/MS/US/NS).  A value returned as a string
+ *   is parsed numerically; a non-numeric or negative value is rejected and
+ *   leaves <ts> untouched so the caller keeps its default.
+ *
+ * RETURN VALUE
+ *   Returns 1 when <ts> was filled with a valid timestamp, 0 otherwise.
+ */
+int flt_otel_sample_eval_time(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, struct timespec *ts, char **err)
+{
+	struct otelc_value value;
+	int                retval = 0;
+
+	OTELC_FUNC("%p, %u, %p, %p, %p:%p", s, dir, sample, ts, OTELC_DPTR_ARGS(err));
+
+	if (flt_otel_sample_eval(s, dir, sample, true, &value, err) == FLT_OTEL_RET_OK) {
+		/*
+		 * Convert the evaluated value to int64.  If it came back as a
+		 * string, parse it numerically; on failure, free the string and
+		 * skip the timestamp.
+		 */
+		if (value.u_type == OTELC_VALUE_DATA)
+			if (otelc_value_strtonum(&value, OTELC_VALUE_INT64) == OTELC_RET_ERROR) {
+				OTELC_DBG(NOTICE, "WARNING: 'time' value not numeric");
+
+				OTELC_SFREE(value.u.value_data);
+				value.u_type = OTELC_VALUE_NULL;
+			}
+
+		/*
+		 * A negative value would produce a malformed timespec (a
+		 * sub-second unit yields a negative tv_nsec), so ignore it.
+		 */
+		if ((value.u_type == OTELC_VALUE_INT64) && (value.u.value_int64 < 0)) {
+			OTELC_DBG(NOTICE, "WARNING: 'time' value is negative");
+
+			value.u_type = OTELC_VALUE_NULL;
+		}
+
+		if (value.u_type == OTELC_VALUE_INT64) {
+			int64_t ts_value = value.u.value_int64;
+			int32_t ts_unit  = sample->extra.u.value_int32;
+
+			if (ts_unit == FLT_OTEL_TIME_UNIT_MS) {
+				ts->tv_sec  = ts_value / 1000;
+				ts->tv_nsec = (ts_value % 1000) * 1000000L;
+			}
+			else if (ts_unit == FLT_OTEL_TIME_UNIT_US) {
+				ts->tv_sec  = ts_value / 1000000;
+				ts->tv_nsec = (ts_value % 1000000) * 1000L;
+			}
+			else if (ts_unit == FLT_OTEL_TIME_UNIT_NS) {
+				ts->tv_sec  = ts_value / 1000000000;
+				ts->tv_nsec = ts_value % 1000000000;
+			}
+			else {
+				ts->tv_sec  = ts_value;
+				ts->tv_nsec = 0;
+			}
+
+			retval = 1;
+		}
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_sample_add - top-level sample evaluator and dispatcher
  *
  * SYNOPSIS

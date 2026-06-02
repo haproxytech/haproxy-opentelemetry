@@ -89,6 +89,9 @@ int         flt_otel_sample_add_kv(struct flt_otel_scope_data_kv *kv, const char
 /* Evaluate a sample definition into an OTel value. */
 int         flt_otel_sample_eval(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, bool flag_native, struct otelc_value *value, char **err);
 
+/* Evaluate a 'time' sample expression into a struct timespec. */
+int         flt_otel_sample_eval_time(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, struct timespec *ts, char **err);
+
 /* Evaluate a sample expression and add the result to scope data. */
 int         flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, struct flt_otel_scope_data *data, int type, char **err);
 
