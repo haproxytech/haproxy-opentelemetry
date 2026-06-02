@@ -232,14 +232,15 @@ never interrupts stream processing.
 3.4  Disabled State Checking
 
 flt_otel_is_disabled() (filter.c) is called at the top of every filter callback
-that processes events.  It checks three conditions:
+that processes events.  It reports whether the stream's runtime context has its
+flag_disabled field set, which a hard error (in hard-error mode) does.  The
+runtime context is per-stream and therefore single-threaded, so the field is
+read directly, without atomic access; when set, the callback returns at once
+without processing.
 
-  1. rt_ctx is NULL (filter was never attached or already detached).
-  2. rt_ctx->flag_disabled is set (hard-error disabled the filter).
-  3. conf->instr->flag_disabled is set (globally disabled via CLI).
-
-All three are loaded via _HA_ATOMIC_LOAD() for thread safety.  When disabled,
-the callback returns immediately without processing.
+The global "otel disable" CLI command uses a separate instrumentation field,
+conf->instr->flag_disabled, which flt_otel_ops_attach() checks atomically when
+the filter attaches to a stream (section 6.3), not through this per-stream test.
 
 
 4  Thread Safety Model
