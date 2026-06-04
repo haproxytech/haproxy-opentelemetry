@@ -391,10 +391,11 @@ Supported keywords:
       (milliseconds), 'us' (microseconds) and 'ns' (nanoseconds); the value
       is interpreted as a count since the Unix epoch in the given unit.  The
       sample is evaluated at runtime and must yield an integer (or a string
-      convertible to one); if evaluation or numeric conversion fails, the log
-      record falls back to the default wall-clock timestamp.  Typical sources
-      are HAProxy's 'date' fetch family (e.g. date, date(0,ms), date(0,us)) or
-      a numeric value extracted from a header or variable.
+      convertible to one).  The value sets the event timestamp; if evaluation
+      or numeric conversion fails, it defaults to the wall-clock, which is
+      always recorded as the observed timestamp.  Typical sources are HAProxy's
+      'date' fetch family (e.g. date, date(0,ms), date(0,us)) or a numeric value
+      extracted from a header or variable.
 
       The 'attr' keyword takes an attribute name and a single HAProxy sample
       expression.  The expression is evaluated at runtime, following the same

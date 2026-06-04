@@ -1225,17 +1225,17 @@ For each configured log record the function performs:
      A missing span is non-fatal -- a NOTICE warning is logged and the
      record is emitted without span correlation.
 
-  5. Timestamp selection: if conf_log->time is non-empty, the single stored
+  5. Event timestamp selection: when conf_log->time is non-empty, its single
      sample is evaluated via flt_otel_sample_eval() in native mode.  A string
      result is coerced to int64 with otelc_value_strtonum(); on conversion
-     failure the wall-clock ts passed by the caller is kept.  A successful int64
-     result is split into a struct timespec according to the unit packed in the
-     sample's extra field (s, ms, us or ns), and that timespec replaces the
-     caller-supplied wall-clock value.
+     failure the wall-clock ts is kept.  A successful int64 result is split
+     into a struct timespec by the unit packed in the sample's extra field
+     (s, ms, us or ns), and that timespec becomes the event timestamp.
 
   6. Emission: logger->log_span() is called with the severity, event_id,
-     event_name, resolved span (or NULL), the selected timestamp, the evaluated
-     attributes and the evaluated body string.
+     event_name, resolved span (or NULL), the event timestamp, the wall-clock ts
+     as the observed timestamp, the evaluated attributes and the evaluated body
+     string.
 
 18.6.3  Logger Lifecycle Summary
 

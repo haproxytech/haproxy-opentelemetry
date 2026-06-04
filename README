@@ -713,8 +713,9 @@ log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span
   'us', or 'ns') followed by a single HAProxy sample expression.  The value
   is interpreted as a count since the Unix epoch in the chosen unit, and the
   sample is evaluated at runtime and must yield an integer (or a string that
-  is convertible to one).  When evaluation or numeric conversion fails, the
-  record falls back to the default wall-clock timestamp.
+  is convertible to one).  The value sets the event timestamp; when evaluation
+  or numeric conversion fails, the event timestamp defaults to the wall-clock.
+  The observed timestamp always records when the filter emitted the record.
 
   The remaining arguments at the end are sample fetch expressions.  A single
   sample preserves its native type; multiple samples are concatenated as a

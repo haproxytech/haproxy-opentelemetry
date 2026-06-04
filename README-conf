@@ -233,8 +233,8 @@ The optional timestamp expression, set via the 'time' keyword, is stored as a
 single-entry list of flt_otel_conf_sample with the unit selector (s, ms, us
 or ns) packed into the sample's 'extra' data field as an OTELC_VALUE_INT32.
 At runtime the sample is evaluated, normalised to int64, scaled by the chosen
-unit, and packed into a struct timespec that replaces the default wall-clock
-timestamp passed to the logger.
+unit, and packed into a struct timespec that becomes the event timestamp, while
+the wall-clock value is passed as the observed timestamp.
 
 4.8  flt_otel_conf_context
 

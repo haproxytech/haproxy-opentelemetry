@@ -159,11 +159,11 @@ Event dispatching, metrics recording and scope/span execution engine.
       list, skipping entries whose severity is below the logger threshold.
       Evaluates the body from sample fetch expressions or a log-format string,
       optionally resolves a span reference against the runtime context, and
-      emits the record via the logger.  When a 'time' expression is set, that
-      sample is evaluated, scaled by the configured unit, and used in place of
-      the caller-supplied wall-clock value as the record's timestamp.  A missing
-      span is non-fatal (the record is emitted without span correlation) and a
-      failed time evaluation reverts to the default ts.
+      emits the record via the logger.  The event timestamp comes from the
+      'time' expression (scaled by the configured unit) when the record sets one
+      and it evaluates, and otherwise from the caller's wall-clock value; that
+      wall-clock value is always passed as the observed timestamp.  A missing
+      span is non-fatal -- the record is emitted without span correlation.
 
   flt_otel_scope_run_span
       Executes a single span: creates the OTel span on first call, adds links,

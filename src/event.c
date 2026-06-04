@@ -396,10 +396,11 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 		}
 
 		/*
-		 * If the log record carries a 'time' expression, evaluate it
-		 * and derive a struct timespec from the configured unit.  The
-		 * default (caller-provided) timestamp is used when 'time' is
-		 * absent or its evaluation fails.
+		 * The event timestamp is the 'time' expression when the log
+		 * record configures one and it evaluates, otherwise the
+		 * wall-clock ts.  The wall-clock ts is always passed as the
+		 * observed timestamp, so an explicit time records the lag
+		 * between event and observation; absent, the two are equal.
 		 */
 		ts_ptr = ts;
 
@@ -412,7 +413,7 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 				ts_ptr = &ts_log;
 		}
 
-		if (OTELC_OPS(logger, log_span, conf_log->severity, conf_log->event_id, conf_log->event_name, otel_span, ts_ptr, log_attr.attr, log_attr.cnt, "%s", buffer.area) == OTELC_RET_ERROR)
+		if (OTELC_OPS(logger, log_span, conf_log->severity, conf_log->event_id, conf_log->event_name, otel_span, ts_ptr, ts, log_attr.attr, log_attr.cnt, "%s", buffer.area) == OTELC_RET_ERROR)
 			retval = FLT_OTEL_RET_ERROR;
 
 		otelc_kv_destroy(&(log_attr.attr), log_attr.cnt);
