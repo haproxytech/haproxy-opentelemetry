@@ -1335,18 +1335,20 @@ static void flt_otel_ops_check_timeouts(struct stream *s, struct filter *f)
 		/* Fire the on-idle-timeout event. */
 		(void)flt_otel_event_run(s, f, &(s->req), FLT_OTEL_EVENT__IDLE_TIMEOUT, &err);
 
-		/* Reschedule the next idle timeout. */
-		rt_ctx->idle_exp = tick_add(now_ms, rt_ctx->idle_timeout);
-
 		/*
-		 * Reset analyse_exp if it has expired before merging in the new
-		 * idle tick.  Without this, tick_first() would keep returning
-		 * the stale expired value, causing the stream task to wake in
-		 * a tight loop.
+		 * Clear analyse_exp only if it still holds our own, now expired
+		 * idle tick.  If another analyser owns it -- e.g. a tarpit
+		 * waiting out its timeout -- resetting it here would steal that
+		 * analyser's wake-up and stall the stream.  Clearing our own
+		 * stale tick is still needed, otherwise tick_first() below
+		 * would keep returning the expired value and spin the stream
+		 * task.
 		 */
-		if (tick_is_expired(s->req.analyse_exp, now_ms))
+		if (s->req.analyse_exp == rt_ctx->idle_exp)
 			s->req.analyse_exp = TICK_ETERNITY;
 
+		/* Reschedule the next idle timeout and re-arm the wake-up. */
+		rt_ctx->idle_exp   = tick_add(now_ms, rt_ctx->idle_timeout);
 		s->req.analyse_exp = tick_first(s->req.analyse_exp, rt_ctx->idle_exp);
 
 		/* Force the request and response analysers to be re-evaluated. */
