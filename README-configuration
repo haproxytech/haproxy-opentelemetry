@@ -433,6 +433,70 @@ Supported keywords:
         log-record info time ns hdr(x-event-time-ns) str("client-supplied timestamp")
 
 
+  set-var <var-name> <sample> ...
+      Set a HAProxy variable to the string value of a sample expression or a
+      log-format, evaluated when the scope's event fires.  The value grammar
+      matches the 'attribute' keyword: bare sample fetches are concatenated and
+      a '%[ ... ]' wrapper marks a HAProxy log-format string.  The result is
+      always stored as a string.  The variable name includes its scope (proc,
+      sess, txn, req or res) and is registered at parse time.  Assignments run
+      before the scope's spans, so span attributes, instruments and log records
+      can read the new value through 'var(...)'.
+
+      Examples:
+        set-var txn.otel_method method
+        set-var txn.otel_path str("path=") path
+        set-var sess.otel_tid var(sess.otel.uuid)
+
+
+  set-var-ctx <var-name> <ref> <field>
+      Set a HAProxy variable from a field of a referenced span or span context,
+      evaluated when the scope's event fires.  <ref> names a span or a context
+      extracted in this scope; it is resolved against the active spans first and
+      then the extracted contexts; an unresolved reference leaves the variable
+      unchanged.  Because these assignments run after the scope's spans, a span
+      created in the same scope may be referenced.
+
+      Supported fields:
+        trace-id          - trace id, lowercase hex
+        span-id           - span id, lowercase hex
+        trace-flags       - W3C trace-flags byte, lowercase hex
+        traceparent       - full W3C "00-<trace>-<span>-<flags>" string
+        tracestate        - full tracestate header (context references only)
+        tracestate(<key>) - a single tracestate entry (context references only)
+        baggage           - the whole baggage carrier (all entries)
+        baggage(<key>)    - a single baggage entry value
+        sampled           - "1" if the sampled flag is set, else "0"
+        valid             - "1" if the context is valid, else "0"
+        remote            - "1" if the context is remote, else "0"
+
+      For 'baggage(<key>)', a span reference reads the value set on that span,
+      while a context reference reads the named entry from the inbound carrier.
+      Keyless 'baggage' returns the whole carrier instead: the inbound carrier
+      for a context reference, or the serialized outbound baggage for a span
+      reference.  The 'tracestate' fields are available only when <ref> names a
+      context.
+
+      The <ref> is a span or context name, quoted as in 'span', 'inject' and
+      'extract'.  The example below first declares them, then references them.
+
+      Examples:
+        extract "inbound" use-headers
+        span "HAProxy session" root
+        set-var-ctx txn.in_traceid  "inbound" trace-id
+        set-var-ctx txn.traceparent "HAProxy session" traceparent
+        set-var-ctx txn.user        "inbound" baggage(userId)
+
+
+  unset-var <var-name> ...
+      Remove one or more HAProxy variables when the scope's event fires.  A
+      variable that is not currently set is silently ignored.  Removal runs
+      after all other directives in the scope.
+
+      Example:
+        unset-var txn.otel_scratch txn.otel_tmp
+
+
   acl <aclname> <criterion> [flags] [operator] <value> ...
       Declare an ACL local to this scope.
 

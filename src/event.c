@@ -578,6 +578,131 @@ static int flt_otel_cond_pass(struct acl_cond *cond, struct stream *s, uint dir)
 
 /***
  * NAME
+ *   flt_otel_scope_run_set_var - scope set-var processor
+ *
+ * SYNOPSIS
+ *   static int flt_otel_scope_run_set_var(struct stream *s, uint dir, struct flt_otel_conf_scope *scope, char **err)
+ *
+ * ARGUMENTS
+ *   s     - the stream providing the sample context
+ *   dir   - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
+ *   scope - the scope configuration containing the set-var list
+ *   err   - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Evaluates each set-var directive of <scope> and stores the resulting string
+ *   into the named HAProxy variable via flt_otel_var_set_byname().  The value is
+ *   produced by flt_otel_sample_eval() in string form.
+ *
+ * RETURN VALUE
+ *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
+ */
+static int flt_otel_scope_run_set_var(struct stream *s, uint dir, struct flt_otel_conf_scope *scope, char **err)
+{
+	struct flt_otel_conf_sample *sample;
+	int                          retval = FLT_OTEL_RET_OK;
+
+	OTELC_FUNC("%p, %u, %p, %p:%p", s, dir, scope, OTELC_DPTR_ARGS(err));
+
+	list_for_each_entry(sample, &(scope->set_vars), list) {
+		struct otelc_value value;
+
+		OTELC_DBG(DEBUG, "set-var '%s' -> '%s'", sample->key, sample->fmt_string);
+
+		if (flt_otel_sample_eval(s, dir, sample, false, &value, err) == FLT_OTEL_RET_ERROR) {
+			retval = FLT_OTEL_RET_ERROR;
+
+			continue;
+		}
+
+		if (flt_otel_var_set_byname(s, sample->key, OTELC_VALUE_STR(&value), dir, err) == FLT_OTEL_RET_ERROR)
+			retval = FLT_OTEL_RET_ERROR;
+
+		if (value.u_type == OTELC_VALUE_DATA)
+			OTELC_SFREE(value.u.value_data);
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_scope_run_set_var_ctx - scope set-var-ctx processor
+ *
+ * SYNOPSIS
+ *   static int flt_otel_scope_run_set_var_ctx(struct stream *s, struct filter *f, uint dir, struct flt_otel_conf_scope *scope, char **err)
+ *
+ * ARGUMENTS
+ *   s     - the stream providing the variable store
+ *   f     - the filter instance owning the runtime context
+ *   dir   - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
+ *   scope - the scope configuration containing the set-var-ctx list
+ *   err   - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Processes each set-var-ctx directive of <scope>.  The referenced name is
+ *   resolved against the runtime spans first and then the extracted contexts,
+ *   the requested field is rendered via flt_otel_ctx_field_to_str(), and the
+ *   result is stored into the named HAProxy variable.  An unresolved reference
+ *   is logged and skipped.
+ *
+ * RETURN VALUE
+ *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
+ */
+static int flt_otel_scope_run_set_var_ctx(struct stream *s, struct filter *f, uint dir, struct flt_otel_conf_scope *scope, char **err)
+{
+	struct flt_otel_runtime_context  *rt_ctx = FLT_OTEL_RT_CTX(f->ctx);
+	struct flt_otel_conf_set_var_ctx *conf_set_var_ctx;
+	int                               retval = FLT_OTEL_RET_OK;
+
+	OTELC_FUNC("%p, %p, %u, %p, %p:%p", s, f, dir, scope, OTELC_DPTR_ARGS(err));
+
+	list_for_each_entry(conf_set_var_ctx, &(scope->set_var_ctxs), list) {
+		struct flt_otel_scope_span    *sc_span;
+		struct flt_otel_scope_context *sc_ctx;
+		struct otelc_span             *ref_span = NULL;
+		struct otelc_span_context     *ref_ctx = NULL;
+		const char                    *ref_baggage = NULL;
+		char                           value[BUFSIZ];
+
+		OTELC_DBG(DEBUG, "set-var-ctx '%s' -> '%s' field %d", conf_set_var_ctx->name, conf_set_var_ctx->ref, conf_set_var_ctx->field);
+
+		/* Resolve the reference name against spans first, then contexts. */
+		list_for_each_entry(sc_span, &(rt_ctx->spans), list)
+			if (strcmp(sc_span->id, conf_set_var_ctx->ref) == 0) {
+				ref_span = sc_span->span;
+
+				break;
+			}
+
+		if (ref_span == NULL)
+			list_for_each_entry(sc_ctx, &(rt_ctx->contexts), list)
+				if (strcmp(sc_ctx->id, conf_set_var_ctx->ref) == 0) {
+					ref_ctx     = sc_ctx->context;
+					ref_baggage = sc_ctx->baggage;
+
+					break;
+				}
+
+		if ((ref_span == NULL) && (ref_ctx == NULL)) {
+			OTELC_DBG(NOTICE, "WARNING: cannot find span/context '%s'", conf_set_var_ctx->ref);
+
+			continue;
+		}
+
+		if (flt_otel_ctx_field_to_str(ref_span, ref_ctx, ref_baggage, conf_set_var_ctx->field, conf_set_var_ctx->field_key, value, sizeof(value), err) == FLT_OTEL_RET_ERROR)
+			retval = FLT_OTEL_RET_ERROR;
+		else if (flt_otel_var_set_byname(s, conf_set_var_ctx->name, value, dir, err) == FLT_OTEL_RET_ERROR)
+			retval = FLT_OTEL_RET_ERROR;
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_scope_run - scope execution engine
  *
  * SYNOPSIS
@@ -609,7 +734,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 	struct flt_otel_conf         *conf = FLT_OTEL_CONF(f);
 	struct flt_otel_conf_context *conf_ctx;
 	struct flt_otel_conf_span    *conf_span;
-	struct flt_otel_conf_str     *span_to_finish;
+	struct flt_otel_conf_str     *span_to_finish, *unset_var;
 	struct timespec               ts_now_steady, ts_now_system;
 	int                           retval = FLT_OTEL_RET_OK;
 	bool                          flag_stop = 0;
@@ -697,6 +822,11 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 			retval = FLT_OTEL_RET_ERROR;
 		}
 	}
+
+	/* Set HAProxy variables from sample expressions. */
+	if (!LIST_ISEMPTY(&(conf_scope->set_vars)))
+		if (flt_otel_scope_run_set_var(s, dir, conf_scope, err) == FLT_OTEL_RET_ERROR)
+			retval = FLT_OTEL_RET_ERROR;
 
 	/* Process configured spans: resolve links and collect samples. */
 	list_for_each_entry(conf_span, &(conf_scope->spans), list) {
@@ -808,6 +938,11 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 		flt_otel_scope_data_free(&data);
 	}
 
+	/* Set HAProxy variables from referenced span or context fields. */
+	if (!LIST_ISEMPTY(&(conf_scope->set_var_ctxs)))
+		if (flt_otel_scope_run_set_var_ctx(s, f, dir, conf_scope, err) == FLT_OTEL_RET_ERROR)
+			retval = FLT_OTEL_RET_ERROR;
+
 	/* Process metric instruments. */
 	if (!LIST_ISEMPTY(&(conf_scope->instruments)))
 		if (flt_otel_scope_run_instrument(s, dir, conf_scope, conf->instr->meter, err) == FLT_OTEL_RET_ERROR)
@@ -816,6 +951,11 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 	/* Emit log records. */
 	if (!LIST_ISEMPTY(&(conf_scope->log_records)))
 		if (flt_otel_scope_run_log_record(s, f, dir, conf_scope, conf->instr->logger, ts_system, err) == FLT_OTEL_RET_ERROR)
+			retval = FLT_OTEL_RET_ERROR;
+
+	/* Remove HAProxy variables. */
+	list_for_each_entry(unset_var, &(conf_scope->unset_vars), list)
+		if (flt_otel_var_unset_byname(s, unset_var->str, dir, err) == FLT_OTEL_RET_ERROR)
 			retval = FLT_OTEL_RET_ERROR;
 
 	/* Mark the configured spans for finishing and clean up. */

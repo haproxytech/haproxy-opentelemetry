@@ -130,7 +130,10 @@
 	FLT_OTEL_PARSE_SCOPE_DEF(  LOG_RECORD, 0, NONE, 3, 0, "log-record",   " <severity> [<id> <event>] [<time>] [<span>] [<attr>] <sample> ...")                            \
 	FLT_OTEL_PARSE_SCOPE_DEF(IDLE_TIMEOUT, 0, NONE, 2, 2, "idle-timeout", " <time>")                                                                                       \
 	FLT_OTEL_PARSE_SCOPE_DEF(         ACL, 0, CHAR, 3, 0, "acl",          " <name> <criterion> [flags] [operator] <value> ...")                                            \
-	FLT_OTEL_PARSE_SCOPE_DEF(    ON_EVENT, 0, NONE, 2, 0, "otel-event",   " <name> [{ if | unless } <condition>]")
+	FLT_OTEL_PARSE_SCOPE_DEF(    ON_EVENT, 0, NONE, 2, 0, "otel-event",   " <name> [{ if | unless } <condition>]")                                                         \
+	FLT_OTEL_PARSE_SCOPE_DEF(     SET_VAR, 0, NONE, 3, 0, "set-var",      " <var-name> <sample> ...")                                                                      \
+	FLT_OTEL_PARSE_SCOPE_DEF( SET_VAR_CTX, 0, NONE, 4, 4, "set-var-ctx",  " <var-name> <ref> <field>")                                                                     \
+	FLT_OTEL_PARSE_SCOPE_DEF(   UNSET_VAR, 0, NONE, 2, 0, "unset-var",    " <var-name> ...")
 
 /* Invalid character check modes for identifier validation. */
 enum FLT_OTEL_PARSE_INVCHAR_enum {

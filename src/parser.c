@@ -1360,6 +1360,110 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
 
 /***
  * NAME
+ *   flt_otel_parse_cfg_set_var_ctx - set-var-ctx reference and field parser
+ *
+ * SYNOPSIS
+ *   static int flt_otel_parse_cfg_set_var_ctx(char **args, struct flt_otel_conf_set_var_ctx *conf, char **err)
+ *
+ * ARGUMENTS
+ *   args - configuration line arguments array
+ *   conf - the set-var-ctx structure to populate
+ *   err  - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Stores the referenced span/context name from <args>[2] and parses the field
+ *   selector in <args>[3] into <conf>.  The selector is a field name with an
+ *   optional parenthesised key, such as 'trace-id', 'baggage(userId)' or
+ *   'tracestate(vendor)'.  A key is required for 'baggage', optional for
+ *   'tracestate', and rejected for the other fields.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE (== 0) in case of success,
+ *   or a combination of ERR_* flags if an error is encountered.
+ */
+static int flt_otel_parse_cfg_set_var_ctx(char **args, struct flt_otel_conf_set_var_ctx *conf, char **err)
+{
+#define FLT_OTEL_VAR_FIELD_DEF(a,b)   { FLT_OTEL_VAR_FIELD_##a, b },
+	static const struct {
+		int         field;
+		const char *keyword;
+	} fields[] = { FLT_OTEL_VAR_FIELD_DEFINES };
+#undef FLT_OTEL_VAR_FIELD_DEF
+	const char *paren;
+	char        field_name[32], *field_key = NULL;
+	size_t      name_len;
+	int         i, retval = ERR_NONE;
+
+	OTELC_FUNC("%p, %p, %p:%p", args, conf, OTELC_DPTR_ARGS(err));
+
+	/* Duplicate the referenced span or context name. */
+	conf->ref = OTELC_STRDUP(args[2]);
+	if (conf->ref == NULL) {
+		FLT_OTEL_PARSE_ERR(err, "'%s' : out of memory", args[0]);
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	/* Split the field selector into a field name and an optional (key). */
+	paren = strchr(args[3], '(');
+	if (paren == NULL) {
+		name_len = strlen(args[3]);
+	} else {
+		const char *close = strrchr(args[3], ')');
+
+		if ((close == NULL) || (close < paren) || (close[1] != '\0')) {
+			FLT_OTEL_PARSE_ERR(err, "'%s' : malformed field '%s'", args[0], args[3]);
+
+			OTELC_RETURN_INT(retval);
+		}
+
+		name_len  = paren - args[3];
+		field_key = OTELC_STRNDUP(paren + 1, close - paren - 1);
+		if (field_key == NULL) {
+			FLT_OTEL_PARSE_ERR(err, "'%s' : out of memory", args[0]);
+
+			OTELC_RETURN_INT(retval);
+		}
+	}
+
+	if (name_len >= sizeof(field_name)) {
+		FLT_OTEL_PARSE_ERR(err, "'%s' : unknown field '%s'", args[0], args[3]);
+
+		OTELC_FREE(field_key);
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	(void)memcpy(field_name, args[3], name_len);
+	field_name[name_len] = '\0';
+
+	for (i = 0; i < OTELC_TABLESIZE(fields); i++)
+		if (strcmp(field_name, fields[i].keyword) == 0)
+			break;
+
+	if (i >= OTELC_TABLESIZE(fields)) {
+		FLT_OTEL_PARSE_ERR(err, "'%s' : unknown field '%s'", args[0], field_name);
+
+		OTELC_FREE(field_key);
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	conf->field     = fields[i].field;
+	conf->field_key = field_key;
+
+	/* Validate the presence or absence of a key for the chosen field. */
+	if ((conf->field == FLT_OTEL_VAR_FIELD_BAGGAGE) || (conf->field == FLT_OTEL_VAR_FIELD_TRACESTATE))
+		/* The key is optional for baggage and tracestate. */;
+	else if (field_key != NULL)
+		FLT_OTEL_PARSE_ERR(err, "'%s' : field '%s' does not take a key", args[0], field_name);
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_parse_cfg_scope - otel-scope section parser
  *
  * SYNOPSIS
@@ -1682,6 +1786,26 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			if (!(retval & ERR_CODE))
 				OTELC_DBG(DEBUG, "event '%s'", args[1]);
 		}
+	}
+	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_SET_VAR) {
+		if (flt_otel_var_register_byname(args[1], &err) == FLT_OTEL_RET_ERROR)
+			retval |= ERR_ABORT | ERR_ALERT;
+		else
+			retval = flt_otel_parse_cfg_sample(file, line, args, 2, 0, NULL, &(flt_otel_current_scope->set_vars), &err);
+	}
+	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_SET_VAR_CTX) {
+		struct flt_otel_conf_set_var_ctx *conf_set_var_ctx;
+
+		conf_set_var_ctx = flt_otel_conf_set_var_ctx_init(args[1], line, &(flt_otel_current_scope->set_var_ctxs), &err);
+		if (conf_set_var_ctx == NULL)
+			retval |= ERR_ABORT | ERR_ALERT;
+		else if (flt_otel_var_register_byname(args[1], &err) == FLT_OTEL_RET_ERROR)
+			retval |= ERR_ABORT | ERR_ALERT;
+		else
+			retval = flt_otel_parse_cfg_set_var_ctx(args, conf_set_var_ctx, &err);
+	}
+	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_UNSET_VAR) {
+		retval = flt_otel_parse_cfg_str(file, line, args, &(flt_otel_current_scope->unset_vars), &err);
 	}
 
 	FLT_OTEL_PARSE_IFERR_ALERT();

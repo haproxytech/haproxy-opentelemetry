@@ -85,6 +85,10 @@ The complete ownership tree, from root to leaves:
       +-- flt_otel_conf_instrument           (instruments list)
       |   +-- flt_otel_conf_sample           (samples list)
       |       +-- flt_otel_conf_sample_expr  (exprs list)
+      +-- flt_otel_conf_sample               (set_vars list)
+      |   +-- flt_otel_conf_sample_expr      (exprs list)
+      +-- flt_otel_conf_set_var_ctx          (set_var_ctxs list)
+      +-- flt_otel_conf_str                  (unset_vars list)
       +-- flt_otel_conf_log_record           (log_records list)
           +-- flt_otel_conf_sample           (attributes list)
           |   +-- flt_otel_conf_sample_expr  (exprs list)
@@ -173,6 +177,9 @@ Groups bundle scopes for use with the "otel-group" HAProxy action.
   spans_to_finish        The list of spans scheduled for finishing.
   instruments            The list of metric instruments.
   log_records            The list of log records.
+  set_vars               The list of set-var directives (conf_sample).
+  set_var_ctxs           The list of set-var-ctx directives.
+  unset_vars             The list of unset-var directives (conf_str).
 
 Each scope binds to a single HAProxy analyzer event (or none, if used only
 through groups).
@@ -270,12 +277,22 @@ via build_logline() instead of the sample expression list.
   FLT_OTEL_CONF_HDR(fmt_expr)  The original expression format string.
   expr                         The sample expression (struct sample_expr).
 
-4.11  Simple Types
+4.11  flt_otel_conf_set_var_ctx
+
+  FLT_OTEL_CONF_HDR(name)  The HAProxy variable name.
+  ref                      The referenced span or context name.
+  field                    FLT_OTEL_VAR_FIELD_* identifier.
+  field_key                The baggage or tracestate key, or NULL.
+
+This structure backs the set-var-ctx directive: it captures a field of a
+referenced span or extracted context into a HAProxy variable at runtime.
+
+4.12  Simple Types
 
   flt_otel_conf_hdr   Generic header; used for simple named entries.
   flt_otel_conf_str   String holder (identical to conf_hdr in layout, but the
                       HDR field is named "str" instead of "id"); used for
-                      spans_to_finish.
+                      spans_to_finish and unset_vars.
   flt_otel_conf_link  Span link reference; HDR field named "span".
   flt_otel_conf_ph    Placeholder; carries a ptr field resolved at check time.
 
@@ -320,7 +337,7 @@ insertion succeed:
 
   conf_scope:
     LIST_INIT for acls, contexts, spans, spans_to_finish, instruments,
-    log_records.
+    log_records, set_vars, set_var_ctxs, unset_vars.
 
   conf_group:
     LIST_INIT for ph_scopes.
@@ -336,8 +353,8 @@ insertion succeed:
     Sets rate_limit to FLT_OTEL_FLOAT_U32(100.0) (100%).  Calls init_new_proxy
     for proxy_log.  LIST_INIT for acls, ph_groups, ph_scopes.
 
-Types with no custom body (hdr, str, link, ph, sample_expr, context) rely
-entirely on the zeroed OTELC_CALLOC allocation.
+Types with no custom body (hdr, str, link, ph, sample_expr, context,
+set_var_ctx) rely entirely on the zeroed OTELC_CALLOC allocation.
 
 5.3  Extended Sample Initialization
 
@@ -352,7 +369,7 @@ initialization for sample structures:
   5. Counts the number of sample expressions.
 
 This function is used by the parser for span attributes, events, baggages,
-statuses, and instrument samples.
+statuses, instrument samples, and set-var values.
 
 5.4  Top-Level Initialization
 
@@ -408,10 +425,13 @@ freed while the parent is still valid:
     Frees event_name and span strings.  Destroys the time, attributes and
     samples lists.
 
+  conf_set_var_ctx:
+    Frees the ref and field_key strings.
+
   conf_scope:
     Prunes and frees each ACL entry.  Frees the ACL condition via free_acl_cond.
-    Destroys contexts, spans, spans_to_finish, instruments, and log_records
-    lists.
+    Destroys contexts, spans, spans_to_finish, instruments, log_records,
+    set_vars, set_var_ctxs, and unset_vars lists.
 
   conf_group:
     Destroys the ph_scopes list.
@@ -464,6 +484,7 @@ header.
   conf_span        id         macro   5 sub-lists
   conf_instrument  id         macro   idx, type, samples
   conf_log_record  id         macro   time, attributes, samples
-  conf_scope       id         macro   6 sub-lists
+  conf_set_var_ctx name       macro   (none)
+  conf_scope       id         macro   sub-lists
   conf_group       id         macro   ph_scopes
   conf_instr       id         macro   rate_limit, proxy_log, acls, ph_groups, ph_scopes

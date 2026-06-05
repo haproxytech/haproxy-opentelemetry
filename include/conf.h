@@ -97,6 +97,10 @@
 	                 OTELC_STR_ARG((p)->span), flt_otel_list_dump(&((p)->time)), flt_otel_list_dump(&((p)->attributes)), \
 	                 flt_otel_list_dump(&((p)->samples)))
 
+#define FLT_OTEL_DBG_CONF_SET_VAR_CTX(h,p)                                        \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %d '%s' }", (p), \
+	                 FLT_OTEL_CONF_HDR_ARGS(p, name), OTELC_STR_ARG((p)->ref), (p)->field, OTELC_STR_ARG((p)->field_key))
+
 #define FLT_OTEL_DBG_CONF(h,p)                                    \
 	OTELC_DBG(DEBUG, h "%p:{ %p '%s' '%s' %p %s %s }", (p),   \
 	          (p)->proxy, (p)->id, (p)->cfg_file, (p)->instr, \
@@ -226,6 +230,39 @@ struct flt_otel_conf_log_record {
 	struct list           samples;    /* Sample expressions for the body. */
 };
 
+/*
+ * Fields of a referenced OTel span or context that set-var-ctx can store.  The
+ * macro arguments are the enum suffix and the configuration keyword.
+ */
+#define FLT_OTEL_VAR_FIELD_DEFINES                         \
+	FLT_OTEL_VAR_FIELD_DEF(TRACE_ID,    "trace-id"   ) \
+	FLT_OTEL_VAR_FIELD_DEF(SPAN_ID,     "span-id"    ) \
+	FLT_OTEL_VAR_FIELD_DEF(TRACE_FLAGS, "trace-flags") \
+	FLT_OTEL_VAR_FIELD_DEF(TRACEPARENT, "traceparent") \
+	FLT_OTEL_VAR_FIELD_DEF(TRACESTATE,  "tracestate" ) \
+	FLT_OTEL_VAR_FIELD_DEF(BAGGAGE,     "baggage"    ) \
+	FLT_OTEL_VAR_FIELD_DEF(SAMPLED,     "sampled"    ) \
+	FLT_OTEL_VAR_FIELD_DEF(VALID,       "valid"      ) \
+	FLT_OTEL_VAR_FIELD_DEF(REMOTE,      "remote"     )
+
+enum FLT_OTEL_VAR_FIELD_enum {
+#define FLT_OTEL_VAR_FIELD_DEF(a,b)   FLT_OTEL_VAR_FIELD_##a,
+	FLT_OTEL_VAR_FIELD_DEFINES
+#undef FLT_OTEL_VAR_FIELD_DEF
+};
+
+/*
+ * The set-var-ctx directive within a scope, storing a field of a referenced
+ * span or context into a HAProxy variable.
+ *   flt_otel_conf_scope->set_var_ctxs
+ */
+struct flt_otel_conf_set_var_ctx {
+	FLT_OTEL_CONF_HDR(name); /* The HAProxy variable name. */
+	char *ref;               /* The referenced span or context name. */
+	int   field;             /* FLT_OTEL_VAR_FIELD_* */
+	char *field_key;         /* The baggage or tracestate key, or NULL. */
+};
+
 /* Configuration for a single event scope. */
 struct flt_otel_conf_scope {
 	FLT_OTEL_CONF_HDR(id);            /* The scope name. */
@@ -241,6 +278,9 @@ struct flt_otel_conf_scope {
 	struct list      spans_to_finish; /* The list of spans scheduled for finishing. */
 	struct list      instruments;     /* The list of metric instruments. */
 	struct list      log_records;     /* The list of log records. */
+	struct list      set_vars;        /* The list of set-var directives. */
+	struct list      set_var_ctxs;    /* The list of set-var-ctx directives. */
+	struct list      unset_vars;      /* The list of unset-var directives. */
 };
 
 /* Configuration for a named group of scopes. */

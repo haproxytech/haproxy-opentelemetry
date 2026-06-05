@@ -605,6 +605,55 @@ FLT_OTEL_CONF_FUNC_FREE(log_record, id,
 
 /***
  * NAME
+ *   flt_otel_conf_set_var_ctx_init - conf_set_var_ctx structure allocation
+ *
+ * SYNOPSIS
+ *   struct flt_otel_conf_set_var_ctx *flt_otel_conf_set_var_ctx_init(const char *id, int line, struct list *head, char **err)
+ *
+ * ARGUMENTS
+ *   id   - identifier string to duplicate
+ *   line - configuration file line number
+ *   head - list to append to (or NULL)
+ *   err  - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Allocates and initializes a conf_set_var_ctx structure.  The <id> string is
+ *   duplicated and stored as the target variable name.  If <head> is non-NULL,
+ *   the structure is appended to the list.
+ *
+ * RETURN VALUE
+ *   Returns a pointer to the initialized structure, or NULL on failure.
+ */
+FLT_OTEL_CONF_FUNC_INIT(set_var_ctx, name, )
+
+
+/***
+ * NAME
+ *   flt_otel_conf_set_var_ctx_free - conf_set_var_ctx structure deallocation
+ *
+ * SYNOPSIS
+ *   void flt_otel_conf_set_var_ctx_free(struct flt_otel_conf_set_var_ctx **ptr)
+ *
+ * ARGUMENTS
+ *   ptr - a pointer to the address of a structure
+ *
+ * DESCRIPTION
+ *   Deallocates memory used by the flt_otel_conf_set_var_ctx structure and its
+ *   contents, then removes it from the list of structures of that type.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+FLT_OTEL_CONF_FUNC_FREE(set_var_ctx, name,
+	FLT_OTEL_DBG_CONF_SET_VAR_CTX("- conf_set_var_ctx free ", *ptr);
+
+	OTELC_SFREE((*ptr)->ref);
+	OTELC_SFREE((*ptr)->field_key);
+)
+
+
+/***
+ * NAME
  *   flt_otel_conf_scope_init - conf_scope structure allocation
  *
  * SYNOPSIS
@@ -632,6 +681,9 @@ FLT_OTEL_CONF_FUNC_INIT(scope, id,
 	LIST_INIT(&(retptr->spans_to_finish));
 	LIST_INIT(&(retptr->instruments));
 	LIST_INIT(&(retptr->log_records));
+	LIST_INIT(&(retptr->set_vars));
+	LIST_INIT(&(retptr->set_var_ctxs));
+	LIST_INIT(&(retptr->unset_vars));
 )
 
 
@@ -670,6 +722,9 @@ FLT_OTEL_CONF_FUNC_FREE(scope, id,
 	FLT_OTEL_LIST_DESTROY(str, &((*ptr)->spans_to_finish));
 	FLT_OTEL_LIST_DESTROY(instrument, &((*ptr)->instruments));
 	FLT_OTEL_LIST_DESTROY(log_record, &((*ptr)->log_records));
+	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->set_vars));
+	FLT_OTEL_LIST_DESTROY(set_var_ctx, &((*ptr)->set_var_ctxs));
+	FLT_OTEL_LIST_DESTROY(str, &((*ptr)->unset_vars));
 )
 
 

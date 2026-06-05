@@ -273,7 +273,9 @@ void flt_otel_scope_span_free(struct flt_otel_scope_span **ptr)
  * DESCRIPTION
  *   Finds an existing scope context by <id> in the runtime context or creates
  *   a new one by extracting the span context from the <text_map> carrier via
- *   the <tracer>.
+ *   the <tracer>.  When the carrier contains a baggage entry, its raw value is
+ *   retained on the new context so that individual baggage items can be read
+ *   later by the set-var-ctx directive.
  *
  * RETURN VALUE
  *   Returns the existing or new scope context, or NULL on failure.
@@ -283,6 +285,7 @@ struct flt_otel_scope_context *flt_otel_scope_context_init(struct flt_otel_runti
 	struct otelc_http_headers_reader  reader;
 	struct otelc_span_context        *span_ctx;
 	struct flt_otel_scope_context    *retptr = NULL;
+	size_t                            i;
 
 	OTELC_FUNC("%p, %p, \"%s\", %zu, %p, %u, %p:%p", rt_ctx, tracer, OTELC_STR_ARG(id), id_len, text_map, dir, OTELC_DPTR_ARGS(err));
 
@@ -313,6 +316,19 @@ struct flt_otel_scope_context *flt_otel_scope_context_init(struct flt_otel_runti
 	retptr->id_len      = id_len;
 	retptr->smp_opt_dir = dir;
 	retptr->context     = span_ctx;
+
+	/*
+	 * Retain the inbound baggage carrier, if present, so the set-var-ctx
+	 * directive can later read individual baggage entries; the span context
+	 * itself does not carry baggage.
+	 */
+	for (i = 0; i < text_map->count; i++)
+		if (strcasecmp(text_map->key[i], FLT_OTEL_BAGGAGE_HEADER) == 0) {
+			retptr->baggage = OTELC_STRDUP(text_map->value[i]);
+
+			break;
+		}
+
 	LIST_INSERT(&(rt_ctx->contexts), &(retptr->list));
 
 	FLT_OTEL_DBG_SCOPE_CONTEXT("new context ", retptr);
@@ -350,6 +366,8 @@ void flt_otel_scope_context_free(struct flt_otel_scope_context **ptr)
 
 	if ((*ptr)->context != NULL)
 		OTELC_OPSR((*ptr)->context, destroy);
+
+	OTELC_SFREE((*ptr)->baggage);
 
 	FLT_OTEL_LIST_DEL(&((*ptr)->list));
 	flt_otel_pool_free(pool_head_otel_scope_context, (void **)ptr);

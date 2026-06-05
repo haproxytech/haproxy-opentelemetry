@@ -1161,6 +1161,247 @@ int flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample 
 	OTELC_RETURN_INT(retval);
 }
 
+
+/***
+ * NAME
+ *   flt_otel_baggage_value - W3C baggage carrier value lookup
+ *
+ * SYNOPSIS
+ *   static int flt_otel_baggage_value(const char *baggage, const char *key, char *value, size_t size)
+ *
+ * ARGUMENTS
+ *   baggage - the raw W3C baggage carrier string
+ *   key     - the baggage entry name to look up
+ *   value   - output buffer for the matched value
+ *   size    - output buffer size
+ *
+ * DESCRIPTION
+ *   Scans the comma-separated W3C <baggage> carrier for an entry whose name
+ *   matches <key> and copies its value into <value>.  Surrounding spaces are
+ *   trimmed and any ';'-delimited properties are dropped.  The value is copied
+ *   as received; the caller is responsible for any percent-decoding.
+ *
+ * RETURN VALUE
+ *   Returns FLT_OTEL_RET_OK if the key was found, FLT_OTEL_RET_ERROR otherwise.
+ */
+static int flt_otel_baggage_value(const char *baggage, const char *key, char *value, size_t size)
+{
+	const char *p;
+	size_t      key_len;
+
+	OTELC_FUNC("\"%s\", \"%s\", %p, %zu", OTELC_STR_ARG(baggage), OTELC_STR_ARG(key), value, size);
+
+	if ((baggage == NULL) || (key == NULL))
+		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+
+	key_len = strlen(key);
+
+	for (p = baggage; *p != '\0'; ) {
+		const char *eq, *end;
+
+		/* Skip the leading spaces of this list member. */
+		while ((*p == ' ') || (*p == '\t'))
+			p++;
+
+		end = strchr(p, ',');
+		if (end == NULL)
+			end = p + strlen(p);
+
+		eq = memchr(p, '=', end - p);
+		if (eq != NULL) {
+			size_t klen = eq - p;
+
+			/* Trim the trailing spaces of the entry name. */
+			while ((klen > 0) && ((p[klen - 1] == ' ') || (p[klen - 1] == '\t')))
+				klen--;
+
+			if ((klen == key_len) && (strncmp(p, key, key_len) == 0)) {
+				const char *vstart = eq + 1, *vend;
+				size_t      vlen;
+
+				/* The value ends at the ';' properties or at the ','. */
+				vend = memchr(vstart, ';', end - vstart);
+				if (vend == NULL)
+					vend = end;
+
+				while ((vstart < vend) && ((*vstart == ' ') || (*vstart == '\t')))
+					vstart++;
+				while ((vend > vstart) && ((vend[-1] == ' ') || (vend[-1] == '\t')))
+					vend--;
+
+				vlen = vend - vstart;
+				if (vlen >= size)
+					vlen = size - 1;
+				(void)memcpy(value, vstart, vlen);
+				value[vlen] = '\0';
+
+				OTELC_RETURN_INT(FLT_OTEL_RET_OK);
+			}
+		}
+
+		p = (*end == ',') ? (end + 1) : end;
+	}
+
+	OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_ctx_field_to_str - OTel span/context field to string
+ *
+ * SYNOPSIS
+ *   int flt_otel_ctx_field_to_str(const struct otelc_span *span, const struct otelc_span_context *context, const char *baggage, int field, const char *field_key, char *value, size_t size, char **err)
+ *
+ * ARGUMENTS
+ *   span      - the referenced span, or NULL
+ *   context   - the referenced span context, or NULL
+ *   baggage   - the retained inbound baggage carrier, or NULL
+ *   field     - the requested field (FLT_OTEL_VAR_FIELD_*)
+ *   field_key - the baggage or tracestate key, or NULL
+ *   value     - output buffer for the rendered field
+ *   size      - output buffer size
+ *   err       - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Renders the requested <field> of the referenced <span> or <context> as a
+ *   string in <value>.  Exactly one of <span> or <context> is expected.  The
+ *   trace and span identifiers are emitted as lowercase hexadecimal and the
+ *   'traceparent' field as the W3C '00-<trace>-<span>-<flags>' string.  The
+ *   'tracestate' field is only available for a context reference.  A keyed
+ *   'baggage' reads one entry (from the span when outbound, or from the
+ *   retained <baggage> carrier when inbound); a keyless 'baggage' yields the
+ *   whole carrier.  A field that cannot be resolved yields an empty string
+ *   rather than an error.
+ *
+ * RETURN VALUE
+ *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
+ */
+int flt_otel_ctx_field_to_str(const struct otelc_span *span, const struct otelc_span_context *context, const char *baggage, int field, const char *field_key, char *value, size_t size, char **err)
+{
+	uint8_t span_id[OTELC_SPAN_ID_SIZE], trace_id[OTELC_TRACE_ID_SIZE];
+	uint8_t trace_flags = 0;
+	int     rc = OTELC_RET_ERROR, retval = FLT_OTEL_RET_OK;
+
+	OTELC_FUNC("%p, %p, \"%s\", %d, \"%s\", %p, %zu, %p:%p", span, context, OTELC_STR_ARG(baggage), field, OTELC_STR_ARG(field_key), value, size, OTELC_DPTR_ARGS(err));
+
+	if (size == 0) {
+		FLT_OTEL_ERR("no output buffer");
+
+		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+	}
+
+	value[0] = '\0';
+
+	/* Resolve the binary identifiers up front; several fields derive from them. */
+	if (context != NULL)
+		rc = OTELC_OPS(context, get_id, span_id, sizeof(span_id), trace_id, sizeof(trace_id), &trace_flags);
+	else if (span != NULL)
+		rc = OTELC_OPS(span, get_id, span_id, sizeof(span_id), trace_id, sizeof(trace_id), &trace_flags);
+	else {
+		FLT_OTEL_ERR("no span or context reference");
+
+		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+	}
+
+	if (field == FLT_OTEL_VAR_FIELD_TRACE_ID) {
+		if (rc == OTELC_RET_OK)
+			(void)snprintf(value, size, "%s", otelc_strhex(trace_id, sizeof(trace_id)));
+	}
+	else if (field == FLT_OTEL_VAR_FIELD_SPAN_ID) {
+		if (rc == OTELC_RET_OK)
+			(void)snprintf(value, size, "%s", otelc_strhex(span_id, sizeof(span_id)));
+	}
+	else if (field == FLT_OTEL_VAR_FIELD_TRACE_FLAGS) {
+		if (rc == OTELC_RET_OK)
+			(void)snprintf(value, size, "%s", otelc_strhex(&trace_flags, 1));
+	}
+	else if (field == FLT_OTEL_VAR_FIELD_TRACEPARENT) {
+		if (rc == OTELC_RET_OK) {
+			char tid[OTELC_TRACE_ID_SIZE * 2 + 1], sid[OTELC_SPAN_ID_SIZE * 2 + 1], flags[2 + 1];
+
+			/*
+			 * otelc_strhex() uses a single thread-local buffer, so
+			 * each identifier is copied out before the next call.
+			 */
+			(void)snprintf(tid, sizeof(tid), "%s", otelc_strhex(trace_id, sizeof(trace_id)));
+			(void)snprintf(sid, sizeof(sid), "%s", otelc_strhex(span_id, sizeof(span_id)));
+			(void)snprintf(flags, sizeof(flags), "%s", otelc_strhex(&trace_flags, 1));
+			(void)snprintf(value, size, "00-%s-%s-%s", tid, sid, flags);
+		}
+	}
+	else if ((field == FLT_OTEL_VAR_FIELD_SAMPLED) || (field == FLT_OTEL_VAR_FIELD_VALID) || (field == FLT_OTEL_VAR_FIELD_REMOTE)) {
+		int flag;
+
+		if (field == FLT_OTEL_VAR_FIELD_SAMPLED)
+			flag = (context != NULL) ? (OTELC_OPS(context, is_sampled) > 0) : ((trace_flags & 0x01) != 0);
+		else if (field == FLT_OTEL_VAR_FIELD_VALID)
+			flag = (context != NULL) ? (OTELC_OPS(context, is_valid) > 0) : (rc == OTELC_RET_OK);
+		else
+			flag = (context != NULL) ? (OTELC_OPS(context, is_remote) > 0) : 0;
+
+		(void)snprintf(value, size, "%s", flag ? "1" : "0");
+	}
+	else if (field == FLT_OTEL_VAR_FIELD_TRACESTATE) {
+		if (context == NULL)
+			OTELC_DBG(NOTICE, "WARNING: tracestate is only available for a context reference");
+		else if (field_key != NULL) {
+			if (OTELC_OPS(context, trace_state_get, field_key, value, size) == OTELC_RET_ERROR)
+				value[0] = '\0';
+		}
+		else if (OTELC_OPS(context, trace_state_header, value, size) == OTELC_RET_ERROR)
+			value[0] = '\0';
+	}
+	else if (field == FLT_OTEL_VAR_FIELD_BAGGAGE) {
+		if (field_key != NULL) {
+			/* A single named baggage entry. */
+			if (span != NULL) {
+				char *baggage_value = OTELC_OPS(span, get_baggage, field_key);
+
+				if (baggage_value != NULL) {
+					(void)snprintf(value, size, "%s", baggage_value);
+
+					OTELC_FREE(baggage_value);
+				}
+			}
+			else if (baggage != NULL) {
+				if (flt_otel_baggage_value(baggage, field_key, value, size) == FLT_OTEL_RET_OK)
+					(void)url_decode(value, 0);
+			}
+		}
+		else if (baggage != NULL) {
+			/* The whole inbound baggage carrier. */
+			(void)snprintf(value, size, "%s", baggage);
+		}
+		else if (span != NULL) {
+			/* The whole outbound baggage carrier, serialized via injection. */
+			struct otelc_text_map_writer  writer;
+			struct otelc_text_map        *text_map = NULL;
+			size_t                        i;
+
+			if (flt_otel_inject_text_map(span, &writer) != FLT_OTEL_RET_ERROR) {
+				text_map = &(writer.text_map);
+
+				for (i = 0; i < text_map->count; i++)
+					if (strcasecmp(text_map->key[i], FLT_OTEL_BAGGAGE_HEADER) == 0) {
+						(void)snprintf(value, size, "%s", text_map->value[i]);
+
+						break;
+					}
+
+				otelc_text_map_destroy(&text_map);
+			}
+		}
+	}
+	else {
+		FLT_OTEL_ERR("unknown context field %d", field);
+
+		retval = FLT_OTEL_RET_ERROR;
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

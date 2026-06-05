@@ -7,6 +7,8 @@
 #define FLT_OTEL_SCOPE_SPAN_FINISH_RES       "*res*"
 #define FLT_OTEL_SCOPE_SPAN_FINISH_ALL       "*"
 
+#define FLT_OTEL_BAGGAGE_HEADER              "baggage"
+
 #define FLT_OTEL_RT_CTX(p)                   ((struct flt_otel_runtime_context *)(p))
 
 #define FLT_OTEL_DBG_SCOPE_SPAN(h,p)                                \
@@ -103,6 +105,7 @@ struct flt_otel_scope_context {
 	uint                       smp_opt_dir; /* SMP_OPT_DIR_RE(Q|S) */
 	bool                       flag_finish; /* Whether the span context is marked for completion. */
 	struct otelc_span_context *context;     /* The current span context. */
+	char                      *baggage;     /* The inbound baggage carrier, or NULL. */
 	struct list                list;        /* Used to chain this structure. */
 };
 

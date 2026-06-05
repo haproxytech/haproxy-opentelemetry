@@ -95,6 +95,9 @@ int         flt_otel_sample_eval_time(struct stream *s, uint dir, struct flt_ote
 /* Evaluate a sample expression and add the result to scope data. */
 int         flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, struct flt_otel_scope_data *data, int type, char **err);
 
+/* Render a field of an OTel span or context as a string. */
+int         flt_otel_ctx_field_to_str(const struct otelc_span *span, const struct otelc_span_context *context, const char *baggage, int field, const char *field_key, char *value, size_t size, char **err);
+
 #endif /* _OTEL_UTIL_H_ */
 
 /*
