@@ -861,7 +861,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 
 				/* Try to find a matching span first. */
 				list_for_each_entry(sc_span, &(rt_ctx->spans), list)
-					if (FLT_OTEL_CONF_STR_CMP(sc_span->id, conf_link->span)) {
+					if (FLT_OTEL_CONF_STR_CMP(sc_span->id, conf_link->ref)) {
 						link_span = sc_span->span;
 
 						break;
@@ -870,7 +870,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 				/* If no span found, try to find a matching context. */
 				if (link_span == NULL) {
 					list_for_each_entry(sc_ctx, &(rt_ctx->contexts), list)
-						if (FLT_OTEL_CONF_STR_CMP(sc_ctx->id, conf_link->span)) {
+						if (FLT_OTEL_CONF_STR_CMP(sc_ctx->id, conf_link->ref)) {
 							link_ctx = sc_ctx->context;
 
 							break;
@@ -878,7 +878,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 				}
 
 				if ((link_span == NULL) && (link_ctx == NULL)) {
-					OTELC_DBG(NOTICE, "WARNING: cannot find linked span/context '%s'", conf_link->span);
+					OTELC_DBG(NOTICE, "WARNING: cannot find linked span/context '%s'", conf_link->ref);
 
 					continue;
 				}
@@ -894,7 +894,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 				data_link->context = link_ctx;
 				LIST_APPEND(&(data.links), &(data_link->list));
 
-				OTELC_DBG(DEBUG, "resolved link '%s' -> %p %p", conf_link->span, link_span, link_ctx);
+				OTELC_DBG(DEBUG, "resolved link '%s' -> %p %p", conf_link->ref, link_span, link_ctx);
 			}
 		}
 

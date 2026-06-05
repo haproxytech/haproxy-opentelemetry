@@ -169,7 +169,7 @@ struct flt_otel_conf_context {
 
 /* flt_otel_conf_span->links */
 struct flt_otel_conf_link {
-	FLT_OTEL_CONF_HDR(span); /* The list containing link names. */
+	FLT_OTEL_CONF_HDR(ref); /* The list containing link reference names. */
 };
 
 /*
@@ -182,7 +182,7 @@ struct flt_otel_conf_span {
 	FLT_OTEL_CONF_STR(ctx_id); /* The span context name, if used. */
 	uint8_t     ctx_flags;     /* The type of storage used for the span context. */
 	bool        flag_root;     /* Whether this is a root span. */
-	struct list links;         /* The set of linked span names. */
+	struct list links;         /* The set of linked span or context names. */
 	struct list attributes;    /* The set of key:value attributes. */
 	struct list events;        /* The set of events with key-value attributes. */
 	struct list baggages;      /* The set of key:value baggage items. */

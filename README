@@ -752,16 +752,16 @@ log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span
     sample   - sample fetch expression(s) forming the log record body
 
 
-link <span> ...
+link <ref> ...
   This keyword adds span links to the currently active span.  A span link
   represents a causal relationship to another span without establishing a
   parent-child hierarchy.  Links are useful for connecting spans across
   different traces or for associating related spans within the same trace.
 
-  Multiple span names can be specified in one line.  Each name is resolved at
-  runtime by searching for an active span or an extracted context with that
-  name.  If a referenced span or context cannot be found, the link is silently
-  skipped.
+  Multiple span or context names can be specified in one line.  Each name is
+  resolved at runtime by searching for an active span or an extracted context
+  with that name.  If a referenced span or context cannot be found, the link
+  is silently skipped.
 
   Arguments :
     span - the name of a span or span context to link to
@@ -1010,7 +1010,7 @@ span <name> [<reference>] [<link>] [root]
   Arguments :
     name      - the name of the span being created or referenced
                 (operation name)
-    reference - 'parent <name>' or 'link <name>' or 'root'
+    reference - 'parent <ref>' or 'link <ref>' or 'root'
 
 
 status <code> [<sample> ...]

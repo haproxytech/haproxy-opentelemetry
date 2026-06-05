@@ -191,7 +191,7 @@ through groups).
   FLT_OTEL_CONF_STR(ctx_id)  The span context name, if used.
   ctx_flags                  The type of storage used for the span context.
   flag_root                  Whether this is a root span.
-  links                      The set of linked span names.
+  links                      The set of linked span or context names.
   attributes                 The set of key:value attributes.
   events                     The set of events with key-value attributes.
   baggages                   The set of key:value baggage items.
@@ -293,7 +293,7 @@ referenced span or extracted context into a HAProxy variable at runtime.
   flt_otel_conf_str   String holder (identical to conf_hdr in layout, but the
                       HDR field is named "str" instead of "id"); used for
                       spans_to_finish and unset_vars.
-  flt_otel_conf_link  Span link reference; HDR field named "span".
+  flt_otel_conf_link  Span or context link; HDR field named "ref".
   flt_otel_conf_ph    Placeholder; carries a ptr field resolved at check time.
 
 
@@ -475,7 +475,7 @@ header.
   conf             (none)     manual  groups, scopes
   conf_hdr         id         macro   (none)
   conf_str         str        macro   (none)
-  conf_link        span       macro   (none)
+  conf_link        ref        macro   (none)
   conf_ph          id         macro   (none)
   conf_sample_expr fmt_expr   macro   (none)
   conf_sample      key        macro   exprs, lf_expr

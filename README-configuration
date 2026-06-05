@@ -276,10 +276,10 @@ Supported keywords:
         status "error" str("http.status_code: ") status
 
 
-  link <span> ...
+  link <ref> ...
       Add non-hierarchical links to the currently active span.  Multiple span
-      names can be specified.  Use this keyword for multiple links (the inline
-      'link' in 'span' is limited to one).
+      or context names can be specified.  Use this keyword for multiple links
+      (the inline 'link' in 'span' is limited to one).
 
       Example:
         link "HAProxy session" "Client session"

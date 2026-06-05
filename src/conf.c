@@ -109,15 +109,15 @@ FLT_OTEL_CONF_FUNC_FREE(str, str,
  *   err  - indirect pointer to error message string
  *
  * DESCRIPTION
- *   Allocates and initializes a conf_link structure for a span link
- *   reference.  The <id> string is duplicated and stored as the linked
- *   span name.  If <head> is non-NULL, the structure is appended to
+ *   Allocates and initializes a conf_link structure for a span or context
+ *   link reference.  The <id> string is duplicated and stored as the link
+ *   reference name.  If <head> is non-NULL, the structure is appended to
  *   the list.
  *
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-FLT_OTEL_CONF_FUNC_INIT(link, span, )
+FLT_OTEL_CONF_FUNC_INIT(link, ref, )
 
 
 /***
@@ -137,8 +137,8 @@ FLT_OTEL_CONF_FUNC_INIT(link, span, )
  * RETURN VALUE
  *   This function does not return a value.
  */
-FLT_OTEL_CONF_FUNC_FREE(link, span,
-	FLT_OTEL_DBG_CONF_HDR("- conf_link free ", *ptr, span);
+FLT_OTEL_CONF_FUNC_FREE(link, ref,
+	FLT_OTEL_DBG_CONF_HDR("- conf_link free ", *ptr, ref);
 )
 
 
