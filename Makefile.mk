@@ -68,11 +68,11 @@ OPTIONS_OBJS += \
 	$(OTEL_DIR)/src/parser.o \
 	$(OTEL_DIR)/src/pool.o   \
 	$(OTEL_DIR)/src/scope.o  \
-	$(OTEL_DIR)/src/util.o
+	$(OTEL_DIR)/src/util.o   \
+	$(OTEL_DIR)/src/vars.o
 
 ifneq ($(OTEL_USE_VARS:0=),)
 OTEL_DEFINE  += -DUSE_OTEL_VARS
-OPTIONS_OBJS += $(OTEL_DIR)/src/vars.o
 
 # Auto-detect whether struct var has a 'name' member.  When present,
 # prefix-based variable scanning can be used instead of the tracking

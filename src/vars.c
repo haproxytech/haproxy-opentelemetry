@@ -3,6 +3,166 @@
 #include "../include/include.h"
 
 
+/***
+ * NAME
+ *   flt_otel_var_register_byname - HAProxy variable registration by full name
+ *
+ * SYNOPSIS
+ *   int flt_otel_var_register_byname(const char *name, char **err)
+ *
+ * ARGUMENTS
+ *   name - the full HAProxy variable name (scope and name, e.g. "txn.foo")
+ *   err  - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Registers a HAProxy variable using its full <name> so that it can be set at
+ *   runtime.  The name is validated and made available via vars_check_arg().
+ *
+ * RETURN VALUE
+ *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
+ */
+int flt_otel_var_register_byname(const char *name, char **err)
+{
+	struct arg arg;
+	char       var_name[BUFSIZ];
+	int        retval = FLT_OTEL_RET_ERROR, var_name_len;
+
+	OTELC_FUNC("\"%s\", %p:%p", OTELC_STR_ARG(name), OTELC_DPTR_ARGS(err));
+
+	if (!OTELC_STR_IS_VALID(name)) {
+		FLT_OTEL_ERR("variable name not set");
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	var_name_len = snprintf(var_name, sizeof(var_name), "%s", name);
+	if ((var_name_len < 0) || ((size_t)var_name_len >= sizeof(var_name))) {
+		FLT_OTEL_ERR("variable name '%s' too long", name);
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	/* Set <size> to 0 to not release var_name memory in vars_check_arg(). */
+	(void)memset(&arg, 0, sizeof(arg));
+	arg.type          = ARGT_STR;
+	arg.data.str.area = var_name;
+	arg.data.str.data = var_name_len;
+
+	if (vars_check_arg(&arg, err) == 0) {
+		FLT_OTEL_ERR_APPEND("failed to register variable '%s': %s", var_name, *err);
+	} else {
+		OTELC_DBG(NOTICE, "variable '%s' registered", var_name);
+
+		retval = FLT_OTEL_RET_OK;
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_var_set_byname - HAProxy variable value setter by full name
+ *
+ * SYNOPSIS
+ *   int flt_otel_var_set_byname(struct stream *s, const char *name, const char *value, uint opt, char **err)
+ *
+ * ARGUMENTS
+ *   s     - current stream
+ *   name  - the full HAProxy variable name (scope and name, e.g. "txn.foo")
+ *   value - string value to set
+ *   opt   - sample option flags
+ *   err   - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Sets the HAProxy variable <name> to the string <value>.  A NULL <value> is
+ *   treated as an empty string.  The variable must already be registered (see
+ *   flt_otel_var_register_byname()).
+ *
+ * RETURN VALUE
+ *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
+ */
+int flt_otel_var_set_byname(struct stream *s, const char *name, const char *value, uint opt, char **err)
+{
+	struct sample smp;
+	int           retval = FLT_OTEL_RET_ERROR;
+
+	OTELC_FUNC("%p, \"%s\", \"%s\", %u, %p:%p", s, OTELC_STR_ARG(name), OTELC_STR_ARG(value), opt, OTELC_DPTR_ARGS(err));
+
+	if (!OTELC_STR_IS_VALID(name)) {
+		FLT_OTEL_ERR("variable name not set");
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	(void)memset(&smp, 0, sizeof(smp));
+	(void)smp_set_owner(&smp, s->be, s->sess, s, opt | SMP_OPT_FINAL);
+	smp.data.type = SMP_T_STR;
+	chunk_initstr(&(smp.data.u.str), (value == NULL) ? "" : value);
+
+	if (vars_set_by_name_ifexist(name, strlen(name), &smp) == 0) {
+		FLT_OTEL_ERR("failed to set variable '%s'", name);
+	} else {
+		OTELC_DBG(NOTICE, "variable '%s' set to '%s'", name, OTELC_STR_ARG(value));
+
+		retval = FLT_OTEL_RET_OK;
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_var_unset_byname - HAProxy variable removal by full name
+ *
+ * SYNOPSIS
+ *   int flt_otel_var_unset_byname(struct stream *s, const char *name, uint opt, char **err)
+ *
+ * ARGUMENTS
+ *   s    - current stream
+ *   name - the full HAProxy variable name (scope and name, e.g. "txn.foo")
+ *   opt  - sample option flags
+ *   err  - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Removes the HAProxy variable <name> from the stream if it exists.  A
+ *   variable that is not currently set is silently ignored.
+ *
+ * RETURN VALUE
+ *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR if the variable
+ *   name is not set.
+ */
+int flt_otel_var_unset_byname(struct stream *s, const char *name, uint opt, char **err)
+{
+	struct sample smp;
+	int           retval = FLT_OTEL_RET_ERROR;
+
+	OTELC_FUNC("%p, \"%s\", %u, %p:%p", s, OTELC_STR_ARG(name), opt, OTELC_DPTR_ARGS(err));
+
+	if (!OTELC_STR_IS_VALID(name)) {
+		FLT_OTEL_ERR("variable name not set");
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	(void)memset(&smp, 0, sizeof(smp));
+	(void)smp_set_owner(&smp, s->be, s->sess, s, opt | SMP_OPT_FINAL);
+
+	if (vars_unset_by_name_ifexist(name, strlen(name), &smp) == 0)
+		OTELC_DBG(NOTICE, "variable '%s' not unset (absent)", name);
+	else
+		OTELC_DBG(NOTICE, "variable '%s' unset", name);
+
+	retval = FLT_OTEL_RET_OK;
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+#ifdef USE_OTEL_VARS
+
+
 #ifdef DEBUG_OTEL
 
 /***
@@ -1071,8 +1231,8 @@ struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, co
  *
  * DESCRIPTION
  *   Registers a HAProxy variable by constructing its full name from <scope>,
- *   <prefix>, and <name>, then calling vars_check_arg() to make it available
- *   at runtime.
+ *   <prefix>, and <name>, then registering it via
+ *   flt_otel_var_register_byname().
  *
  * RETURN VALUE
  *   Returns the variable name length on success, or FLT_OTEL_RET_ERROR on
@@ -1080,9 +1240,8 @@ struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, co
  */
 int flt_otel_var_register(const char *scope, const char *prefix, const char *name, char **err)
 {
-	struct arg arg;
-	char       var_name[BUFSIZ];
-	int        retval = FLT_OTEL_RET_ERROR, var_name_len;
+	char var_name[BUFSIZ];
+	int  retval = FLT_OTEL_RET_ERROR, var_name_len;
 
 	OTELC_FUNC("\"%s\", \"%s\", \"%s\", %p:%p", OTELC_STR_ARG(scope), OTELC_STR_ARG(prefix), OTELC_STR_ARG(name), OTELC_DPTR_ARGS(err));
 
@@ -1090,19 +1249,8 @@ int flt_otel_var_register(const char *scope, const char *prefix, const char *nam
 	if (var_name_len == FLT_OTEL_RET_ERROR)
 		OTELC_RETURN_INT(retval);
 
-	/* Set <size> to 0 to not release var_name memory in vars_check_arg(). */
-	(void)memset(&arg, 0, sizeof(arg));
-	arg.type          = ARGT_STR;
-	arg.data.str.area = var_name;
-	arg.data.str.data = var_name_len;
-
-	if (vars_check_arg(&arg, err) == 0) {
-		FLT_OTEL_ERR_APPEND("failed to register variable '%s': %s", var_name, *err);
-	} else {
-		OTELC_DBG(NOTICE, "variable '%s' registered", var_name);
-
+	if (flt_otel_var_register_byname(var_name, err) == FLT_OTEL_RET_OK)
 		retval = var_name_len;
-	}
 
 	OTELC_RETURN_INT(retval);
 }
@@ -1136,9 +1284,8 @@ int flt_otel_var_register(const char *scope, const char *prefix, const char *nam
  */
 int flt_otel_var_set(struct stream *s, const char *scope, const char *prefix, const char *name, const char *value, uint opt, char **err)
 {
-	struct sample smp;
-	char          var_name[BUFSIZ];
-	int           retval = FLT_OTEL_RET_ERROR, var_name_len;
+	char var_name[BUFSIZ];
+	int  retval = FLT_OTEL_RET_ERROR, var_name_len;
 
 	OTELC_FUNC("%p, \"%s\", \"%s\", \"%s\", \"%s\", %u, %p:%p", s, OTELC_STR_ARG(scope), OTELC_STR_ARG(prefix), OTELC_STR_ARG(name), OTELC_STR_ARG(value), opt, OTELC_DPTR_ARGS(err));
 
@@ -1146,14 +1293,7 @@ int flt_otel_var_set(struct stream *s, const char *scope, const char *prefix, co
 	if (var_name_len == FLT_OTEL_RET_ERROR)
 		OTELC_RETURN_INT(retval);
 
-	flt_otel_smp_init(s, &smp, opt, SMP_T_STR, value);
-
-	/* Set the variable if it already exists. */
-	if (vars_set_by_name_ifexist(var_name, var_name_len, &smp) == 0) {
-		FLT_OTEL_ERR("failed to set variable '%s'", var_name);
-	} else {
-		OTELC_DBG(NOTICE, "variable '%s' set", var_name);
-
+	if (flt_otel_var_set_byname(s, var_name, value, opt, err) == FLT_OTEL_RET_OK) {
 		retval = var_name_len;
 
 #ifndef USE_OTEL_VARS_NAME
@@ -1164,6 +1304,8 @@ int flt_otel_var_set(struct stream *s, const char *scope, const char *prefix, co
 
 	OTELC_RETURN_INT(retval);
 }
+
+#endif /* USE_OTEL_VARS */
 
 /*
  * Local variables:

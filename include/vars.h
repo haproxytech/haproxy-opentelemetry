@@ -7,6 +7,8 @@
 #define FLT_OTEL_VAR_CHAR_DASH    'D'
 #define FLT_OTEL_VAR_CHAR_SPACE   'S'
 
+#ifdef USE_OTEL_VARS
+
 #ifndef USE_OTEL_VARS_NAME
 #  define FLT_OTEL_VAR_CTX_SIZE   int8_t
 
@@ -39,6 +41,18 @@ int                    flt_otel_vars_unset(struct stream *s, const char *scope, 
 
 /* Retrieve all OTel context variables matching a prefix into a text map. */
 struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, const char *prefix, uint opt, char **err);
+
+#endif /* USE_OTEL_VARS */
+
+
+/* Register a HAProxy variable by its full name. */
+int                    flt_otel_var_register_byname(const char *name, char **err);
+
+/* Set a HAProxy variable by its full name on a stream. */
+int                    flt_otel_var_set_byname(struct stream *s, const char *name, const char *value, uint opt, char **err);
+
+/* Unset a HAProxy variable by its full name on a stream. */
+int                    flt_otel_var_unset_byname(struct stream *s, const char *name, uint opt, char **err);
 
 #endif /* _OTEL_VARS_H_ */
 
