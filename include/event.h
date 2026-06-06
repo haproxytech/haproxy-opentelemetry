@@ -67,7 +67,7 @@
 /*	FLT_OTEL_EVENT_DEF(      FLT_START_BE, REQ,        ,        ,  , "") */                               \
 	FLT_OTEL_EVENT_DEF(        INSPECT_BE, REQ, REQ_CNT, REQ_CNT, 1, "on-backend-tcp-request")            \
 	FLT_OTEL_EVENT_DEF(   HTTP_PROCESS_BE, REQ, HRQ_HDR, HRQ_HDR, 1, "on-backend-http-request")           \
-/*	FLT_OTEL_EVENT_DEF(       HTTP_TARPIT, REQ,        ,        , 1, "on-http-tarpit-request") */         \
+	FLT_OTEL_EVENT_DEF(       HTTP_TARPIT, REQ,        ,        , 1, "on-http-tarpit-request")            \
 	FLT_OTEL_EVENT_DEF(         SRV_RULES, REQ,        ,        , 1, "on-process-server-rules-request")   \
 	FLT_OTEL_EVENT_DEF(        HTTP_INNER, REQ,        ,        , 1, "on-http-process-request")           \
 	FLT_OTEL_EVENT_DEF(   PRST_RDP_COOKIE, REQ,        ,        , 1, "on-tcp-rdp-cookie-request")         \

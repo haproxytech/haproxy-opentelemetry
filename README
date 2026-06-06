@@ -799,6 +799,7 @@ otel-event <name> [{ if | unless } <condition>]
       on-switching-rules-request         |  -
       on-backend-tcp-request             |  on-backend-tcp-request
       on-backend-http-request            |  on-backend-http-request
+      on-http-tarpit-request             |  -
       on-process-server-rules-request    |  -
       on-http-process-request            |  -
       on-tcp-rdp-cookie-request          |  -
@@ -834,6 +835,11 @@ otel-event <name> [{ if | unless } <condition>]
   idle-time log records.  It fires from the check_timeouts filter callback
   using HAProxy's tick-based timer infrastructure.
 
+  Because this timer shares the request channel's analyse_exp, it can interfere
+  with an analyser that holds the request: while a request is tarpitted, for
+  example, the heartbeat is deferred until the request next wakes the stream
+  rather than firing at its interval.  The held request still completes.
+
   The on-backend-set event fires from the stream_set_backend filter callback
   when a backend is assigned to the stream.  It is not called if the frontend
   and the backend are the same proxy.
@@ -864,6 +870,11 @@ otel-event <name> [{ if | unless } <condition>]
 
   The on-backend-http-request event fires during backend HTTP request processing
   (AN_REQ_HTTP_PROCESS_BE).
+
+  The on-http-tarpit-request event fires when a request is held by the tarpit
+  analyzer until the configured delay elapses (AN_REQ_HTTP_TARPIT).  Unlike the
+  other request events, it is reached only for requests that a tarpit rule has
+  marked, never for ordinary traffic.
 
   The on-process-server-rules-request event fires when use-server rules are
   evaluated (AN_REQ_SRV_RULES).

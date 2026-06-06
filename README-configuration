@@ -522,6 +522,7 @@ Supported keywords:
         on-switching-rules-request
         on-backend-tcp-request
         on-backend-http-request
+        on-http-tarpit-request
         on-process-server-rules-request
         on-http-process-request
         on-tcp-rdp-cookie-request

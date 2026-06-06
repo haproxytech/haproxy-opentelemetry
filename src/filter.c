@@ -1115,7 +1115,7 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 	 * AN_REQ_WAIT_HTTP and AN_RES_WAIT_HTTP analyzers can only be used
 	 * in the .channel_post_analyze callback function.
 	 */
-	f->pre_analyzers  |= conf->instr->analyzers & ((AN_REQ_ALL & ~AN_REQ_WAIT_HTTP & ~AN_REQ_HTTP_TARPIT) | (AN_RES_ALL & ~AN_RES_WAIT_HTTP));
+	f->pre_analyzers  |= conf->instr->analyzers & ((AN_REQ_ALL & ~AN_REQ_WAIT_HTTP) | (AN_RES_ALL & ~AN_RES_WAIT_HTTP));
 	f->post_analyzers |= conf->instr->analyzers & (AN_REQ_WAIT_HTTP | AN_RES_WAIT_HTTP);
 
 #ifdef FLT_OTEL_USE_COUNTERS
@@ -1410,8 +1410,14 @@ static int flt_otel_ops_channel_start_analyze(struct stream *s, struct filter *f
 			channel_dont_close(chn);
 		}
 	} else {
-		/* The request channel. */
-		chn->analysers |= f->pre_analyzers & AN_REQ_ALL;
+		/*
+		 * The request channel.  AN_REQ_HTTP_TARPIT is deliberately not
+		 * injected here: http_process_tarpit() stops the connection and
+		 * holds the request, so forcing it on would break every request.
+		 * The tarpit scope is still hooked in .channel_pre_analyze and
+		 * fires only when a tarpit rule actually schedules the analyzer.
+		 */
+		chn->analysers |= f->pre_analyzers & AN_REQ_ALL & ~AN_REQ_HTTP_TARPIT;
 
 		/* The event 'on-client-session-start'. */
 		retval = flt_otel_event_run(s, f, chn, FLT_OTEL_EVENT_REQ_CLIENT_SESS_START, &err);
