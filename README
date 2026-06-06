@@ -631,7 +631,7 @@ inject <name-prefix> [use-vars] [use-headers]
   'finish' keyword or when detaching the stream from the filter.
 
 
-instrument { update <name> [<attr>] | <type> <name> [<aggr>] [<desc>] [<unit>] <value> [<bounds>] }
+instrument { update <name> [<attr> ...] | <type> <name> [<aggr>] [<desc>] [<unit>] <value> [<bounds>] }
   This keyword allows creating or updating metric instruments within the scope.
   Metric instruments record numerical measurements that are exported alongside
   traces.
@@ -696,7 +696,7 @@ instrument { update <name> [<attr>] | <type> <name> [<aggr>] [<desc>] [<unit>] <
     attr   - attribute key and sample expression (update form only)
 
 
-log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span <span-name>] [attr <key> <sample>] ... <sample> ...
+log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span <ref>] [attr <key> <sample>] ... <sample> ...
   This keyword emits an OpenTelemetry log record within the scope.  The first
   argument is a required severity level.  Optional keywords follow in any order
   before the trailing sample expressions that form the log record body:
@@ -704,7 +704,7 @@ log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span
     id <integer>           - numeric event identifier
     event <name>           - event name string
     time [<unit>] <sample> - override the log event timestamp at runtime
-    span <span-name>       - associate the log record with an open span
+    span <ref>             - associate the log record with an open span
     attr <key> <sample>    - add an attribute evaluated at runtime (repeatable)
 
   The 'id' and 'event' keywords must be specified together or both omitted; any
@@ -1044,7 +1044,7 @@ idle-timeout <time>
         otel-event on-idle-timeout
 
 
-span <name> [<reference>] [<link>] [root]
+span <name> [parent <ref>] [link <ref>] [root]
   Creating a new span (or referencing an already opened one).  If a new span is
   created, it can have a parent reference to another span or context, an inline
   link to another span, or be marked as a root span.  If no reference is
@@ -1067,9 +1067,12 @@ span <name> [<reference>] [<link>] [root]
   links, use the standalone 'link' keyword described above.
 
   Arguments :
-    name      - the name of the span being created or referenced
-                (operation name)
-    reference - 'parent <ref>' or 'link <ref>' or 'root'
+    name   - the name of the span being created or referenced
+             (operation name)
+    parent - 'parent <ref>' references an existing span or extracted
+             context as the span's parent
+    link   - 'link <ref>' adds an inline link to another span or context
+    root   - explicitly marks the span as a root span
 
 
 status <code> [<sample> ...]

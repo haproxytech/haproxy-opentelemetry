@@ -130,7 +130,7 @@ used on events that support it).
       option { disabled | hard-errors | dontlog-normal }
       groups <name> ...
       scopes <name> ...
-      acl <name> <criterion> ...
+      acl <aclname> <criterion> ...
 
 The instrumentation block defines global filter parameters: the YAML exporter
 configuration file, logging, rate limiting, and references to groups and scopes.
@@ -150,18 +150,18 @@ executes all referenced scopes when the rule fires.
 
   otel-scope <name>
       otel-event <event-name> [if|unless <condition>]
-      extract <name-prefix> [use-headers|use-vars]
+      extract <name-prefix> [use-vars | use-headers]
       span <name> [parent <ref>] [link <ref>] [root]
         link <ref> ...
         attribute <key> <sample> ...
         event <name> <key> <sample> ...
         baggage <key> <sample> ...
         status <code> [<sample> ...]
-        inject <name-prefix> [use-headers] [use-vars]
+        inject <name-prefix> [use-vars] [use-headers]
       finish <name> ...
       instrument <type> <name> ... / instrument update <name> ...
-      log-record <severity> [id <int> event <name>] [time [<unit>] <sample>] [span <ref>] [attr <key> <sample>] ... <sample> ...
-      acl <name> <criterion> ...
+      log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span <ref>] [attr <key> <sample>] ... <sample> ...
+      acl <aclname> <criterion> ...
       otel-stop [if|unless <condition>]
 
 Each scope ties to a single HAProxy analyzer event (or none, if used only
@@ -571,7 +571,7 @@ attributes.
 
 9.1  Extraction
 
-  extract <name-prefix> [use-headers|use-vars]
+  extract <name-prefix> [use-vars | use-headers]
 
 Extracts an incoming trace context.  The prefix identifies the header name
 pattern (for HTTP) or variable name pattern (for vars).
@@ -586,7 +586,7 @@ C wrapper to reconstruct an otelc_span_context.
 
 9.2  Injection
 
-  inject <name-prefix> [use-headers] [use-vars]
+  inject <name-prefix> [use-vars] [use-headers]
 
 Injects the current span's context into outgoing data.  Both storage types can
 be used simultaneously.

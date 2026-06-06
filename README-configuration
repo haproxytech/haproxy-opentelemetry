@@ -160,7 +160,7 @@ Keywords (optional):
       Can be repeated on multiple lines.
 
   log global
-  log <addr> [len <len>] [format <fmt>] <facility> [<level> [<minlvl>]]
+  log <addr> [len <len>] [format <fmt>] <facility> [<level> [<minlevel>]]
   no log
       Enable per-instance logging.
 
@@ -373,14 +373,14 @@ Supported keywords:
         instrument update "name_cnt_int" attr "attr_1_key" str("attr_1_value")
 
 
-  log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span <span-name>] [attr <key> <sample>] ... <sample> ...
+  log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span <ref>] [attr <key> <sample>] ... <sample> ...
       Emit an OpenTelemetry log record.  The first argument is a required
       severity level.  Optional keywords follow in any order:
 
         id <integer>           - numeric event identifier
         event <name>           - event name string
         time [<unit>] <sample> - override the log event timestamp at runtime
-        span <span-name>       - associate the log record with an open span
+        span <ref>             - associate the log record with an open span
         attr <key> <sample>    - add an attribute evaluated at runtime (repeatable)
 
       The 'id' and 'event' keywords must be specified together or both omitted;
