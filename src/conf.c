@@ -265,6 +265,47 @@ FLT_OTEL_CONF_FUNC_INIT(sample, key,
 
 /***
  * NAME
+ *   flt_otel_conf_sample_init_code - status-code sample initialization
+ *
+ * SYNOPSIS
+ *   struct flt_otel_conf_sample *flt_otel_conf_sample_init_code(int code, const char *key, int line, struct list *head, char **err)
+ *
+ * ARGUMENTS
+ *   code - int32 status code stored in the extra data
+ *   key  - identifier string to duplicate
+ *   line - configuration file line number
+ *   head - list to append to (or NULL)
+ *   err  - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Allocates a conf_sample that carries only the int32 status <code> in its
+ *   extra data and holds no sample expressions.  Such a sample represents a
+ *   span status without a description, where the status code is the sole
+ *   payload.  The base structure is created by flt_otel_conf_sample_init()
+ *   with <key> as the sample key, after which the extra data is populated
+ *   with the int32 <code>.
+ *
+ * RETURN VALUE
+ *   Returns a pointer to the initialized structure, or NULL on failure.
+ */
+struct flt_otel_conf_sample *flt_otel_conf_sample_init_code(int code, const char *key, int line, struct list *head, char **err)
+{
+	struct flt_otel_conf_sample *retptr;
+
+	OTELC_FUNC("%d, \"%s\", %d, %p, %p:%p", code, OTELC_STR_ARG(key), line, head, OTELC_DPTR_ARGS(err));
+
+	retptr = flt_otel_conf_sample_init(key, line, head, err);
+	if (retptr != NULL) {
+		retptr->extra.u_type        = OTELC_VALUE_INT32;
+		retptr->extra.u.value_int32 = code;
+	}
+
+	OTELC_RETURN_PTR(retptr);
+}
+
+
+/***
+ * NAME
  *   flt_otel_conf_sample_init_ex - extended sample initialization
  *
  * SYNOPSIS

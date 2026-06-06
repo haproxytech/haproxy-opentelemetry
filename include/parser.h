@@ -123,7 +123,7 @@
 	FLT_OTEL_PARSE_SCOPE_DEF(     BAGGAGE, 1,  VAR, 3, 0,   "baggage",    " <key> <sample> ...")                                                                           \
 	FLT_OTEL_PARSE_SCOPE_DEF(      INJECT, 1,  CTX, 2, 4,   "inject",     FLT_OTEL_PARSE_SCOPE_INJECT_HELP)                                                                \
 	FLT_OTEL_PARSE_SCOPE_DEF(     EXTRACT, 0,  CTX, 2, 3,   "extract",    FLT_OTEL_PARSE_SCOPE_EXTRACT_HELP)                                                               \
-	FLT_OTEL_PARSE_SCOPE_DEF(      STATUS, 1, NONE, 3, 0,   "status",     " <code> <sample> ...")                                                                          \
+	FLT_OTEL_PARSE_SCOPE_DEF(      STATUS, 1, NONE, 2, 0,   "status",     " <code> [<sample> ...]")                                                                        \
 	FLT_OTEL_PARSE_SCOPE_DEF(      FINISH, 0, NONE, 2, 0,   "finish",     " <name> ...")                                                                                   \
 	FLT_OTEL_PARSE_SCOPE_DEF(        STOP, 0, NONE, 1, 0, "otel-stop",    " [{ if | unless } <condition>]")                                                                \
 	FLT_OTEL_PARSE_SCOPE_DEF(  INSTRUMENT, 0, NONE, 3, 0, "instrument",   " { update <name> [<attr> ...] | <type> <name> [<aggr>] [<desc>] [<unit>] <value> [<bounds>] }") \

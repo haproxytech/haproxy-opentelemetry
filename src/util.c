@@ -753,8 +753,10 @@ static int flt_otel_sample_add_event(struct list *events, struct flt_otel_conf_s
  * DESCRIPTION
  *   Sets the span status code and description from sample data.  The status
  *   code is taken from the sample's extra field (an int32 value) and the
- *   description from <value>, which must be a string type.  Multiple status
- *   settings for the same span are rejected with an error.
+ *   description from <value>, which must be a string type.  A NULL-typed
+ *   <value> denotes a status without a description and yields an empty
+ *   description string, so a status may carry only its code.  Multiple
+ *   status settings for the same span are rejected with an error.
  *
  * RETURN VALUE
  *   Returns 1 on success, or FLT_OTEL_RET_ERROR on failure.
@@ -776,14 +778,14 @@ static int flt_otel_sample_set_status(struct flt_otel_scope_data_status *status,
 
 		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
 	}
-	else if ((value->u_type != OTELC_VALUE_STRING) && (value->u_type != OTELC_VALUE_DATA)) {
+	else if ((value->u_type != OTELC_VALUE_STRING) && (value->u_type != OTELC_VALUE_DATA) && (value->u_type != OTELC_VALUE_NULL)) {
 		FLT_OTEL_ERR("'%s' : status description must be a string value", sample->key);
 
 		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
 	}
 
 	status->code        = sample->extra.u.value_int32;
-	status->description = OTELC_STRDUP(OTELC_VALUE_STR(value));
+	status->description = OTELC_STRDUP((value->u_type == OTELC_VALUE_NULL) ? "" : OTELC_VALUE_STR(value));
 	if (status->description == NULL) {
 		FLT_OTEL_ERR("out of memory");
 

@@ -1610,9 +1610,19 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid span status", args[1]);
 		}
 		else if (LIST_ISEMPTY(&(flt_otel_current_span->statuses))) {
-			struct otelc_value extra = { .u_type = OTELC_VALUE_INT32, .u.value_int32 = status[i].code };
+			/*
+			 * The status description is optional.  When a sample
+			 * follows the code it is parsed as the description;
+			 * otherwise a description-less status carrying only the
+			 * code is stored.
+			 */
+			if (FLT_OTEL_ARG_ISVALID(2)) {
+				struct otelc_value extra = { .u_type = OTELC_VALUE_INT32, .u.value_int32 = status[i].code };
 
-			retval = flt_otel_parse_cfg_sample(file, line, args, 2, 0, &extra, &(flt_otel_current_span->statuses), &err);
+				retval = flt_otel_parse_cfg_sample(file, line, args, 2, 0, &extra, &(flt_otel_current_span->statuses), &err);
+			}
+			else if (flt_otel_conf_sample_init_code(status[i].code, args[1], line, &(flt_otel_current_span->statuses), &err) == NULL)
+				retval |= ERR_ABORT | ERR_ALERT;
 		}
 		else {
 			FLT_OTEL_PARSE_ERR(&err, "only one status per event is allowed");
