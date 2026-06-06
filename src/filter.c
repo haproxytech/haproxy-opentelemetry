@@ -1081,18 +1081,21 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 
 		OTELC_RETURN_INT(FLT_OTEL_RET_IGNORE);
 	}
-	else if (_HA_ATOMIC_LOAD(&(conf->instr->rate_limit)) < FLT_OTEL_FLOAT_U32(100.0)) {
-		uint32_t rnd = ha_random32();
+	else {
 		uint32_t rate = _HA_ATOMIC_LOAD(&(conf->instr->rate_limit));
 
-		if (rate <= rnd) {
-			OTELC_DBG(NOTICE, "filter '%s', type: %s (ignored: %u <= %u)", conf->id, flt_otel_type(f), rate, rnd);
+		if (rate < FLT_OTEL_FLOAT_U32(100.0)) {
+			uint32_t rnd = ha_random32();
+
+			if (rate <= rnd) {
+				OTELC_DBG(NOTICE, "filter '%s', type: %s (ignored: %u <= %u)", conf->id, flt_otel_type(f), rate, rnd);
 
 #ifdef FLT_OTEL_USE_COUNTERS
-			_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 1, 1);
+				_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 1, 1);
 #endif
 
-			OTELC_RETURN_INT(FLT_OTEL_RET_IGNORE);
+				OTELC_RETURN_INT(FLT_OTEL_RET_IGNORE);
+			}
 		}
 	}
 
