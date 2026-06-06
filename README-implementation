@@ -806,6 +806,27 @@ Each test directory contains an otel.yml file configuring three exporter types:
   - Thread integration: flt_otel_thread_id() returns the HAProxy tid, ensuring
     the wrapper's thread-local operations map to HAProxy worker threads.
 
+  - Single dispatch stage per event: each scope event fires from one callback
+    -- channel_pre_analyze or channel_post_analyze for analyzer-bound events,
+    or a lifecycle/data callback otherwise.  Exposing both stages of every
+    analyzer (an on-X-pre and an on-X-post) was considered and rejected: about
+    half the events are not analyzer-bound and have no stage to split; the
+    tarpit analyzer never finishes so it has no post stage, and the
+    wait-for-HTTP analyzers have no parsed message in the pre stage; and the
+    rest complete in a single pass, so their two stages fire microseconds
+    apart.  Where a later view is genuinely needed -- the request body, for
+    example, is buffered only after AN_REQ_HTTP_BODY -- an optional per-scope
+    stage qualifier on the existing event name would be preferable to doubling
+    the event table.  The otel-event directive would take an optional 'pre' or
+    'post' keyword:
+
+        otel-event on-http-body-request       # default stage (pre, as today)
+        otel-event on-http-body-request post  # opt into the post stage
+
+    defaulting to the current stage when omitted.  The filter would list such an
+    analyzer in both the pre and post masks and run the scope only from the
+    stage it asked for.
+
 
 18  Tracer, Span and Metrics Internals
 ----------------------------------------------------------------------

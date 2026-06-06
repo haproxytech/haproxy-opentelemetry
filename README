@@ -820,6 +820,48 @@ otel-event <name> [{ if | unless } <condition>]
       on-server-session-end              |  -
     -------------------------------------|------------------------------
 
+  The next table shows the filter callback that raises each event.  Events bound
+  to a channel analyzer fire from channel_pre_analyze (before the analyzer runs)
+  or channel_post_analyze (after it finishes).  The rest fire from a lifecycle
+  or data-filtering callback and are not tied to an analyzer:
+
+    -------------------------------------|------------------------------
+      the OTel filter event              |  raising filter callback
+    -------------------------------------|------------------------------
+      on-stream-start                    |  stream_start
+      on-stream-stop                     |  stream_stop
+      on-idle-timeout                    |  check_timeouts
+      on-backend-set                     |  stream_set_backend
+    -------------------------------------|------------------------------
+      on-client-session-start            |  channel_start_analyze
+      on-frontend-tcp-request            |  channel_pre_analyze
+      on-http-wait-request               |  channel_post_analyze
+      on-http-body-request               |  channel_pre_analyze
+      on-frontend-http-request           |  channel_pre_analyze
+      on-switching-rules-request         |  channel_pre_analyze
+      on-backend-tcp-request             |  channel_pre_analyze
+      on-backend-http-request            |  channel_pre_analyze
+      on-http-tarpit-request             |  channel_pre_analyze
+      on-process-server-rules-request    |  channel_pre_analyze
+      on-http-process-request            |  channel_pre_analyze
+      on-tcp-rdp-cookie-request          |  channel_pre_analyze
+      on-process-sticking-rules-request  |  channel_pre_analyze
+      on-http-headers-request            |  http_headers
+      on-http-end-request                |  http_end
+      on-client-session-end              |  channel_end_analyze
+      on-server-unavailable              |  channel_end_analyze
+    -------------------------------------|------------------------------
+      on-server-session-start            |  channel_start_analyze
+      on-tcp-response                    |  channel_pre_analyze
+      on-http-wait-response              |  channel_post_analyze
+      on-process-store-rules-response    |  channel_pre_analyze
+      on-http-response                   |  channel_pre_analyze
+      on-http-headers-response           |  http_headers
+      on-http-end-response               |  http_end
+      on-http-reply                      |  http_reply (never invoked)
+      on-server-session-end              |  channel_end_analyze
+    -------------------------------------|------------------------------
+
   --- Stream lifecycle events (not tied to a channel analyzer) ---
 
   The on-stream-start and on-stream-stop events fire from the stream_start and
@@ -855,8 +897,14 @@ otel-event <name> [{ if | unless } <condition>]
   The on-http-wait-request event fires after the complete HTTP request has been
   received (AN_REQ_WAIT_HTTP).  This is a post-analyzer event.
 
-  The on-http-body-request event fires when the HTTP request body is available
-  for inspection (AN_REQ_HTTP_BODY).
+  The on-http-body-request event fires when the request body analyzer is reached
+  (AN_REQ_HTTP_BODY).  Unlike on-http-wait-request, it is a pre-analyzer event:
+  it fires before the analyzer has buffered the body, so the request body is
+  not yet available -- body fetches such as req.body and req.body_len evaluate
+  to empty or zero.  Treat it as a marker for the start of body processing, not
+  a place to inspect the body; the body is buffered only after this analyzer
+  completes, and only when the proxy is configured to hold it (for example with
+  'option http-buffer-request').
 
   The on-frontend-http-request event fires during frontend HTTP request
   processing: header rules, monitoring, statistics and redirects
