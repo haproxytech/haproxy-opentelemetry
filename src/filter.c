@@ -423,6 +423,13 @@ static int flt_otel_ops_init(struct proxy *p, struct flt_conf *fconf)
 	if (conf == NULL)
 		OTELC_RETURN_INT(retval);
 
+	/*
+	 * Declare support for filtering HTX streams.  As in the other filters
+	 * this static capability is set at configuration time; the stream
+	 * attachment path checks it before attaching to an HTX stream.
+	 */
+	fconf->flags |= FLT_CFG_FL_HTX;
+
 	flt_otel_cli_init();
 
 	/*
@@ -959,9 +966,10 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
  *   fconf - the filter configuration
  *
  * DESCRIPTION
- *   Per-thread filter initialization called after thread creation.  Starts
- *   the OTel tracer and meter threads via their start operations and enables
- *   HTX stream filtering.  Subsequent calls on the same filter are no-ops.
+ *   Per-thread filter initialization called after thread creation.  It starts
+ *   the OTel tracer, meter and logger providers, which are process-global and
+ *   not idempotent; an atomic claim guarantees the start runs on one thread
+ *   only, while the other threads return success without repeating it.
  *
  * RETURN VALUE
  *   Returns a negative value if an error occurs, any other value otherwise.
@@ -982,10 +990,12 @@ static int flt_otel_ops_init_per_thread(struct proxy *p, struct flt_conf *fconf)
 #endif
 
 	/*
-	 * Start the OpenTelemetry library tracer thread.  Enable HTX streams
-	 * filtering.
+	 * The OTel SDK installs process-global tracer, meter and logger
+	 * providers and is not idempotent, while this callback runs on every
+	 * worker thread.  Atomically claim the start so the providers are
+	 * brought up exactly once; threads that lose the claim are done here.
 	 */
-	if (!(fconf->flags & FLT_CFG_FL_HTX)) {
+	if (HA_ATOMIC_BTS(&(conf->instr->flag_started), 0) == 0) {
 		retval = OTELC_OPS(conf->instr->tracer, start);
 		if (retval == OTELC_RET_ERROR)
 			FLT_OTEL_ALERT("%s", conf->instr->tracer->err);
@@ -1001,9 +1011,6 @@ static int flt_otel_ops_init_per_thread(struct proxy *p, struct flt_conf *fconf)
 			if (retval == OTELC_RET_ERROR)
 				FLT_OTEL_ALERT("%s", conf->instr->logger->err);
 		}
-
-		if (retval != FLT_OTEL_RET_ERROR)
-			fconf->flags |= FLT_CFG_FL_HTX;
 	} else {
 		retval = FLT_OTEL_RET_OK;
 	}

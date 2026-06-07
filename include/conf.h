@@ -77,12 +77,12 @@
 #define FLT_OTEL_DBG_CONF_PH(h,p) \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%p }", (p), FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->ptr)
 
-#define FLT_OTEL_DBG_CONF_INSTR(h,p)                                                                                                   \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %p %p %p %u %hhu %hhu %hhu %hhu 0x%02hhx %p:%s 0x%08x %u %s %s %s }", \
-	                 (p), FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->config, (p)->tracer, (p)->meter, (p)->logger,                        \
-	                 (p)->rate_limit, (p)->flag_harderr, (p)->flag_disabled, (p)->flag_data_req, (p)->flag_data_res, (p)->logging, \
-	                 &((p)->proxy_log), flt_otel_list_dump(&((p)->proxy_log.loggers)), (p)->analyzers, (p)->idle_timeout,          \
-	                 flt_otel_list_dump(&((p)->acls)), flt_otel_list_dump(&((p)->ph_groups)),                                      \
+#define FLT_OTEL_DBG_CONF_INSTR(h,p)                                                                                                        \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %p %p %p %u %hhu %hhu %hhu %hhu %u 0x%02hhx %p:%s 0x%08x %u %s %s %s }",   \
+	                 (p), FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->config, (p)->tracer, (p)->meter, (p)->logger,                             \
+	                 (p)->rate_limit, (p)->flag_harderr, (p)->flag_disabled, (p)->flag_data_req, (p)->flag_data_res, (p)->flag_started, \
+	                 (p)->logging, &((p)->proxy_log), flt_otel_list_dump(&((p)->proxy_log.loggers)), (p)->analyzers, (p)->idle_timeout, \
+	                 flt_otel_list_dump(&((p)->acls)), flt_otel_list_dump(&((p)->ph_groups)),                                           \
 	                 flt_otel_list_dump(&((p)->ph_scopes)))
 
 #define FLT_OTEL_DBG_CONF_INSTRUMENT(h,p)                                                                                     \
@@ -310,6 +310,7 @@ struct flt_otel_conf_instr {
 	bool                 flag_disabled; /* [0 1] */
 	bool                 flag_data_req; /* Request channel needs a data filter for http_end. */
 	bool                 flag_data_res; /* Response channel needs a data filter for http_end. */
+	uint                 flag_started;  /* Atomic claim so the OTel SDK is started once. */
 	uint8_t              logging;       /* [0 1 3] */
 	struct proxy         proxy_log;     /* The log server list. */
 	uint                 analyzers;     /* Defined channel analyzers. */
