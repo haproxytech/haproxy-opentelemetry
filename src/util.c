@@ -1029,12 +1029,13 @@ int flt_otel_sample_eval_time(struct stream *s, uint dir, struct flt_otel_conf_s
 
 	if (flt_otel_sample_eval(s, dir, sample, true, &value, err) == FLT_OTEL_RET_OK) {
 		/*
-		 * Convert the evaluated value to int64.  If it came back as a
-		 * string, parse it numerically; on failure, free the string and
-		 * skip the timestamp.
+		 * Convert the evaluated value to int64.  A failed sample fetch
+		 * arrives here as an empty string; that, and any non-numeric
+		 * value, is rejected, so the caller keeps the span timestamp.
 		 */
 		if (value.u_type == OTELC_VALUE_DATA)
-			if (otelc_value_strtonum(&value, OTELC_VALUE_INT64) == OTELC_RET_ERROR) {
+			if (!OTELC_STR_IS_VALID((const char *)value.u.value_data) ||
+			    (otelc_value_strtonum(&value, OTELC_VALUE_INT64) == OTELC_RET_ERROR)) {
 				OTELC_DBG(NOTICE, "WARNING: 'time' value not numeric");
 
 				OTELC_SFREE(value.u.value_data);
