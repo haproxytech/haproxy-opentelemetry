@@ -103,6 +103,8 @@ void flt_otel_runtime_context_free(struct filter *f)
 		(void)clock_gettime(CLOCK_MONOTONIC, &ts_steady);
 
 		list_for_each_entry_safe(span, span_back, &(rt_ctx->spans), list) {
+			FLT_OTEL_DBG_SCOPE_SPAN("finishing span ", span);
+
 			OTELC_OPSR(span->span, end_with_options, &ts_steady, OTELC_SPAN_STATUS_IGNORE, NULL);
 			flt_otel_scope_span_free(&span);
 		}
@@ -112,8 +114,11 @@ void flt_otel_runtime_context_free(struct filter *f)
 	if (!LIST_ISEMPTY(&(rt_ctx->contexts))) {
 		struct flt_otel_scope_context *ctx, *ctx_back;
 
-		list_for_each_entry_safe(ctx, ctx_back, &(rt_ctx->contexts), list)
+		list_for_each_entry_safe(ctx, ctx_back, &(rt_ctx->contexts), list) {
+			FLT_OTEL_DBG_SCOPE_CONTEXT("finishing context ", ctx);
+
 			flt_otel_scope_context_free(&ctx);
+		}
 	}
 
 	flt_otel_pool_free(pool_head_otel_runtime_context, &(f->ctx));
