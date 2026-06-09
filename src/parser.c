@@ -1478,8 +1478,8 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
  *   Stores the referenced span/context name from <args>[2] and parses the field
  *   selector in <args>[3] into <conf>.  The selector is a field name with an
  *   optional parenthesised key, such as 'trace-id', 'baggage(userId)' or
- *   'tracestate(vendor)'.  A key is required for 'baggage', optional for
- *   'tracestate', and rejected for the other fields.
+ *   'tracestate(vendor)'.  A key is optional for 'baggage' and 'tracestate',
+ *   and rejected for the other fields.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,

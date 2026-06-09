@@ -287,8 +287,9 @@ Supported keywords:
 
 
   status <code> [<sample> ...] [{ if | unless } <condition>]
-      Set the span status.  Valid codes: ignore (default), unset, ok, error.
-      An optional description follows the code.
+      Set the span status.  Valid codes: ignore, unset, ok, error; without a
+      'status' directive a span defaults to 'ignore'.  An optional description
+      follows the code.
 
       An optional trailing 'if'/'unless' ACL condition gates the status.
 
@@ -300,8 +301,8 @@ Supported keywords:
 
   link { <ref> ... | <ref> attr <key> <sample> ... }
       Add non-hierarchical links to the currently active span.  Multiple span
-      or context names can be specified.  Use this keyword for multiple links
-      (the inline 'link' in 'span' is limited to one).
+      or context names can be specified.  Use this keyword when a link must
+      carry attributes, which the inline 'link' in 'span' cannot.
 
       A single link may carry attributes: when 'attr' follows the one span
       name, the rest of the line is <key> <sample> pairs, each a single sample
@@ -333,7 +334,8 @@ Supported keywords:
   extract <name-prefix> [use-vars | use-headers]
       Extract a previously injected span context from an HTTP header or HAProxy
       variables.  The extracted context can then be used as a parent reference
-      in 'span ... parent <name-prefix>'.
+      in 'span ... parent <name-prefix>'.  Default storage: use-headers.  The
+      'use-vars' option requires OTEL_USE_VARS=1 at compile time.
 
       When extracting context from HTTP headers, if the first character of the
       context name is '-', the context name is excluded from the header.  This
@@ -351,8 +353,8 @@ Supported keywords:
         '*req*'  - finish all request-channel spans
         '*res*'  - finish all response-channel spans
 
-      Multiple names can be given on one line.  A quoted context name after a
-      span name finishes the associated context as well.
+      Multiple names can be given on one line; each is matched independently
+      against the open spans and contexts by exact name.
 
       Examples:
         finish "Frontend TCP request"
@@ -362,7 +364,8 @@ Supported keywords:
 
   instrument <type> <name> [aggr <aggregation>] [desc <description>] [unit <unit>] value <sample> [bounds <bounds>]
   instrument update <name> [attr <key> <sample> ...]
-      Create or update a metric instrument.
+      Create or update a metric instrument.  For the create form, the 'aggr',
+      'desc', 'unit', 'value' and 'bounds' keywords may be given in any order.
 
       Supported types:
         cnt_int   - counter (uint64)
@@ -384,9 +387,10 @@ Supported keywords:
 
       For histogram instruments (hist_int), optional bucket boundaries can be
       specified using the 'bounds' keyword followed by a double-quoted string
-      of space-separated numbers (order does not matter; values are sorted
-      internally).  When bounds are specified without an explicit aggregation
-      type, histogram aggregation is used automatically.
+      of space-separated numbers; values are sorted internally and duplicate
+      boundaries are rejected.  A 'hist_int' instrument whose aggregation type
+      is left unset defaults to histogram aggregation, whether or not bounds
+      are given.
 
       Observable (asynchronous) and double-precision types are not supported.
       Observable instrument callbacks are invoked by the OTel SDK from an
@@ -638,7 +642,7 @@ Supported keywords:
       the 'on-idle-timeout' event and cannot be used with any other event.
 
       The <time> argument accepts the standard HAProxy time format: a number
-      followed by a unit suffix (ms, s, m, h, d).  A value of zero is not
+      followed by a unit suffix (us, ms, s, m, h, d).  A value of zero is not
       permitted.
 
       Example:
@@ -891,11 +895,11 @@ If omitted, the logger accepts all severity levels.
 Groups defined in the OTel configuration file can be triggered from HAProxy
 TCP/HTTP rules using the 'otel-group' action keyword:
 
-  http-request        otel-group <filter-id> <group> [condition]
-  http-response       otel-group <filter-id> <group> [condition]
-  http-after-response otel-group <filter-id> <group> [condition]
-  tcp-request         otel-group <filter-id> <group> [condition]
-  tcp-response        otel-group <filter-id> <group> [condition]
+  http-request         otel-group <filter-id> <group> [condition]
+  http-response        otel-group <filter-id> <group> [condition]
+  http-after-response  otel-group <filter-id> <group> [condition]
+  tcp-request content  otel-group <filter-id> <group> [condition]
+  tcp-response content otel-group <filter-id> <group> [condition]
 
 This allows running specific groups of scopes based on ACL conditions defined
 in the HAProxy configuration.

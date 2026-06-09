@@ -149,7 +149,7 @@ executes all referenced scopes when the rule fires.
 4.3  Scope Section
 
   otel-scope <name>
-      otel-event <event-name> [if|unless <condition>]
+      otel-event <event-name> [{ if | unless } <condition>]
       extract <name-prefix> [use-vars | use-headers]
       span <name> [parent <ref>] [link <ref>] [root] [kind <kind>]
         link { <ref> ... | <ref> attr <key> <sample> ... }
@@ -162,7 +162,7 @@ executes all referenced scopes when the rule fires.
       instrument <type> <name> ... / instrument update <name> ...
       log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span <ref>] [attr <key> <sample>] ... <sample> ...
       acl <aclname> <criterion> ...
-      otel-stop [if|unless <condition>]
+      otel-stop [{ if | unless } <condition>]
 
 Each scope ties to a single HAProxy analyzer event (or none, if used only
 through groups).  Scopes contain context extraction directives, span
