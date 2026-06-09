@@ -257,7 +257,7 @@ Supported keywords:
         attribute "error.flag" str("1") if { status ge 500 }
 
 
-  event <name> [time [<unit>] <sample>] <key> <sample> ...
+  event <name> [time [<unit>] <sample>] <key> <sample> ... [{ if | unless } <condition>]
       Add a span event (timestamped annotation) to the currently active span.
       The data type is always string.
 
@@ -266,6 +266,8 @@ Supported keywords:
         to a number.  Without it, the event inherits the span timestamp.
         Note that a 'time' token directly after <name> is read as this clause,
         so it cannot also serve as an attribute key in that position.
+
+      An optional trailing 'if'/'unless' ACL condition gates the event.
 
       Examples:
         event "event_ip" "src" src str(":") src_port

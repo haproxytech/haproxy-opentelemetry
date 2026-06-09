@@ -1760,7 +1760,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		}
 
 		if (!(retval & ERR_CODE))
-			retval = flt_otel_parse_cfg_sample(file, line, args, key_pos + 1, 0, &extra, &(flt_otel_current_span->events), &err);
+			retval = flt_otel_parse_cfg_sample_cond(file, line, args, key_pos + 1, &extra, &(flt_otel_current_span->events), &err);
 
 		if (!(retval & ERR_CODE) && !LIST_ISEMPTY(&time_list)) {
 			struct flt_otel_conf_sample *event_sample;

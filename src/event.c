@@ -915,6 +915,9 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 		}
 
 		list_for_each_entry(sample, &(conf_span->events), list) {
+			if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
+				continue;
+
 			OTELC_DBG(DEBUG, "adding event '%s' -> '%s'", sample->key, sample->fmt_string);
 
 			if (flt_otel_sample_add(s, dir, sample, &data, FLT_OTEL_EVENT_SAMPLE_EVENT, err) == FLT_OTEL_RET_ERROR)

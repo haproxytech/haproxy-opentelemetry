@@ -154,7 +154,7 @@ executes all referenced scopes when the rule fires.
       span <name> [parent <ref>] [link <ref>] [root] [kind <kind>]
         link { <ref> ... | <ref> attr <key> <sample> ... }
         attribute <key> <sample> ... [{ if | unless } <condition>]
-        event <name> [time [<unit>] <sample>] <key> <sample> ...
+        event <name> [time [<unit>] <sample>] <key> <sample> ... [{ if | unless } <condition>]
         baggage <key> <sample> ...
         status <code> [<sample> ...]
         inject <name-prefix> [use-vars] [use-headers]
