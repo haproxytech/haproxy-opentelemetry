@@ -283,13 +283,16 @@ Supported keywords:
         baggage "haproxy_id" var(sess.otel.uuid)
 
 
-  status <code> [<sample> ...]
+  status <code> [<sample> ...] [{ if | unless } <condition>]
       Set the span status.  Valid codes: ignore (default), unset, ok, error.
       An optional description follows the code.
+
+      An optional trailing 'if'/'unless' ACL condition gates the status.
 
       Examples:
         status "ok"
         status "error" str("http.status_code: ") status
+        status "error" str("server error") if { status ge 500 }
 
 
   link { <ref> ... | <ref> attr <key> <sample> ... }

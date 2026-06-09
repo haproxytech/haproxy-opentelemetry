@@ -1800,18 +1800,26 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		}
 		else if (LIST_ISEMPTY(&(flt_otel_current_span->statuses))) {
 			/*
-			 * The status description is optional.  When a sample
-			 * follows the code it is parsed as the description;
-			 * otherwise a description-less status carrying only the
-			 * code is stored.
+			 * The status description is optional.  A sample after the
+			 * code is the description; an 'if'/'unless' there, or
+			 * nothing, leaves a description-less status.  Either form
+			 * may carry a trailing condition.
 			 */
-			if (FLT_OTEL_ARG_ISVALID(2)) {
+			if (FLT_OTEL_ARG_ISVALID(2) && !FLT_OTEL_PARSE_KEYWORD(2, FLT_OTEL_CONDITION_IF) && !FLT_OTEL_PARSE_KEYWORD(2, FLT_OTEL_CONDITION_UNLESS)) {
 				struct otelc_value extra = { .u_type = OTELC_VALUE_INT32, .u.value_int32 = status[i].code };
 
-				retval = flt_otel_parse_cfg_sample(file, line, args, 2, 0, &extra, &(flt_otel_current_span->statuses), &err);
+				retval = flt_otel_parse_cfg_sample_cond(file, line, args, 2, &extra, &(flt_otel_current_span->statuses), &err);
 			}
-			else if (flt_otel_conf_sample_init_code(status[i].code, args[1], line, &(flt_otel_current_span->statuses), &err) == NULL)
+			else if (flt_otel_conf_sample_init_code(status[i].code, args[1], line, &(flt_otel_current_span->statuses), &err) == NULL) {
 				retval |= ERR_ABORT | ERR_ALERT;
+			}
+			else if (FLT_OTEL_ARG_ISVALID(2)) {
+				struct flt_otel_conf_sample *sample;
+
+				sample = LIST_PREV(&(flt_otel_current_span->statuses), typeof(sample), list);
+
+				retval = flt_otel_parse_attach_cond(file, line, args, 2, &(sample->cond), &err);
+			}
 		}
 		else {
 			FLT_OTEL_PARSE_ERR(&err, "only one status per event is allowed");
