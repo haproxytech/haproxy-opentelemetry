@@ -462,7 +462,7 @@ Supported keywords:
         log-record info time ns hdr(x-event-time-ns) str("client-supplied timestamp")
 
 
-  set-var <var-name> <sample> ...
+  set-var <var-name> <sample> ... [{ if | unless } <condition>]
       Set a HAProxy variable to the string value of a sample expression or a
       log-format, evaluated when the scope's event fires.  The value grammar
       matches the 'attribute' keyword: bare sample fetches are concatenated and
@@ -472,10 +472,13 @@ Supported keywords:
       before the scope's spans, so span attributes, instruments and log records
       can read the new value through 'var(...)'.
 
+      An optional trailing 'if'/'unless' ACL condition gates the assignment.
+
       Examples:
         set-var txn.otel_method method
         set-var txn.otel_path str("path=") path
         set-var sess.otel_tid var(sess.otel.uuid)
+        set-var txn.otel_internal str("1") if { src 127.0.0.1 }
 
 
   set-var-ctx <var-name> <ref> <field>

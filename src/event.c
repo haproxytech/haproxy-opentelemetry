@@ -607,6 +607,9 @@ static int flt_otel_scope_run_set_var(struct stream *s, uint dir, struct flt_ote
 	list_for_each_entry(sample, &(scope->set_vars), list) {
 		struct otelc_value value;
 
+		if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
+			continue;
+
 		OTELC_DBG(DEBUG, "set-var '%s' -> '%s'", sample->key, sample->fmt_string);
 
 		if (flt_otel_sample_eval(s, dir, sample, false, &value, err) == FLT_OTEL_RET_ERROR) {

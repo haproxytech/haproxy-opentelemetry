@@ -1972,7 +1972,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		if (flt_otel_var_register_byname(args[1], &err) == FLT_OTEL_RET_ERROR)
 			retval |= ERR_ABORT | ERR_ALERT;
 		else
-			retval = flt_otel_parse_cfg_sample(file, line, args, 2, 0, NULL, &(flt_otel_current_scope->set_vars), &err);
+			retval = flt_otel_parse_cfg_sample_cond(file, line, args, 2, NULL, &(flt_otel_current_scope->set_vars), &err);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_SET_VAR_CTX) {
 		struct flt_otel_conf_set_var_ctx *conf_set_var_ctx;
