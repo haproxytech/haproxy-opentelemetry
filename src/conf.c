@@ -423,6 +423,7 @@ FLT_OTEL_CONF_FUNC_FREE(sample, key,
 	FLT_OTEL_LIST_DESTROY(sample_expr, &((*ptr)->exprs));
 	lf_expr_deinit(&((*ptr)->lf_expr));
 	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->time));
+	free_acl_cond((*ptr)->cond);
 )
 
 

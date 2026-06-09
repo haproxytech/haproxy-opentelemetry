@@ -971,6 +971,110 @@ static struct acl_cond *flt_otel_parse_acl(const char *file, int line, struct pr
 
 /***
  * NAME
+ *   flt_otel_parse_attach_cond - build an if/unless condition into a destination
+ *
+ * SYNOPSIS
+ *   static int flt_otel_parse_attach_cond(const char *file, int line, char **args, int cond_pos, struct acl_cond **cond, char **err)
+ *
+ * ARGUMENTS
+ *   file     - configuration file path
+ *   line     - configuration file line number
+ *   args     - configuration line arguments array
+ *   cond_pos - args[] position of the 'if'/'unless' keyword
+ *   cond     - destination for the built ACL condition
+ *   err      - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Builds the ACL condition starting at <args[cond_pos]> and stores it in
+ *   <*cond>, so the gated item runs only when the condition is met at runtime.
+ *   Used for span item samples, the scope condition and the 'otel-stop' action.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE (== 0) in case of success,
+ *   or a combination of ERR_* flags if an error is encountered.
+ */
+static int flt_otel_parse_attach_cond(const char *file, int line, char **args, int cond_pos, struct acl_cond **cond, char **err)
+{
+	int retval = ERR_NONE;
+
+	OTELC_FUNC("\"%s\", %d, %p, %d, %p, %p:%p", OTELC_STR_ARG(file), line, args, cond_pos, cond, OTELC_DPTR_ARGS(err));
+
+	if (flt_otel_current_config->instr == NULL) {
+		FLT_OTEL_PARSE_ERR(err, "'%s' : instrumentation not defined", args[0]);
+	} else {
+		*cond = flt_otel_parse_acl(file, line, flt_otel_current_config->proxy, (const char **)args + cond_pos, err, &(flt_otel_current_scope->acls), &(flt_otel_current_config->instr->acls), &(flt_otel_current_config->proxy->acl), NULL);
+		if (*cond == NULL)
+			retval |= ERR_ABORT | ERR_ALERT;
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_parse_cfg_sample_cond - sample definition with optional condition
+ *
+ * SYNOPSIS
+ *   static int flt_otel_parse_cfg_sample_cond(const char *file, int line, char **args, int idx, const struct otelc_value *extra, struct list *head, char **err)
+ *
+ * ARGUMENTS
+ *   file  - configuration file path
+ *   line  - configuration file line number
+ *   args  - configuration line arguments array
+ *   idx   - args[] position where the sample value starts
+ *   extra - optional extra data (event name or status code)
+ *   head  - list head for the parsed sample definition
+ *   err   - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Parses a sample definition that may be followed by an optional 'if' or
+ *   'unless' ACL condition.  The sample expressions are parsed up to the
+ *   condition keyword, or to the end of the line when none is present; the
+ *   condition is then built and stored on the just-created sample so the item
+ *   is emitted only when the condition is met at runtime.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE (== 0) in case of success,
+ *   or a combination of ERR_* flags if an error is encountered.
+ */
+static int flt_otel_parse_cfg_sample_cond(const char *file, int line, char **args, int idx, const struct otelc_value *extra, struct list *head, char **err)
+{
+	struct flt_otel_conf_sample *sample;
+	int                          i, cond_pos = 0, n = 0, retval = ERR_NONE;
+
+	OTELC_FUNC("\"%s\", %d, %p, %d, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, idx, extra, head, OTELC_DPTR_ARGS(err));
+
+	/* Locate an optional trailing if/unless condition. */
+	for (i = idx; FLT_OTEL_ARG_ISVALID(i); i++)
+		if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_CONDITION_UNLESS)) {
+			cond_pos = i;
+			n        = i - idx;
+
+			break;
+		}
+
+	/* A condition must be preceded by at least one sample expression. */
+	if ((cond_pos != 0) && (n == 0)) {
+		FLT_OTEL_PARSE_ERR(err, "'%s' : no sample expression before '%s'", args[0], args[cond_pos]);
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	retval = flt_otel_parse_cfg_sample(file, line, args, idx, n, extra, head, err);
+	if (!(retval & ERR_CODE) && (cond_pos != 0)) {
+		/* Attach the trailing condition to the just-parsed sample. */
+		sample = LIST_PREV(head, typeof(sample), list);
+
+		retval = flt_otel_parse_attach_cond(file, line, args, cond_pos, &(sample->cond), err);
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_parse_bounds - histogram boundary string parser
  *
  * SYNOPSIS
@@ -1791,21 +1895,12 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		 * condition is built the same way as for the 'otel-event'
 		 * keyword.
 		 */
-		if (!FLT_OTEL_ARG_ISVALID(1)) {
-			/* Do nothing. */
-		}
-		else if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_CONDITION_UNLESS)) {
-			if (flt_otel_current_config->instr == NULL) {
-				FLT_OTEL_PARSE_ERR(&err, "'%s' : instrumentation not defined", args[0]);
-			} else {
-				flt_otel_current_scope->stop_cond = flt_otel_parse_acl(file, line, flt_otel_current_config->proxy, (const char **)args + 1, &err, &(flt_otel_current_scope->acls), &(flt_otel_current_config->instr->acls), &(flt_otel_current_config->proxy->acl), NULL);
-				if (flt_otel_current_scope->stop_cond == NULL)
-					retval |= ERR_ABORT | ERR_ALERT;
-			}
-		}
-		else {
+		if (!FLT_OTEL_ARG_ISVALID(1))
+			/* Do nothing. */;
+		else if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_CONDITION_UNLESS))
+			retval = flt_otel_parse_attach_cond(file, line, args, 1, &(flt_otel_current_scope->stop_cond), &err);
+		else
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : expects either 'if' or 'unless' followed by a condition but found '%s'", args[0], args[1]);
-		}
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_INSTRUMENT) {
 		retval = flt_otel_parse_cfg_instrument(file, line, args, pdata, &err);
@@ -1852,31 +1947,14 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			 * The event can have some condition defined and this
 			 * is checked here.
 			 */
-			if (flt_otel_current_scope->event == FLT_OTEL_EVENT__NONE) {
+			if (flt_otel_current_scope->event == FLT_OTEL_EVENT__NONE)
 				FLT_OTEL_PARSE_ERR(&err, "'%s' : unknown event", args[1]);
-			}
-			else if (!FLT_OTEL_ARG_ISVALID(2)) {
-				/* Do nothing. */
-			}
-			else if (FLT_OTEL_PARSE_KEYWORD(2, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(2, FLT_OTEL_CONDITION_UNLESS)) {
-				/*
-				 * We will first try to build ACL condition using
-				 * local settings and then if that fails, using
-				 * global settings (from instrumentation block).
-				 * If it also fails, then try to use ACL defined
-				 * in the HAProxy configuration.
-				 */
-				if (flt_otel_current_config->instr == NULL) {
-					FLT_OTEL_PARSE_ERR(&err, "'%s' : instrumentation not defined", args[1]);
-				} else {
-					flt_otel_current_scope->cond = flt_otel_parse_acl(file, line, flt_otel_current_config->proxy, (const char **)args + 2, &err, &(flt_otel_current_scope->acls), &(flt_otel_current_config->instr->acls), &(flt_otel_current_config->proxy->acl), NULL);
-					if (flt_otel_current_scope->cond == NULL)
-						retval |= ERR_ABORT | ERR_ALERT;
-				}
-			}
-			else {
+			else if (!FLT_OTEL_ARG_ISVALID(2))
+				/* Do nothing. */;
+			else if (FLT_OTEL_PARSE_KEYWORD(2, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(2, FLT_OTEL_CONDITION_UNLESS))
+				retval = flt_otel_parse_attach_cond(file, line, args, 2, &(flt_otel_current_scope->cond), &err);
+			else
 				FLT_OTEL_PARSE_ERR(&err, "'%s' : expects either 'if' or 'unless' followed by a condition but found '%s'", args[1], args[2]);
-			}
 
 			if (!(retval & ERR_CODE))
 				OTELC_DBG(DEBUG, "event '%s'", args[1]);

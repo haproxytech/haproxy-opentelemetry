@@ -274,6 +274,10 @@ sections.
       Parses a complete sample definition (key plus one or more sample
       expressions).
 
+  flt_otel_parse_cfg_sample_cond
+      Parses a sample definition optionally followed by an 'if'/'unless' ACL
+      condition, building the condition onto the parsed sample.
+
   flt_otel_parse_cfg_time
       Parses the value part of an optional 'time [s|ms|us|ns] <sample>' clause
       into a single-sample list, with the unit stored in the sample's extra.

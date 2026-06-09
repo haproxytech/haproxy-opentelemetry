@@ -43,10 +43,11 @@
 #define FLT_OTEL_DBG_CONF_SAMPLE_EXPR(h,p) \
 	OTELC_DBG(DEBUG, h "%p:{ '%s' %p }", (p), (p)->fmt_expr, (p)->expr)
 
-#define FLT_OTEL_DBG_CONF_SAMPLE(h,p)                                             \
-	OTELC_DBG(DEBUG, h "%p:{ '%s' '%s' %s %s %d %p %hhu %s }", (p),           \
-	          (p)->key, (p)->fmt_string, otelc_value_dump(&((p)->extra), ""), \
-	          flt_otel_list_dump(&((p)->exprs)), (p)->num_exprs, &((p)->lf_expr), (p)->lf_used, flt_otel_list_dump(&((p)->time)))
+#define FLT_OTEL_DBG_CONF_SAMPLE(h,p)                                                 \
+	OTELC_DBG(DEBUG, h "%p:{ '%s' '%s' %s %s %d %p %hhu %s %p }", (p),            \
+	          (p)->key, (p)->fmt_string, otelc_value_dump(&((p)->extra), ""),     \
+	          flt_otel_list_dump(&((p)->exprs)), (p)->num_exprs, &((p)->lf_expr), \
+	          (p)->lf_used, flt_otel_list_dump(&((p)->time)), (p)->cond)
 
 #define FLT_OTEL_DBG_CONF_HDR(h,p,i) \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "}", (p), FLT_OTEL_CONF_HDR_ARGS(p, i))
@@ -154,6 +155,7 @@ struct flt_otel_conf_sample {
 	struct lf_expr      lf_expr;    /* The log-format expression. */
 	bool                lf_used;    /* Whether lf_expr is used instead of exprs. */
 	struct list         time;       /* Optional per-event timestamp (single sample). */
+	struct acl_cond    *cond;       /* Optional if/unless condition gating this item. */
 };
 
 /*
