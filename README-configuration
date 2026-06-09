@@ -243,14 +243,18 @@ Supported keywords:
         span "Backend request" parent "Client session" kind client
 
 
-  attribute <key> <sample> ...
+  attribute <key> <sample> ... [{ if | unless } <condition>]
       Set an attribute on the currently active span.  A single sample preserves
       its native type; multiple samples are concatenated as a string.
+
+      An optional trailing 'if'/'unless' ACL condition gates the attribute: it
+      is set only when the condition is met at request time.
 
       Examples:
         attribute "http.method" method
         attribute "http.url" url
         attribute "http.version" str("HTTP/") req.ver
+        attribute "error.flag" str("1") if { status ge 500 }
 
 
   event <name> [time [<unit>] <sample>] <key> <sample> ...

@@ -1734,7 +1734,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		}
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_ATTRIBUTE) {
-		retval = flt_otel_parse_cfg_sample(file, line, args, 2, 0, NULL, &(flt_otel_current_span->attributes), &err);
+		retval = flt_otel_parse_cfg_sample_cond(file, line, args, 2, NULL, &(flt_otel_current_span->attributes), &err);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_EVENT) {
 		struct otelc_value extra = { .u_type = OTELC_VALUE_STRING, .u.value_string = args[1] };
