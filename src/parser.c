@@ -1774,7 +1774,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			FLT_OTEL_LIST_DESTROY(sample, &time_list);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_BAGGAGE) {
-		retval = flt_otel_parse_cfg_sample(file, line, args, 2, 0, NULL, &(flt_otel_current_span->baggages), &err);
+		retval = flt_otel_parse_cfg_sample_cond(file, line, args, 2, NULL, &(flt_otel_current_span->baggages), &err);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_STATUS) {
 #define FLT_OTEL_PARSE_SCOPE_STATUS_DEF(a,b)   { OTELC_SPAN_STATUS_##a, b },
