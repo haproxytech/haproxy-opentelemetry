@@ -480,7 +480,7 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 
 	OTELC_FUNC("%p, %p", p, fconf);
 
-	if (conf == NULL)
+	if ((conf == NULL) || (*conf == NULL))
 		OTELC_RETURN();
 
 #ifdef DEBUG_OTEL
