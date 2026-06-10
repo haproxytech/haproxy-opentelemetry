@@ -202,6 +202,14 @@ A span 'status' indicates the outcome of the operation: unset (default), ok
 (successful) or error (failed).  An optional description string can accompany
 the error status.
 
+Note: telemetry delivery is best-effort.  The OpenTelemetry specification does
+not mandate reliable delivery, so there is no guarantee that all telemetry
+reaches its destination.  Data may be dropped at any stage -- collection,
+processing or export -- through sampling, buffer or queue limits, network
+failures or backend unavailability.  Treat occasional loss as a normal
+operational condition rather than a fault, and do not rely on OTel data where
+completeness is critical (for example billing or auditing).
+
 
 4. OTel configuration
 ----------------------

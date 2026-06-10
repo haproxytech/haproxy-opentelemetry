@@ -8,6 +8,14 @@ It is the successor to the OpenTracing (OT) filter, built on the OpenTelemetry
 standard which unifies distributed tracing, metrics and logging into a single
 observability framework.
 
+> **Note -- delivery is best-effort.**  The OpenTelemetry specification does not
+> mandate reliable delivery, so there is no guarantee that all telemetry reaches
+> its destination.  Data may be dropped at any stage -- collection, processing
+> or export -- through sampling, buffer or queue limits, network failures or
+> backend unavailability.  Treat occasional loss as a normal operational
+> condition rather than a fault, and do not rely on OTel data where completeness
+> is critical (for example billing or auditing).
+
 ### Features
 
 - **Distributed tracing** -- spans with parent-child relationships, context
