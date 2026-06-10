@@ -500,8 +500,8 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 				retval = FLT_OTEL_RET_ERROR;
 	}
 
-	/* Set span status code and description. */
-	if (data->status.description != NULL)
+	/* Set span status code and description; IGNORE leaves it unset. */
+	if ((data->status.description != NULL) && (data->status.code != OTELC_SPAN_STATUS_IGNORE))
 		if (OTELC_OPS(span->span, set_status, data->status.code, data->status.description) == -1)
 			retval = FLT_OTEL_RET_ERROR;
 
