@@ -289,7 +289,8 @@ Supported keywords:
   status <code> [<sample> ...] [{ if | unless } <condition>]
       Set the span status.  Valid codes: ignore, unset, ok, error; without a
       'status' directive a span defaults to 'ignore'.  An optional description
-      follows the code.
+      follows the code, but the OTLP exporter keeps the status message only for
+      the 'error' code, dropping it for 'ok' and 'unset'.
 
       An optional trailing 'if'/'unless' ACL condition gates the status.
 

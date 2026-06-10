@@ -1094,9 +1094,11 @@ status <code> [<sample> ...]
     - error  : the operation resulted in an error
 
   An optional description can follow the status code, consisting of one or more
-  sample expressions whose values are concatenated as a string.  The description
-  is typically used with the 'error' status to provide additional context about
-  the failure.
+  sample expressions whose values are concatenated as a string.  A description
+  is meaningful only with the 'error' status, as required by the OpenTelemetry
+  specification; the OTLP exporter sets the status message for 'error' and omits
+  it for 'ok' and 'unset', so a description on those codes is accepted but not
+  exported.
 
   For example:
     status "ok"
