@@ -971,6 +971,42 @@ static struct acl_cond *flt_otel_parse_acl(const char *file, int line, struct pr
 
 /***
  * NAME
+ *   flt_otel_find_cond_pos - locate a trailing if/unless condition
+ *
+ * SYNOPSIS
+ *   static int flt_otel_find_cond_pos(char **args, int idx)
+ *
+ * ARGUMENTS
+ *   args - configuration line arguments array
+ *   idx  - args[] position from which to start scanning
+ *
+ * DESCRIPTION
+ *   Scans <args> from <idx> onward for the first 'if' or 'unless' keyword that
+ *   introduces an optional trailing ACL condition.
+ *
+ * RETURN VALUE
+ *   Returns the args[] position of the condition keyword, or 0 when none is
+ *   found (position 0 holds the directive name and never a condition).
+ */
+static int flt_otel_find_cond_pos(char **args, int idx)
+{
+	int i, retval = 0;
+
+	OTELC_FUNC("%p, %d", args, idx);
+
+	for (i = idx; FLT_OTEL_ARG_ISVALID(i); i++)
+		if (FLT_OTEL_ARG_ISCOND(i)) {
+			retval = i;
+
+			break;
+		}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_parse_attach_cond - build an if/unless condition into a destination
  *
  * SYNOPSIS
@@ -1041,18 +1077,14 @@ static int flt_otel_parse_attach_cond(const char *file, int line, char **args, i
 static int flt_otel_parse_cfg_sample_cond(const char *file, int line, char **args, int idx, const struct otelc_value *extra, struct list *head, char **err)
 {
 	struct flt_otel_conf_sample *sample;
-	int                          i, cond_pos = 0, n = 0, retval = ERR_NONE;
+	int                          cond_pos = 0, n = 0, retval = ERR_NONE;
 
 	OTELC_FUNC("\"%s\", %d, %p, %d, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, idx, extra, head, OTELC_DPTR_ARGS(err));
 
 	/* Locate an optional trailing if/unless condition. */
-	for (i = idx; FLT_OTEL_ARG_ISVALID(i); i++)
-		if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_CONDITION_UNLESS)) {
-			cond_pos = i;
-			n        = i - idx;
-
-			break;
-		}
+	cond_pos = flt_otel_find_cond_pos(args, idx);
+	if (cond_pos != 0)
+		n = cond_pos - idx;
 
 	/* A condition must be preceded by at least one sample expression. */
 	if ((cond_pos != 0) && (n == 0)) {
@@ -1263,7 +1295,7 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 
 		/* Update instruments only accept additional attributes. */
 		for (i = 3; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++) {
-			if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_CONDITION_UNLESS)) {
+			if (FLT_OTEL_ARG_ISCOND(i)) {
 				retval = flt_otel_parse_attach_cond(file, line, args, i, &(instr->cond), err);
 
 				break;
@@ -1297,7 +1329,7 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 		 * and bounds.
 		 */
 		for (i = 3; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++) {
-			if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_CONDITION_UNLESS)) {
+			if (FLT_OTEL_ARG_ISCOND(i)) {
 				retval = flt_otel_parse_attach_cond(file, line, args, i, &(instr->cond), err);
 
 				break;
@@ -1341,7 +1373,7 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 				else {
 					retval = flt_otel_parse_cfg_sample(file, line, args, ++i, 1, NULL, &(instr->samples), err);
 
-					if (!(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i + 1) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_AGGR) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_DESC) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_UNIT) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_VALUE) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_BOUNDS) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_CONDITION_IF) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_CONDITION_UNLESS))
+					if (!(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i + 1) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_AGGR) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_DESC) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_UNIT) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_VALUE) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_BOUNDS) && !FLT_OTEL_ARG_ISCOND(i + 1))
 						FLT_OTEL_PARSE_ERR(err, "'%s' : only one sample expression allowed per instrument", args[0]);
 				}
 			}
@@ -1394,7 +1426,7 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
 {
 	struct flt_otel_conf_log_record *log;
 	otelc_log_severity_t             severity;
-	int                              i, j, cond_pos = 0, retval = ERR_NONE;
+	int                              i, cond_pos = 0, retval = ERR_NONE;
 
 	OTELC_FUNC("\"%s\", %d, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, pdata, OTELC_DPTR_ARGS(err));
 
@@ -1465,15 +1497,10 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
 			 * optionally followed by an 'if'/'unless' condition that
 			 * gates the whole record.
 			 */
-			for (j = i; FLT_OTEL_ARG_ISVALID(j); j++)
-				if (FLT_OTEL_PARSE_KEYWORD(j, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(j, FLT_OTEL_CONDITION_UNLESS)) {
-					cond_pos = j;
-
-					break;
-				}
+			cond_pos = flt_otel_find_cond_pos(args, i);
 
 			if (cond_pos == i) {
-				FLT_OTEL_PARSE_ERR(err, "'%s' : no body expression before '%s'", args[0], args[cond_pos]);
+				FLT_OTEL_PARSE_ERR(err, "'%s' : no sample expression before '%s'", args[0], args[cond_pos]);
 			} else {
 				retval = flt_otel_parse_cfg_sample(file, line, args, i, (cond_pos == 0) ? 0 : (cond_pos - i), NULL, &(log->samples), err);
 				if (!(retval & ERR_CODE) && (cond_pos != 0))
@@ -1834,7 +1861,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			 * nothing, leaves a description-less status.  Either form
 			 * may carry a trailing condition.
 			 */
-			if (FLT_OTEL_ARG_ISVALID(2) && !FLT_OTEL_PARSE_KEYWORD(2, FLT_OTEL_CONDITION_IF) && !FLT_OTEL_PARSE_KEYWORD(2, FLT_OTEL_CONDITION_UNLESS)) {
+			if (FLT_OTEL_ARG_ISVALID(2) && !FLT_OTEL_ARG_ISCOND(2)) {
 				struct otelc_value extra = { .u_type = OTELC_VALUE_INT32, .u.value_int32 = status[i].code };
 
 				retval = flt_otel_parse_cfg_sample_cond(file, line, args, 2, &extra, &(flt_otel_current_span->statuses), &err);
@@ -1934,7 +1961,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		 */
 		if (!FLT_OTEL_ARG_ISVALID(1))
 			/* Do nothing. */;
-		else if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_CONDITION_UNLESS))
+		else if (FLT_OTEL_ARG_ISCOND(1))
 			retval = flt_otel_parse_attach_cond(file, line, args, 1, &(flt_otel_current_scope->stop_cond), &err);
 		else
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : expects either 'if' or 'unless' followed by a condition but found '%s'", args[0], args[1]);
@@ -1988,7 +2015,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 				FLT_OTEL_PARSE_ERR(&err, "'%s' : unknown event", args[1]);
 			else if (!FLT_OTEL_ARG_ISVALID(2))
 				/* Do nothing. */;
-			else if (FLT_OTEL_PARSE_KEYWORD(2, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(2, FLT_OTEL_CONDITION_UNLESS))
+			else if (FLT_OTEL_ARG_ISCOND(2))
 				retval = flt_otel_parse_attach_cond(file, line, args, 2, &(flt_otel_current_scope->cond), &err);
 			else
 				FLT_OTEL_PARSE_ERR(&err, "'%s' : expects either 'if' or 'unless' followed by a condition but found '%s'", args[1], args[2]);

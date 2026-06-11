@@ -200,6 +200,7 @@ struct flt_otel_parse_data {
 };
 
 #define FLT_OTEL_PARSE_KEYWORD(n,s)           (strcmp(args[n], (s)) == 0)
+#define FLT_OTEL_ARG_ISCOND(n)                (FLT_OTEL_PARSE_KEYWORD(n, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(n, FLT_OTEL_CONDITION_UNLESS))
 
 #define FLT_OTEL_PARSE_WARNING(f, ...) \
 	ha_warning("parsing [%s:%d] : " FLT_OTEL_FMT_TYPE FLT_OTEL_FMT_NAME "'" f "'\n", ##__VA_ARGS__);
