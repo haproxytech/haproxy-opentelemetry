@@ -216,6 +216,7 @@ strings without list linkage.
   bounds_num             Number of histogram bucket boundaries.
   attributes             Instrument attributes (update only, flt_otel_conf_sample).
   ref                    Resolved create-form instrument (update only).
+  cond                   Optional if/unless condition gating recording.
 
 Instruments come in two forms: create-form (defines a new metric with type,
 description, unit, and optional histogram bounds) and update-form (references
@@ -424,7 +425,8 @@ freed while the parent is still valid:
 
   conf_instrument:
     Frees description, unit, and bounds.  Destroys the samples list.
-    Destroys the attr key-value array via otelc_kv_destroy.
+    Destroys the attr key-value array via otelc_kv_destroy.  Frees the optional
+    ACL condition.
 
   conf_log_record:
     Frees event_name and span strings.  Destroys the time, attributes and

@@ -1198,7 +1198,8 @@ static int flt_otel_parse_bounds(const char *str, double **bounds, size_t *bound
  *   the 'aggr' keyword), optional description, optional unit, a single sample
  *   expression for the value, and optional histogram bucket boundaries
  *   (preceded by the 'bounds' keyword).  The 'bounds' keyword is only valid for
- *   histogram instrument types.
+ *   histogram instrument types.  Either form may also end with an optional
+ *   'if'/'unless' ACL condition gating the recorded measurement at runtime.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -1262,6 +1263,12 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 
 		/* Update instruments only accept additional attributes. */
 		for (i = 3; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++) {
+			if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_CONDITION_UNLESS)) {
+				retval = flt_otel_parse_attach_cond(file, line, args, i, &(instr->cond), err);
+
+				break;
+			}
+
 			if (flag_add_attr) {
 				if (!FLT_OTEL_ARG_ISVALID(i) || !FLT_OTEL_ARG_ISVALID(i + 1))
 					FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
@@ -1290,6 +1297,12 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 		 * and bounds.
 		 */
 		for (i = 3; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++) {
+			if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_CONDITION_UNLESS)) {
+				retval = flt_otel_parse_attach_cond(file, line, args, i, &(instr->cond), err);
+
+				break;
+			}
+
 			if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_INSTRUMENT_AGGR)) {
 				if (!FLT_OTEL_ARG_ISVALID(i + 1))
 					FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
@@ -1328,7 +1341,7 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 				else {
 					retval = flt_otel_parse_cfg_sample(file, line, args, ++i, 1, NULL, &(instr->samples), err);
 
-					if (!(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i + 1) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_AGGR) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_DESC) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_UNIT) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_VALUE) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_BOUNDS))
+					if (!(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i + 1) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_AGGR) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_DESC) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_UNIT) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_VALUE) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_BOUNDS) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_CONDITION_IF) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_CONDITION_UNLESS))
 						FLT_OTEL_PARSE_ERR(err, "'%s' : only one sample expression allowed per instrument", args[0]);
 				}
 			}

@@ -593,6 +593,7 @@ FLT_OTEL_CONF_FUNC_FREE(instrument, id,
 	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->samples));
 	OTELC_SFREE((*ptr)->bounds);
 	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->attributes));
+	free_acl_cond((*ptr)->cond);
 )
 
 

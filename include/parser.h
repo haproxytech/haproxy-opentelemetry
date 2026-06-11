@@ -130,22 +130,22 @@
 #define FLT_OTEL_PARSE_SCOPE_DEFINES                                                                                                                                           \
 	FLT_OTEL_PARSE_SCOPE_DEF(          ID, 0, CHAR, 2, 2, "otel-scope",   " <name>")                                                                                       \
 	FLT_OTEL_PARSE_SCOPE_DEF(        SPAN, 0, NONE, 2, 9, "span",         " <name> [parent <ref>] [link <ref>] [root] [kind <kind>]")                                      \
-	FLT_OTEL_PARSE_SCOPE_DEF(        LINK, 1, NONE, 2, 0,   "link",       " { <ref> ... | <ref> attr <key> <sample> ... }")                                                \
-	FLT_OTEL_PARSE_SCOPE_DEF(   ATTRIBUTE, 1, NONE, 3, 0,   "attribute",  " <key> <sample> ... [{ if | unless } <condition>]")                                             \
-	FLT_OTEL_PARSE_SCOPE_DEF(       EVENT, 1, NONE, 4, 0,   "event",      " <name> [time [<unit>] <sample>] <key> <sample> ... [{ if | unless } <condition>]")             \
-	FLT_OTEL_PARSE_SCOPE_DEF(     BAGGAGE, 1,  VAR, 3, 0,   "baggage",    " <key> <sample> ... [{ if | unless } <condition>]")                                             \
-	FLT_OTEL_PARSE_SCOPE_DEF(      INJECT, 1,  CTX, 2, 4,   "inject",     FLT_OTEL_PARSE_SCOPE_INJECT_HELP)                                                                \
-	FLT_OTEL_PARSE_SCOPE_DEF(     EXTRACT, 0,  CTX, 2, 3,   "extract",    FLT_OTEL_PARSE_SCOPE_EXTRACT_HELP)                                                               \
-	FLT_OTEL_PARSE_SCOPE_DEF(      STATUS, 1, NONE, 2, 0,   "status",     " <code> [<sample> ...] [{ if | unless } <condition>]")                                          \
-	FLT_OTEL_PARSE_SCOPE_DEF(      FINISH, 0, NONE, 2, 0,   "finish",     " <name> ...")                                                                                   \
-	FLT_OTEL_PARSE_SCOPE_DEF(        STOP, 0, NONE, 1, 0, "otel-stop",    " [{ if | unless } <condition>]")                                                                \
-	FLT_OTEL_PARSE_SCOPE_DEF(  INSTRUMENT, 0, NONE, 3, 0, "instrument",   " { update <name> [<attr> ...] | <type> <name> [<aggr>] [<desc>] [<unit>] <value> [<bounds>] }") \
-	FLT_OTEL_PARSE_SCOPE_DEF(  LOG_RECORD, 0, NONE, 3, 0, "log-record",   " <severity> [<id> <event>] [<time>] [<span>] [<attr>] <sample> ...")                            \
-	FLT_OTEL_PARSE_SCOPE_DEF(IDLE_TIMEOUT, 0, NONE, 2, 2, "idle-timeout", " <time>")                                                                                       \
-	FLT_OTEL_PARSE_SCOPE_DEF(         ACL, 0, CHAR, 3, 0, "acl",          " <aclname> <criterion> [flags] [operator] <value> ...")                                         \
-	FLT_OTEL_PARSE_SCOPE_DEF(    ON_EVENT, 0, NONE, 2, 0, "otel-event",   " <name> [{ if | unless } <condition>]")                                                         \
-	FLT_OTEL_PARSE_SCOPE_DEF(     SET_VAR, 0, NONE, 3, 0, "set-var",      " <var-name> <sample> ... [{ if | unless } <condition>]")                                        \
-	FLT_OTEL_PARSE_SCOPE_DEF( SET_VAR_CTX, 0, NONE, 4, 4, "set-var-ctx",  " <var-name> <ref> <field>")                                                                     \
+	FLT_OTEL_PARSE_SCOPE_DEF(        LINK, 1, NONE, 2, 0,   "link",       " { <ref> ... | <ref> attr <key> <sample> ... }")                                                                              \
+	FLT_OTEL_PARSE_SCOPE_DEF(   ATTRIBUTE, 1, NONE, 3, 0,   "attribute",  " <key> <sample> ... [{ if | unless } <condition>]")                                                                           \
+	FLT_OTEL_PARSE_SCOPE_DEF(       EVENT, 1, NONE, 4, 0,   "event",      " <name> [time [<unit>] <sample>] <key> <sample> ... [{ if | unless } <condition>]")                                           \
+	FLT_OTEL_PARSE_SCOPE_DEF(     BAGGAGE, 1,  VAR, 3, 0,   "baggage",    " <key> <sample> ... [{ if | unless } <condition>]")                                                                           \
+	FLT_OTEL_PARSE_SCOPE_DEF(      INJECT, 1,  CTX, 2, 4,   "inject",     FLT_OTEL_PARSE_SCOPE_INJECT_HELP)                                                                                              \
+	FLT_OTEL_PARSE_SCOPE_DEF(     EXTRACT, 0,  CTX, 2, 3,   "extract",    FLT_OTEL_PARSE_SCOPE_EXTRACT_HELP)                                                                                             \
+	FLT_OTEL_PARSE_SCOPE_DEF(      STATUS, 1, NONE, 2, 0,   "status",     " <code> [<sample> ...] [{ if | unless } <condition>]")                                                                        \
+	FLT_OTEL_PARSE_SCOPE_DEF(      FINISH, 0, NONE, 2, 0,   "finish",     " <name> ...")                                                                                                                 \
+	FLT_OTEL_PARSE_SCOPE_DEF(        STOP, 0, NONE, 1, 0, "otel-stop",    " [{ if | unless } <condition>]")                                                                                              \
+	FLT_OTEL_PARSE_SCOPE_DEF(  INSTRUMENT, 0, NONE, 3, 0, "instrument",   " { update <name> [<attr> ...] | <type> <name> [<aggr>] [<desc>] [<unit>] <value> [<bounds>] } [{ if | unless } <condition>]") \
+	FLT_OTEL_PARSE_SCOPE_DEF(  LOG_RECORD, 0, NONE, 3, 0, "log-record",   " <severity> [<id> <event>] [<time>] [<span>] [<attr>] <sample> ...")                                                          \
+	FLT_OTEL_PARSE_SCOPE_DEF(IDLE_TIMEOUT, 0, NONE, 2, 2, "idle-timeout", " <time>")                                                                                                                     \
+	FLT_OTEL_PARSE_SCOPE_DEF(         ACL, 0, CHAR, 3, 0, "acl",          " <aclname> <criterion> [flags] [operator] <value> ...")                                                                       \
+	FLT_OTEL_PARSE_SCOPE_DEF(    ON_EVENT, 0, NONE, 2, 0, "otel-event",   " <name> [{ if | unless } <condition>]")                                                                                       \
+	FLT_OTEL_PARSE_SCOPE_DEF(     SET_VAR, 0, NONE, 3, 0, "set-var",      " <var-name> <sample> ... [{ if | unless } <condition>]")                                                                      \
+	FLT_OTEL_PARSE_SCOPE_DEF( SET_VAR_CTX, 0, NONE, 4, 4, "set-var-ctx",  " <var-name> <ref> <field>")                                                                                                   \
 	FLT_OTEL_PARSE_SCOPE_DEF(   UNSET_VAR, 0, NONE, 2, 0, "unset-var",    " <var-name> ...")
 
 /* Invalid character check modes for identifier validation. */

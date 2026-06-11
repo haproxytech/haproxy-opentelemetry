@@ -11,6 +11,43 @@ const struct flt_otel_event_data flt_otel_event_data[FLT_OTEL_EVENT_MAX] = { FLT
 
 /***
  * NAME
+ *   flt_otel_cond_pass - ACL condition evaluation
+ *
+ * SYNOPSIS
+ *   static int flt_otel_cond_pass(struct acl_cond *cond, struct stream *s, uint dir)
+ *
+ * ARGUMENTS
+ *   cond - the ACL condition to evaluate, or NULL
+ *   s    - the stream being processed
+ *   dir  - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
+ *
+ * DESCRIPTION
+ *   Evaluates an optional if/unless ACL <cond> against the stream, honouring
+ *   the 'unless' polarity.  A NULL condition is treated as an unconditional
+ *   match, so callers can gate an action with a single uniform check.
+ *
+ * RETURN VALUE
+ *   Returns a non-zero value when the gated action should run, 0 otherwise.
+ */
+static int flt_otel_cond_pass(struct acl_cond *cond, struct stream *s, uint dir)
+{
+	enum acl_test_res res;
+	int               rc = 1;
+
+	if (cond == NULL)
+		return rc;
+
+	res = acl_exec_cond(cond, s->be, s->sess, s, dir | SMP_OPT_FINAL);
+	rc  = acl_pass(res);
+	if (cond->pol == ACL_COND_UNLESS)
+		rc = !rc;
+
+	return rc;
+}
+
+
+/***
+ * NAME
  *   flt_otel_scope_run_instrument_record - metric instrument value recorder
  *
  * SYNOPSIS
@@ -164,7 +201,9 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
  *   update-form instruments and records measurements via
  *   flt_otel_scope_run_instrument_record().  Instruments whose index is still
  *   negative (UNUSED or PENDING) are skipped, so that a concurrent creation by
- *   another thread does not cause an invalid <meter> access.
+ *   another thread does not cause an invalid <meter> access.  A measurement
+ *   is recorded only when both the create-form and update-form 'if'/'unless'
+ *   conditions pass; creation itself produces no data point and is never gated.
  *
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
@@ -237,6 +276,9 @@ static int flt_otel_scope_run_instrument(struct stream *s, uint dir, struct flt_
 			}
 			else if (HA_ATOMIC_LOAD(&(instr->idx)) < 0) {
 				OTELC_DBG(NOTICE, "WARNING: instrument '%s' not yet created, skipping", instr->id);
+			}
+			else if ((flt_otel_cond_pass(instr->cond, s, dir) == 0) || (flt_otel_cond_pass(conf_instr->cond, s, dir) == 0)) {
+				/* Gated out by an if/unless condition. */
 			}
 			else if (flt_otel_scope_run_instrument_record(s, dir, meter, instr, conf_instr, err) == FLT_OTEL_RET_ERROR) {
 				retval = FLT_OTEL_RET_ERROR;
@@ -536,43 +578,6 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 	}
 
 	OTELC_RETURN_INT(retval);
-}
-
-
-/***
- * NAME
- *   flt_otel_cond_pass - ACL condition evaluation
- *
- * SYNOPSIS
- *   static int flt_otel_cond_pass(struct acl_cond *cond, struct stream *s, uint dir)
- *
- * ARGUMENTS
- *   cond - the ACL condition to evaluate, or NULL
- *   s    - the stream being processed
- *   dir  - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
- *
- * DESCRIPTION
- *   Evaluates an optional if/unless ACL <cond> against the stream, honouring
- *   the 'unless' polarity.  A NULL condition is treated as an unconditional
- *   match, so callers can gate an action with a single uniform check.
- *
- * RETURN VALUE
- *   Returns a non-zero value when the gated action should run, 0 otherwise.
- */
-static int flt_otel_cond_pass(struct acl_cond *cond, struct stream *s, uint dir)
-{
-	enum acl_test_res res;
-	int               rc = 1;
-
-	if (cond == NULL)
-		return rc;
-
-	res = acl_exec_cond(cond, s->be, s->sess, s, dir | SMP_OPT_FINAL);
-	rc  = acl_pass(res);
-	if (cond->pol == ACL_COND_UNLESS)
-		rc = !rc;
-
-	return rc;
 }
 
 

@@ -139,6 +139,10 @@ src/event.c
 
 Event dispatching, metrics recording and scope/span execution engine.
 
+  flt_otel_cond_pass
+      Evaluates an optional if/unless ACL condition against the stream,
+      honouring the 'unless' polarity; a NULL condition always passes.
+
   flt_otel_scope_run_instrument_record
       Records a measurement for a synchronous metric instrument.  Evaluates
       update-form attributes via flt_otel_sample_eval() and
@@ -152,7 +156,9 @@ Event dispatching, metrics recording and scope/span execution engine.
       HA_ATOMIC_CAS to guarantee thread-safe one-time initialization; the second
       iterates update-form instruments and records measurements via
       flt_otel_scope_run_instrument_record().  Instruments whose index is still
-      negative (UNUSED or PENDING) are skipped.
+      negative (UNUSED or PENDING) are skipped.  A measurement is recorded only
+      when the create-form and update-form if/unless conditions pass; instrument
+      creation produces no data point and is never gated.
 
   flt_otel_scope_run_log_record
       Emits log records for a scope.  Iterates over the configured log-record
@@ -169,10 +175,6 @@ Event dispatching, metrics recording and scope/span execution engine.
       Executes a single span: creates the OTel span on first call, adds links,
       baggage, attributes, events and status, then injects the context into HTTP
       headers or HAProxy variables.
-
-  flt_otel_cond_pass
-      Evaluates an optional if/unless ACL condition against the stream,
-      honouring the 'unless' polarity; a NULL condition always passes.
 
   flt_otel_scope_run
       Executes a complete scope: evaluates ACL conditions, extracts contexts,
@@ -328,7 +330,9 @@ sections.
       Parses the "instrument" keyword inside an otel-scope section.  Supports
       both "update" form (referencing an existing instrument) and "create" form
       (defining a new metric instrument with type, name, optional aggregation
-      type, description, unit, value, and optional histogram bounds).
+      type, description, unit, value, and optional histogram bounds).  Either
+      form may end with an optional if/unless condition gating the recorded
+      measurement.
 
   flt_otel_parse_cfg_scope
       Section parser for the otel-scope block.  Handles keywords: otel-scope ID,

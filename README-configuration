@@ -363,8 +363,8 @@ Supported keywords:
         finish *
 
 
-  instrument <type> <name> [aggr <aggregation>] [desc <description>] [unit <unit>] value <sample> [bounds <bounds>]
-  instrument update <name> [attr <key> <sample> ...]
+  instrument <type> <name> [aggr <aggregation>] [desc <description>] [unit <unit>] value <sample> [bounds <bounds>] [{ if | unless } <condition>]
+  instrument update <name> [attr <key> <sample> ...] [{ if | unless } <condition>]
       Create or update a metric instrument.  For the create form, the 'aggr',
       'desc', 'unit', 'value' and 'bounds' keywords may be given in any order.
 
@@ -400,11 +400,20 @@ Supported keywords:
       thread.  Double-precision types are not supported because HAProxy sample
       fetches do not return double values.
 
+      A create form registers the instrument and supplies the value to record;
+      it emits no measurement on its own.  A data point is produced only when an
+      update form for that instrument runs, recording the create form's value.
+      An optional trailing 'if'/'unless' ACL condition gates that measurement:
+      on a create form it gates every recording of the instrument, on an update
+      form only that one.  Registration produces no data point and is never
+      gated.
+
       Examples:
         instrument cnt_int  "name_cnt_int" desc "Integer Counter" value int(1),add(2) unit "unit"
         instrument hist_int "name_hist" aggr exp_histogram desc "Latency" value lat_ns_tot unit "ns"
         instrument hist_int "name_hist2" desc "Latency" value lat_ns_tot unit "ns" bounds "100 1000 10000"
-        instrument update "name_cnt_int" attr "attr_1_key" str("attr_1_value")
+        instrument cnt_int "name_cnt_local" value int(1) if { src 127.0.0.1 }
+        instrument update "name_cnt_int" attr "attr_1_key" str("attr_1_value") if { src 127.0.0.1 }
 
 
   log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span <ref>] [attr <key> <sample>] ... <sample> ...
