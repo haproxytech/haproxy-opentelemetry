@@ -229,15 +229,17 @@ int flt_otel_http_header_set(struct channel *chn, const char *prefix, const char
 	}
 
 	/*
-	 * If the first character of <prefix> is FLT_OTEL_PARSE_CTX_IGNORE_NAME,
-	 * the prefix is bypassed and only <name> is used as the HTTP header
-        * name.
+	 * If <name> is not set, the prefix alone is used as the HTTP header
+	 * name; this is the removal-by-prefix form.  Otherwise, if <prefix>
+	 * is not set or its first character is FLT_OTEL_PARSE_CTX_IGNORE_NAME,
+	 * the prefix is bypassed and only <name> is used as the header name.
+	 * When both are set they are joined with a dash separator.
 	 */
-	if (!OTELC_STR_IS_VALID(prefix) || (*prefix == FLT_OTEL_PARSE_CTX_IGNORE_NAME)) {
-		ist_name = ist2((char *)name, strlen(name));
-	}
-	else if (!OTELC_STR_IS_VALID(name)) {
+	if (!OTELC_STR_IS_VALID(name)) {
 		ist_name = ist2((char *)prefix, strlen(prefix));
+	}
+	else if (!OTELC_STR_IS_VALID(prefix) || (*prefix == FLT_OTEL_PARSE_CTX_IGNORE_NAME)) {
+		ist_name = ist2((char *)name, strlen(name));
 	}
 	else {
 		buffer = flt_otel_trash_alloc(0, err);
@@ -260,7 +262,7 @@ int flt_otel_http_header_set(struct channel *chn, const char *prefix, const char
 		 * If the <name> parameter is not set, then remove all headers
 		 * that start with the contents of the <prefix> parameter.
 		 */
-		if (!OTELC_STR_IS_VALID(name))
+		if (!OTELC_STR_IS_VALID(name) && (n.len > ist_name.len))
 			n.len = ist_name.len;
 
 		if (isteqi(n, ist_name))
