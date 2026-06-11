@@ -67,14 +67,14 @@
 	                 flt_otel_list_dump(&((p)->events)), flt_otel_list_dump(&((p)->baggages)),               \
 	                 flt_otel_list_dump(&((p)->statuses)))
 
-#define FLT_OTEL_DBG_CONF_SCOPE(h,p)                                                                               \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%hhu %hhu %d %u %s %p %p %s %s %s %s %s %s %s }", (p), \
-	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->flag_used, (p)->flag_stop, (p)->event,                \
-	                 (p)->idle_timeout, flt_otel_list_dump(&((p)->acls)), (p)->cond, (p)->stop_cond,           \
-	                 flt_otel_list_dump(&((p)->contexts)), flt_otel_list_dump(&((p)->spans)),                  \
-	                 flt_otel_list_dump(&((p)->spans_to_finish)), flt_otel_list_dump(&((p)->instruments)),     \
-	                 flt_otel_list_dump(&((p)->log_records)), flt_otel_list_dump(&((p)->set_vars)),            \
-	                 flt_otel_list_dump(&((p)->set_var_ctxs)))
+#define FLT_OTEL_DBG_CONF_SCOPE(h,p)                                                                                  \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%hhu %hhu %d %u %s %p %p %s %s %s %s %s %s %s %s }", (p), \
+	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->flag_used, (p)->flag_stop, (p)->event,                   \
+	                 (p)->idle_timeout, flt_otel_list_dump(&((p)->acls)), (p)->cond, (p)->stop_cond,              \
+	                 flt_otel_list_dump(&((p)->contexts)), flt_otel_list_dump(&((p)->spans)),                     \
+	                 flt_otel_list_dump(&((p)->spans_to_finish)), flt_otel_list_dump(&((p)->instruments)),        \
+	                 flt_otel_list_dump(&((p)->log_records)), flt_otel_list_dump(&((p)->set_vars)),               \
+	                 flt_otel_list_dump(&((p)->set_var_ctxs)), flt_otel_list_dump(&((p)->unset_vars)))
 
 #define FLT_OTEL_DBG_CONF_GROUP(h,p)                                         \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%hhu %s }", (p), \
@@ -106,6 +106,10 @@
 #define FLT_OTEL_DBG_CONF_SET_VAR_CTX(h,p)                                           \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %d '%s' %p }", (p), \
 	                 FLT_OTEL_CONF_HDR_ARGS(p, name), OTELC_STR_ARG((p)->ref), (p)->field, OTELC_STR_ARG((p)->field_key), (p)->cond)
+
+#define FLT_OTEL_DBG_CONF_UNSET_VAR(h,p)                                   \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%s %p }", (p), \
+	                 FLT_OTEL_CONF_HDR_ARGS(p, id), flt_otel_list_dump(&((p)->vars)), (p)->cond)
 
 #define FLT_OTEL_DBG_CONF(h,p)                                    \
 	OTELC_DBG(DEBUG, h "%p:{ %p '%s' '%s' %p %s %s }", (p),   \
@@ -274,6 +278,17 @@ struct flt_otel_conf_set_var_ctx {
 	int              field;     /* FLT_OTEL_VAR_FIELD_* */
 	char            *field_key; /* The baggage or tracestate key, or NULL. */
 	struct acl_cond *cond;      /* Optional if/unless condition gating the assignment. */
+};
+
+/*
+ * The unset-var directive within a scope, removing one or more HAProxy
+ * variables when the scope's event fires, optionally gated by a condition.
+ *   flt_otel_conf_scope->unset_vars
+ */
+struct flt_otel_conf_unset_var {
+	FLT_OTEL_CONF_HDR(id); /* Required by macro; member <id> is not used directly. */
+	struct list      vars; /* The variable names to remove (flt_otel_conf_str). */
+	struct acl_cond *cond; /* Optional if/unless condition gating the removal. */
 };
 
 /* Configuration for a single event scope. */

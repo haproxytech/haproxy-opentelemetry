@@ -1635,6 +1635,63 @@ static int flt_otel_parse_cfg_set_var_ctx(const char *file, int line, char **arg
 
 /***
  * NAME
+ *   flt_otel_parse_cfg_unset_var - unset-var directive parser
+ *
+ * SYNOPSIS
+ *   static int flt_otel_parse_cfg_unset_var(const char *file, int line, char **args, char **err)
+ *
+ * ARGUMENTS
+ *   file - configuration file path
+ *   line - configuration file line number
+ *   args - configuration line arguments array
+ *   err  - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Parses an 'unset-var' directive: one or more variable names optionally
+ *   followed by an 'if'/'unless' ACL condition.  The names are stored in a new
+ *   conf_unset_var directive appended to the current scope, and the condition,
+ *   when present, gates the removal of all of them at runtime.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE (== 0) in case of success,
+ *   or a combination of ERR_* flags if an error is encountered.
+ */
+static int flt_otel_parse_cfg_unset_var(const char *file, int line, char **args, char **err)
+{
+	struct flt_otel_conf_unset_var *unset_var;
+	int                             i, cond_pos, retval = ERR_NONE;
+
+	OTELC_FUNC("\"%s\", %d, %p, %p:%p", OTELC_STR_ARG(file), line, args, OTELC_DPTR_ARGS(err));
+
+	unset_var = flt_otel_conf_unset_var_init(FLT_OTEL_CONF_HDR_SPECIAL "unset-var", line, &(flt_otel_current_scope->unset_vars), err);
+	if (unset_var == NULL) {
+		retval |= ERR_ABORT | ERR_ALERT;
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	/* Locate an optional trailing if/unless condition. */
+	cond_pos = flt_otel_find_cond_pos(args, 1);
+	if (cond_pos == 1) {
+		FLT_OTEL_PARSE_ERR(err, "'%s' : no variable name before '%s'", args[0], args[cond_pos]);
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	/* Store the variable names up to the condition, or to the end of line. */
+	for (i = 1; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i) && ((cond_pos == 0) || (i < cond_pos)); i++)
+		if (flt_otel_conf_str_init(args[i], line, &(unset_var->vars), err) == NULL)
+			retval |= ERR_ABORT | ERR_ALERT;
+
+	if (!(retval & ERR_CODE) && (cond_pos != 0))
+		retval = flt_otel_parse_attach_cond(file, line, args, cond_pos, &(unset_var->cond), err);
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_parse_cfg_scope - otel-scope section parser
  *
  * SYNOPSIS
@@ -2053,7 +2110,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			retval = flt_otel_parse_cfg_set_var_ctx(file, line, args, conf_set_var_ctx, &err);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_UNSET_VAR) {
-		retval = flt_otel_parse_cfg_str(file, line, args, &(flt_otel_current_scope->unset_vars), &err);
+		retval = flt_otel_parse_cfg_unset_var(file, line, args, &err);
 	}
 
 	FLT_OTEL_PARSE_IFERR_ALERT();

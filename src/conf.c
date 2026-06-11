@@ -707,6 +707,57 @@ FLT_OTEL_CONF_FUNC_FREE(set_var_ctx, name,
 
 /***
  * NAME
+ *   flt_otel_conf_unset_var_init - conf_unset_var structure allocation
+ *
+ * SYNOPSIS
+ *   struct flt_otel_conf_unset_var *flt_otel_conf_unset_var_init(const char *id, int line, struct list *head, char **err)
+ *
+ * ARGUMENTS
+ *   id   - identifier string to duplicate
+ *   line - configuration file line number
+ *   head - list to append to (or NULL)
+ *   err  - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Allocates and initializes a conf_unset_var structure with an empty list of
+ *   variable names.  The <id> string is duplicated and stored as the directive
+ *   name.  If <head> is non-NULL, the structure is appended to the list.
+ *
+ * RETURN VALUE
+ *   Returns a pointer to the initialized structure, or NULL on failure.
+ */
+FLT_OTEL_CONF_FUNC_INIT(unset_var, id,
+	LIST_INIT(&(retptr->vars));
+)
+
+
+/***
+ * NAME
+ *   flt_otel_conf_unset_var_free - conf_unset_var structure deallocation
+ *
+ * SYNOPSIS
+ *   void flt_otel_conf_unset_var_free(struct flt_otel_conf_unset_var **ptr)
+ *
+ * ARGUMENTS
+ *   ptr - a pointer to the address of a structure
+ *
+ * DESCRIPTION
+ *   Deallocates memory used by the flt_otel_conf_unset_var structure and its
+ *   contents, then removes it from the list of structures of that type.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+FLT_OTEL_CONF_FUNC_FREE(unset_var, id,
+	FLT_OTEL_DBG_CONF_UNSET_VAR("- conf_unset_var free ", *ptr);
+
+	FLT_OTEL_LIST_DESTROY(str, &((*ptr)->vars));
+	free_acl_cond((*ptr)->cond);
+)
+
+
+/***
+ * NAME
  *   flt_otel_conf_scope_init - conf_scope structure allocation
  *
  * SYNOPSIS
@@ -777,7 +828,7 @@ FLT_OTEL_CONF_FUNC_FREE(scope, id,
 	FLT_OTEL_LIST_DESTROY(log_record, &((*ptr)->log_records));
 	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->set_vars));
 	FLT_OTEL_LIST_DESTROY(set_var_ctx, &((*ptr)->set_var_ctxs));
-	FLT_OTEL_LIST_DESTROY(str, &((*ptr)->unset_vars));
+	FLT_OTEL_LIST_DESTROY(unset_var, &((*ptr)->unset_vars));
 )
 
 

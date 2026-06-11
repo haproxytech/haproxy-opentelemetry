@@ -542,13 +542,18 @@ Supported keywords:
         set-var-ctx txn.local_tid   "HAProxy session" trace-id if { src 127.0.0.1 }
 
 
-  unset-var <var-name> ...
+  unset-var <var-name> ... [{ if | unless } <condition>]
       Remove one or more HAProxy variables when the scope's event fires.  A
       variable that is not currently set is silently ignored.  Removal runs
       after all other directives in the scope.
 
-      Example:
+      An optional trailing 'if'/'unless' ACL condition gates the whole
+      directive; when it does not pass, none of the listed variables are
+      removed.
+
+      Examples:
         unset-var txn.otel_scratch txn.otel_tmp
+        unset-var txn.otel_scratch if { src 127.0.0.1 }
 
 
   acl <aclname> <criterion> [flags] [operator] <value> ...

@@ -88,7 +88,8 @@ The complete ownership tree, from root to leaves:
       +-- flt_otel_conf_sample               (set_vars list)
       |   +-- flt_otel_conf_sample_expr      (exprs list)
       +-- flt_otel_conf_set_var_ctx          (set_var_ctxs list)
-      +-- flt_otel_conf_str                  (unset_vars list)
+      +-- flt_otel_conf_unset_var            (unset_vars list)
+      |   +-- flt_otel_conf_str              (vars list)
       +-- flt_otel_conf_log_record           (log_records list)
           +-- flt_otel_conf_sample           (attributes list)
           |   +-- flt_otel_conf_sample_expr  (exprs list)
@@ -179,7 +180,7 @@ Groups bundle scopes for use with the "otel-group" HAProxy action.
   log_records            The list of log records.
   set_vars               The list of set-var directives (conf_sample).
   set_var_ctxs           The list of set-var-ctx directives.
-  unset_vars             The list of unset-var directives (conf_str).
+  unset_vars             The list of unset-var directives (conf_unset_var).
 
 Each scope binds to a single HAProxy analyzer event (or none, if used only
 through groups).
@@ -293,12 +294,21 @@ via build_logline() instead of the sample expression list.
 This structure backs the set-var-ctx directive: it captures a field of a
 referenced span or extracted context into a HAProxy variable at runtime.
 
-4.12  Simple Types
+4.12  flt_otel_conf_unset_var
+
+  FLT_OTEL_CONF_HDR(id)  Required by macro; member <id> is not used directly.
+  vars                   The variable names to remove (flt_otel_conf_str list).
+  cond                   Optional if/unless condition gating the removal.
+
+This structure backs the unset-var directive: it groups one or more variable
+names with an optional condition, so the whole removal is gated as a unit.
+
+4.13  Simple Types
 
   flt_otel_conf_hdr   Generic header; used for simple named entries.
   flt_otel_conf_str   String holder (identical to conf_hdr in layout, but the
                       HDR field is named "str" instead of "id"); used for
-                      spans_to_finish and unset_vars.
+                      spans_to_finish and the unset-var name lists.
   flt_otel_conf_link  Span or context link (HDR field named "ref") with an
                       optional attributes sample list for key:value data.
   flt_otel_conf_ph    Placeholder; carries a ptr field resolved at check time.
@@ -355,6 +365,9 @@ insertion succeed:
 
   conf_log_record:
     LIST_INIT for time, attributes, samples.
+
+  conf_unset_var:
+    LIST_INIT for vars.
 
   conf_instr:
     Sets rate_limit to FLT_OTEL_FLOAT_U32(100.0) (100%).  Calls init_new_proxy
@@ -437,6 +450,9 @@ freed while the parent is still valid:
   conf_set_var_ctx:
     Frees the ref and field_key strings and the optional ACL condition.
 
+  conf_unset_var:
+    Destroys the vars list and frees the optional ACL condition.
+
   conf_scope:
     Prunes and frees each ACL entry.  Frees the ACL condition via free_acl_cond.
     Destroys contexts, spans, spans_to_finish, instruments, log_records,
@@ -494,6 +510,7 @@ header.
   conf_instrument  id         macro   idx, type, samples
   conf_log_record  id         macro   time, attributes, samples
   conf_set_var_ctx name       macro   (none)
+  conf_unset_var   id         macro   vars
   conf_scope       id         macro   sub-lists
   conf_group       id         macro   ph_scopes
   conf_instr       id         macro   rate_limit, proxy_log, acls, ph_groups, ph_scopes

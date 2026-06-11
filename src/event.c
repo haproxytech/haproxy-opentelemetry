@@ -748,13 +748,14 @@ static int flt_otel_scope_run_set_var_ctx(struct stream *s, struct filter *f, ui
  */
 int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, struct flt_otel_conf_scope *conf_scope, const struct timespec *ts_steady, const struct timespec *ts_system, uint dir, char **err)
 {
-	struct flt_otel_conf         *conf = FLT_OTEL_CONF(f);
-	struct flt_otel_conf_context *conf_ctx;
-	struct flt_otel_conf_span    *conf_span;
-	struct flt_otel_conf_str     *span_to_finish, *unset_var;
-	struct timespec               ts_now_steady, ts_now_system;
-	int                           retval = FLT_OTEL_RET_OK;
-	bool                          flag_stop = 0;
+	struct flt_otel_conf           *conf = FLT_OTEL_CONF(f);
+	struct flt_otel_conf_context   *conf_ctx;
+	struct flt_otel_conf_span      *conf_span;
+	struct flt_otel_conf_str       *span_to_finish;
+	struct flt_otel_conf_unset_var *unset_var;
+	struct timespec                 ts_now_steady, ts_now_system;
+	int                             retval = FLT_OTEL_RET_OK;
+	bool                            flag_stop = 0;
 
 	OTELC_FUNC("%p, %p, %p, %p, %p, %p, %u, %p:%p", s, f, chn, conf_scope, ts_steady, ts_system, dir, OTELC_DPTR_ARGS(err));
 
@@ -989,9 +990,16 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 			retval = FLT_OTEL_RET_ERROR;
 
 	/* Remove HAProxy variables. */
-	list_for_each_entry(unset_var, &(conf_scope->unset_vars), list)
-		if (flt_otel_var_unset_byname(s, unset_var->str, dir, err) == FLT_OTEL_RET_ERROR)
-			retval = FLT_OTEL_RET_ERROR;
+	list_for_each_entry(unset_var, &(conf_scope->unset_vars), list) {
+		struct flt_otel_conf_str *var;
+
+		if (flt_otel_cond_pass(unset_var->cond, s, dir) == 0)
+			continue;
+
+		list_for_each_entry(var, &(unset_var->vars), list)
+			if (flt_otel_var_unset_byname(s, var->str, dir, err) == FLT_OTEL_RET_ERROR)
+				retval = FLT_OTEL_RET_ERROR;
+	}
 
 	/* Mark the configured spans for finishing and clean up. */
 	list_for_each_entry(span_to_finish, &(conf_scope->spans_to_finish), list)
