@@ -145,7 +145,7 @@
 	FLT_OTEL_PARSE_SCOPE_DEF(         ACL, 0, CHAR, 3, 0, "acl",          " <aclname> <criterion> [flags] [operator] <value> ...")                                                                       \
 	FLT_OTEL_PARSE_SCOPE_DEF(    ON_EVENT, 0, NONE, 2, 0, "otel-event",   " <name> [{ if | unless } <condition>]")                                                                                       \
 	FLT_OTEL_PARSE_SCOPE_DEF(     SET_VAR, 0, NONE, 3, 0, "set-var",      " <var-name> <sample> ... [{ if | unless } <condition>]")                                                                      \
-	FLT_OTEL_PARSE_SCOPE_DEF( SET_VAR_CTX, 0, NONE, 4, 4, "set-var-ctx",  " <var-name> <ref> <field>")                                                                                                   \
+	FLT_OTEL_PARSE_SCOPE_DEF( SET_VAR_CTX, 0, NONE, 4, 0, "set-var-ctx",  " <var-name> <ref> <field> [{ if | unless } <condition>]")                                                                     \
 	FLT_OTEL_PARSE_SCOPE_DEF(   UNSET_VAR, 0, NONE, 2, 0, "unset-var",    " <var-name> ...")
 
 /* Invalid character check modes for identifier validation. */

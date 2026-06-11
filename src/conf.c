@@ -701,6 +701,7 @@ FLT_OTEL_CONF_FUNC_FREE(set_var_ctx, name,
 
 	OTELC_SFREE((*ptr)->ref);
 	OTELC_SFREE((*ptr)->field_key);
+	free_acl_cond((*ptr)->cond);
 )
 
 

@@ -1523,9 +1523,11 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
  *   flt_otel_parse_cfg_set_var_ctx - set-var-ctx reference and field parser
  *
  * SYNOPSIS
- *   static int flt_otel_parse_cfg_set_var_ctx(char **args, struct flt_otel_conf_set_var_ctx *conf, char **err)
+ *   static int flt_otel_parse_cfg_set_var_ctx(const char *file, int line, char **args, struct flt_otel_conf_set_var_ctx *conf, char **err)
  *
  * ARGUMENTS
+ *   file - configuration file path
+ *   line - configuration file line number
  *   args - configuration line arguments array
  *   conf - the set-var-ctx structure to populate
  *   err  - indirect pointer to error message string
@@ -1535,13 +1537,14 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
  *   selector in <args>[3] into <conf>.  The selector is a field name with an
  *   optional parenthesised key, such as 'trace-id', 'baggage(userId)' or
  *   'tracestate(vendor)'.  A key is optional for 'baggage' and 'tracestate',
- *   and rejected for the other fields.
+ *   and rejected for the other fields.  An optional trailing 'if'/'unless'
+ *   condition at <args>[4] gates the assignment at runtime.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
  *   or a combination of ERR_* flags if an error is encountered.
  */
-static int flt_otel_parse_cfg_set_var_ctx(char **args, struct flt_otel_conf_set_var_ctx *conf, char **err)
+static int flt_otel_parse_cfg_set_var_ctx(const char *file, int line, char **args, struct flt_otel_conf_set_var_ctx *conf, char **err)
 {
 #define FLT_OTEL_VAR_FIELD_DEF(a,b)   { FLT_OTEL_VAR_FIELD_##a, b },
 	static const struct {
@@ -1554,7 +1557,7 @@ static int flt_otel_parse_cfg_set_var_ctx(char **args, struct flt_otel_conf_set_
 	size_t      name_len;
 	int         i, retval = ERR_NONE;
 
-	OTELC_FUNC("%p, %p, %p:%p", args, conf, OTELC_DPTR_ARGS(err));
+	OTELC_FUNC("\"%s\", %d, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, conf, OTELC_DPTR_ARGS(err));
 
 	/* Duplicate the referenced span or context name. */
 	conf->ref = OTELC_STRDUP(args[2]);
@@ -1617,6 +1620,14 @@ static int flt_otel_parse_cfg_set_var_ctx(char **args, struct flt_otel_conf_set_
 		/* The key is optional for baggage and tracestate. */;
 	else if (field_key != NULL)
 		FLT_OTEL_PARSE_ERR(err, "'%s' : field '%s' does not take a key", args[0], field_name);
+
+	/* An optional trailing 'if'/'unless' condition gates the assignment. */
+	if (!(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(4)) {
+		if (FLT_OTEL_ARG_ISCOND(4))
+			retval = flt_otel_parse_attach_cond(file, line, args, 4, &(conf->cond), err);
+		else
+			FLT_OTEL_PARSE_ERR(err, "'%s' : unexpected argument '%s'", args[0], args[4]);
+	}
 
 	OTELC_RETURN_INT(retval);
 }
@@ -2039,7 +2050,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		else if (flt_otel_var_register_byname(args[1], &err) == FLT_OTEL_RET_ERROR)
 			retval |= ERR_ABORT | ERR_ALERT;
 		else
-			retval = flt_otel_parse_cfg_set_var_ctx(args, conf_set_var_ctx, &err);
+			retval = flt_otel_parse_cfg_set_var_ctx(file, line, args, conf_set_var_ctx, &err);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_UNSET_VAR) {
 		retval = flt_otel_parse_cfg_str(file, line, args, &(flt_otel_current_scope->unset_vars), &err);

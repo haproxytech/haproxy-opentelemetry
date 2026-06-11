@@ -67,13 +67,14 @@
 	                 flt_otel_list_dump(&((p)->events)), flt_otel_list_dump(&((p)->baggages)),               \
 	                 flt_otel_list_dump(&((p)->statuses)))
 
-#define FLT_OTEL_DBG_CONF_SCOPE(h,p)                                                                            \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%hhu %hhu %d %u %s %p %p %s %s %s %s %s }", (p),    \
-	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->flag_used, (p)->flag_stop, (p)->event,             \
-	                 (p)->idle_timeout, flt_otel_list_dump(&((p)->acls)), (p)->cond, (p)->stop_cond,        \
-	                 flt_otel_list_dump(&((p)->contexts)), flt_otel_list_dump(&((p)->spans)),               \
-	                 flt_otel_list_dump(&((p)->spans_to_finish)), flt_otel_list_dump(&((p)->instruments)),  \
-	                 flt_otel_list_dump(&((p)->log_records)))
+#define FLT_OTEL_DBG_CONF_SCOPE(h,p)                                                                               \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%hhu %hhu %d %u %s %p %p %s %s %s %s %s %s %s }", (p), \
+	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->flag_used, (p)->flag_stop, (p)->event,                \
+	                 (p)->idle_timeout, flt_otel_list_dump(&((p)->acls)), (p)->cond, (p)->stop_cond,           \
+	                 flt_otel_list_dump(&((p)->contexts)), flt_otel_list_dump(&((p)->spans)),                  \
+	                 flt_otel_list_dump(&((p)->spans_to_finish)), flt_otel_list_dump(&((p)->instruments)),     \
+	                 flt_otel_list_dump(&((p)->log_records)), flt_otel_list_dump(&((p)->set_vars)),            \
+	                 flt_otel_list_dump(&((p)->set_var_ctxs)))
 
 #define FLT_OTEL_DBG_CONF_GROUP(h,p)                                         \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%hhu %s }", (p), \
@@ -102,9 +103,9 @@
 	                 OTELC_STR_ARG((p)->span), flt_otel_list_dump(&((p)->time)), flt_otel_list_dump(&((p)->attributes)), \
 	                 flt_otel_list_dump(&((p)->samples)), (p)->cond)
 
-#define FLT_OTEL_DBG_CONF_SET_VAR_CTX(h,p)                                        \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %d '%s' }", (p), \
-	                 FLT_OTEL_CONF_HDR_ARGS(p, name), OTELC_STR_ARG((p)->ref), (p)->field, OTELC_STR_ARG((p)->field_key))
+#define FLT_OTEL_DBG_CONF_SET_VAR_CTX(h,p)                                           \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %d '%s' %p }", (p), \
+	                 FLT_OTEL_CONF_HDR_ARGS(p, name), OTELC_STR_ARG((p)->ref), (p)->field, OTELC_STR_ARG((p)->field_key), (p)->cond)
 
 #define FLT_OTEL_DBG_CONF(h,p)                                    \
 	OTELC_DBG(DEBUG, h "%p:{ %p '%s' '%s' %p %s %s }", (p),   \
@@ -269,9 +270,10 @@ enum FLT_OTEL_VAR_FIELD_enum {
  */
 struct flt_otel_conf_set_var_ctx {
 	FLT_OTEL_CONF_HDR(name); /* The HAProxy variable name. */
-	char *ref;               /* The referenced span or context name. */
-	int   field;             /* FLT_OTEL_VAR_FIELD_* */
-	char *field_key;         /* The baggage or tracestate key, or NULL. */
+	char            *ref;       /* The referenced span or context name. */
+	int              field;     /* FLT_OTEL_VAR_FIELD_* */
+	char            *field_key; /* The baggage or tracestate key, or NULL. */
+	struct acl_cond *cond;      /* Optional if/unless condition gating the assignment. */
 };
 
 /* Configuration for a single event scope. */

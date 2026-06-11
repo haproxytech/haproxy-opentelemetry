@@ -288,6 +288,7 @@ via build_logline() instead of the sample expression list.
   ref                      The referenced span or context name.
   field                    FLT_OTEL_VAR_FIELD_* identifier.
   field_key                The baggage or tracestate key, or NULL.
+  cond                     Optional if/unless condition gating the assignment.
 
 This structure backs the set-var-ctx directive: it captures a field of a
 referenced span or extracted context into a HAProxy variable at runtime.
@@ -434,7 +435,7 @@ freed while the parent is still valid:
     samples lists.  Frees the optional ACL condition.
 
   conf_set_var_ctx:
-    Frees the ref and field_key strings.
+    Frees the ref and field_key strings and the optional ACL condition.
 
   conf_scope:
     Prunes and frees each ACL entry.  Frees the ACL condition via free_acl_cond.

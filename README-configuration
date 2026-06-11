@@ -500,13 +500,15 @@ Supported keywords:
         set-var txn.otel_internal str("1") if { src 127.0.0.1 }
 
 
-  set-var-ctx <var-name> <ref> <field>
+  set-var-ctx <var-name> <ref> <field> [{ if | unless } <condition>]
       Set a HAProxy variable from a field of a referenced span or span context,
       evaluated when the scope's event fires.  <ref> names a span or a context
       extracted in this scope; it is resolved against the active spans first and
       then the extracted contexts; an unresolved reference leaves the variable
       unchanged.  Because these assignments run after the scope's spans, a span
       created in the same scope may be referenced.
+
+      An optional trailing 'if'/'unless' ACL condition gates the assignment.
 
       Supported fields:
         trace-id          - trace id, lowercase hex
@@ -537,6 +539,7 @@ Supported keywords:
         set-var-ctx txn.in_traceid  "inbound" trace-id
         set-var-ctx txn.traceparent "HAProxy session" traceparent
         set-var-ctx txn.user        "inbound" baggage(userId)
+        set-var-ctx txn.local_tid   "HAProxy session" trace-id if { src 127.0.0.1 }
 
 
   unset-var <var-name> ...

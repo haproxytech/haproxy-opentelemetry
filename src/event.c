@@ -658,7 +658,8 @@ static int flt_otel_scope_run_set_var(struct stream *s, uint dir, struct flt_ote
  *   resolved against the runtime spans first and then the extracted contexts,
  *   the requested field is rendered via flt_otel_ctx_field_to_str(), and the
  *   result is stored into the named HAProxy variable.  An unresolved reference
- *   is logged and skipped.
+ *   is logged and skipped, and a directive whose optional 'if'/'unless'
+ *   condition does not pass is not run.
  *
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
@@ -678,6 +679,9 @@ static int flt_otel_scope_run_set_var_ctx(struct stream *s, struct filter *f, ui
 		struct otelc_span_context     *ref_ctx = NULL;
 		const char                    *ref_baggage = NULL;
 		char                           value[BUFSIZ];
+
+		if (flt_otel_cond_pass(conf_set_var_ctx->cond, s, dir) == 0)
+			continue;
 
 		OTELC_DBG(DEBUG, "set-var-ctx '%s' -> '%s' field %d", conf_set_var_ctx->name, conf_set_var_ctx->ref, conf_set_var_ctx->field);
 
