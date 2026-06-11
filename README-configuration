@@ -416,7 +416,7 @@ Supported keywords:
         instrument update "name_cnt_int" attr "attr_1_key" str("attr_1_value") if { src 127.0.0.1 }
 
 
-  log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span <ref>] [attr <key> <sample>] ... <sample> ...
+  log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span <ref>] [attr <key> <sample>] ... <sample> ... [{ if | unless } <condition>]
       Emit an OpenTelemetry log record.  The first argument is a required
       severity level.  Optional keywords follow in any order:
 
@@ -465,6 +465,10 @@ Supported keywords:
       configuration).  If a 'span' reference is given but the named span is not
       found at runtime, the log record is emitted without span correlation.
 
+      An optional trailing 'if'/'unless' ACL condition gates the whole record;
+      when it does not pass at runtime, the record is skipped entirely, with no
+      body or attributes evaluated.
+
       Examples:
         log-record info str("heartbeat")
         log-record info id 1001 event "http-request" span "Frontend HTTP request" attr "http.method" method method url
@@ -474,6 +478,7 @@ Supported keywords:
         log-record info id 1002 event "server-session-end" "%[%ci:%cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts]"
         log-record info time us date(0,us) str("microsecond-accurate event")
         log-record info time ns hdr(x-event-time-ns) str("client-supplied timestamp")
+        log-record info str("local heartbeat") if { src 127.0.0.1 }
 
 
   set-var <var-name> <sample> ... [{ if | unless } <condition>]

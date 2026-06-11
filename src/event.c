@@ -307,10 +307,11 @@ static int flt_otel_scope_run_instrument(struct stream *s, uint dir, struct flt_
  *
  * DESCRIPTION
  *   Processes all log records configured in <scope>.  For each record, checks
- *   whether the logger is enabled for the configured severity, evaluates the
- *   sample expressions into a body string, resolves the optional span reference
- *   against the runtime context, and emits the log record via the logger's
- *   log_span operation.
+ *   that the logger is enabled for the configured severity and that the
+ *   optional 'if'/'unless' condition passes, evaluates the sample expressions
+ *   into a body string, resolves the optional span reference against the
+ *   runtime context, and emits the log record via the logger's log_span
+ *   operation.
  *
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
@@ -337,6 +338,10 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 
 		/* Skip if the logger is not enabled for this severity. */
 		if (OTELC_OPS(logger, enabled, conf_log->severity) == 0)
+			continue;
+
+		/* Skip if the record's if/unless condition does not pass. */
+		if (flt_otel_cond_pass(conf_log->cond, s, dir) == 0)
 			continue;
 
 		/* Evaluate log record attributes from sample expressions. */

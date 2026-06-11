@@ -233,6 +233,7 @@ as flt_otel_conf_sample entries and evaluated at runtime.
   time                   Optional timestamp expression (single conf_sample).
   attributes             Log record attributes (flt_otel_conf_sample list).
   samples                Sample expressions for the body.
+  cond                   Optional if/unless condition gating the record.
 
 Log records are emitted via the OTel logger at the configured severity.  The
 optional span reference associates the log record with an open span at runtime.
@@ -430,7 +431,7 @@ freed while the parent is still valid:
 
   conf_log_record:
     Frees event_name and span strings.  Destroys the time, attributes and
-    samples lists.
+    samples lists.  Frees the optional ACL condition.
 
   conf_set_var_ctx:
     Frees the ref and field_key strings.

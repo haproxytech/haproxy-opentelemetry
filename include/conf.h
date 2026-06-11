@@ -97,10 +97,10 @@
 	                 (p)->ref, (p)->bounds_num, (p)->bounds, (p)->cond)
 
 #define FLT_OTEL_DBG_CONF_LOG_RECORD(h,p)                                                                                    \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%d %" PRId64 " '%s' '%s' %s %s %s }", (p),                       \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%d %" PRId64 " '%s' '%s' %s %s %s %p }", (p),                    \
 	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->severity, (p)->event_id, OTELC_STR_ARG((p)->event_name),        \
 	                 OTELC_STR_ARG((p)->span), flt_otel_list_dump(&((p)->time)), flt_otel_list_dump(&((p)->attributes)), \
-	                 flt_otel_list_dump(&((p)->samples)))
+	                 flt_otel_list_dump(&((p)->samples)), (p)->cond)
 
 #define FLT_OTEL_DBG_CONF_SET_VAR_CTX(h,p)                                        \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %d '%s' }", (p), \
@@ -238,6 +238,7 @@ struct flt_otel_conf_log_record {
 	struct list           time;       /* Optional timestamp expression (single flt_otel_conf_sample). */
 	struct list           attributes; /* Log record attributes (flt_otel_conf_sample). */
 	struct list           samples;    /* Sample expressions for the body. */
+	struct acl_cond      *cond;       /* Optional if/unless condition gating the record. */
 };
 
 /*

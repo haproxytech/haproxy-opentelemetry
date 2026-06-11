@@ -1383,7 +1383,8 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
  *   Parses the "log-record" keyword inside an otel-scope section.  The first
  *   argument is a required severity level string.  Optional keywords "id",
  *   "event", "span", and "attr" follow in any order.  The remaining arguments
- *   at the end are parsed as fetch expressions or a log-format string.
+ *   at the end are parsed as fetch expressions or a log-format string, with an
+ *   optional trailing 'if'/'unless' condition that gates the whole record.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -1393,7 +1394,7 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
 {
 	struct flt_otel_conf_log_record *log;
 	otelc_log_severity_t             severity;
-	int                              i, retval = ERR_NONE;
+	int                              i, j, cond_pos = 0, retval = ERR_NONE;
 
 	OTELC_FUNC("\"%s\", %d, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, pdata, OTELC_DPTR_ARGS(err));
 
@@ -1460,9 +1461,24 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
 		else {
 			/*
 			 * Not a recognized keyword -- the remaining arguments
-			 * are sample fetch expressions or a log-format string.
+			 * are sample fetch expressions or a log-format string,
+			 * optionally followed by an 'if'/'unless' condition that
+			 * gates the whole record.
 			 */
-			retval = flt_otel_parse_cfg_sample(file, line, args, i, 0, NULL, &(log->samples), err);
+			for (j = i; FLT_OTEL_ARG_ISVALID(j); j++)
+				if (FLT_OTEL_PARSE_KEYWORD(j, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(j, FLT_OTEL_CONDITION_UNLESS)) {
+					cond_pos = j;
+
+					break;
+				}
+
+			if (cond_pos == i) {
+				FLT_OTEL_PARSE_ERR(err, "'%s' : no body expression before '%s'", args[0], args[cond_pos]);
+			} else {
+				retval = flt_otel_parse_cfg_sample(file, line, args, i, (cond_pos == 0) ? 0 : (cond_pos - i), NULL, &(log->samples), err);
+				if (!(retval & ERR_CODE) && (cond_pos != 0))
+					retval = flt_otel_parse_attach_cond(file, line, args, cond_pos, &(log->cond), err);
+			}
 
 			break;
 		}

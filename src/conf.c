@@ -651,6 +651,7 @@ FLT_OTEL_CONF_FUNC_FREE(log_record, id,
 	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->time));
 	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->attributes));
 	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->samples));
+	free_acl_cond((*ptr)->cond);
 )
 
 
