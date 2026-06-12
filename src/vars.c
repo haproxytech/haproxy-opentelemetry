@@ -49,7 +49,10 @@ int flt_otel_var_register_byname(const char *name, char **err)
 	arg.data.str.data = var_name_len;
 
 	if (vars_check_arg(&arg, err) == 0) {
-		FLT_OTEL_ERR_APPEND("failed to register variable '%s': %s", var_name, *err);
+		if ((err != NULL) && (*err != NULL))
+			FLT_OTEL_ERR_APPEND("failed to register variable '%s': %s", var_name, *err);
+		else
+			FLT_OTEL_ERR("failed to register variable '%s'", var_name);
 	} else {
 		OTELC_DBG(NOTICE, "variable '%s' registered", var_name);
 
