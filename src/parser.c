@@ -1180,7 +1180,7 @@ static int flt_otel_parse_bounds(const char *str, double **bounds, size_t *bound
 		qsort(*bounds, bounds_len, sizeof(**bounds), flt_otel_qsort_compar_double);
 
 		for (i = 1; i < bounds_len; i++)
-			if (flt_otel_qsort_compar_double(*bounds + i - 1, *bounds + i) == 0) {
+			if (fabs((*bounds)[i - 1] - (*bounds)[i]) < FLT_OTEL_DBL_EPSILON) {
 				FLT_OTEL_PARSE_ERR(err, "'%s' : duplicate boundary value '%.2f'", err_msg, (*bounds)[i]);
 
 				OTELC_SFREE_CLEAR(*bounds);

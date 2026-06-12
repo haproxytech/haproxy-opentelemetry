@@ -28,7 +28,7 @@
 /* Compare a runtime string against a compile-time string literal. */
 #define FLT_OTEL_STR_CMP(S,s)        ((s##_len == FLT_OTEL_STR_SIZE(S)) && (memcmp((s), FLT_OTEL_STR_ADDRSIZE(S)) == 0))
 
-/* Tolerance for double comparison in flt_otel_qsort_compar_double(). */
+/* Tolerance for the boundary duplicate check in flt_otel_parse_bounds(). */
 #define FLT_OTEL_DBL_EPSILON         1e-9
 
 /* Execute a statement exactly once across all invocations. */
