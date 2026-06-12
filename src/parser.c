@@ -1705,10 +1705,11 @@ static int flt_otel_parse_cfg_unset_var(const char *file, int line, char **args,
  *
  * DESCRIPTION
  *   Section parser for the otel-scope configuration block.  Handles keywords:
- *   scope ID, span (with optional root/parent/link modifiers), link, attribute,
- *   event, baggage, status, inject, extract, finish, otel-stop, instrument,
- *   log-record, acl, and otel-event (otel-stop and otel-event accept an
- *   optional if/unless condition).
+ *   scope ID, span (with optional root/parent/link/kind modifiers), link,
+ *   attribute, event, baggage, status, inject, extract, finish, otel-stop,
+ *   instrument, log-record, idle-timeout, acl, otel-event, set-var,
+ *   set-var-ctx, and unset-var.  Many of these accept an optional trailing
+ *   if/unless condition.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -2137,7 +2138,9 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
  *
  * DESCRIPTION
  *   Post-parse callback for the otel-scope section.  Verifies that HTTP header
- *   injection is only used on events that support it.
+ *   injection is only used on events that support it, and that an idle-timeout
+ *   is paired with the on-idle-timeout event (required for it, and rejected
+ *   with any other event).
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,

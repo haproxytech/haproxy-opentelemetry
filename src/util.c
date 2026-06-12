@@ -1134,8 +1134,8 @@ int flt_otel_sample_eval_time(struct stream *s, uint dir, struct flt_otel_conf_s
  *   for status.
  *
  * RETURN VALUE
- *   Returns a negative value if an error occurs, 0 if it needs to wait,
- *   any other value otherwise.
+ *   Returns FLT_OTEL_RET_ERROR on failure, or a non-negative value from the
+ *   dispatched handler on success.
  */
 int flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample *sample, struct flt_otel_scope_data *data, int type, char **err)
 {

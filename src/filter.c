@@ -174,8 +174,8 @@ static void flt_otel_log_handler_cb(otelc_log_level_t level __maybe_unused, cons
  *   Initializes the OpenTelemetry C wrapper library for the instrumentation
  *   specified by <instr>.  It verifies the library version, constructs the
  *   absolute configuration path from <instr>->config, calls otelc_init(), and
- *   creates the tracer and meter instances.  On success, it registers the
- *   memory and thread ID callbacks via otelc_ext_init().
+ *   creates the tracer, meter and logger instances.  On success, it registers
+ *   the memory and thread ID callbacks via otelc_ext_init().
  *
  * RETURN VALUE
  *   Returns 0 on success, or FLT_OTEL_RET_ERROR on failure.
@@ -498,10 +498,11 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 #endif /* DEBUG_OTEL */
 
 	/*
-	 * Save the OTel handles before freeing the configuration.
-	 * flt_otel_conf_free() must run while the wrapper's ext callbacks
-	 * still point to the HAProxy pool allocator; otelc_deinit() resets
-	 * those callbacks, so it runs last.
+	 * Save the OTel handles before flt_otel_conf_free() releases the
+	 * instrumentation structure that stores them.  Destroying the pools
+	 * before otelc_deinit() is safe: its teardown never invokes the ext
+	 * free callback, which serves only otelc_span and otelc_span_context
+	 * objects released at runtime.
 	 */
 	if ((*conf)->instr != NULL) {
 		otel_tracer = (*conf)->instr->tracer;

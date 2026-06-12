@@ -488,9 +488,9 @@ FLT_OTEL_CONF_FUNC_FREE(context, id,
  *
  * DESCRIPTION
  *   Allocates and initializes a conf_span structure with empty lists for
- *   attributes, events, baggages, and statuses.  The <id> string is duplicated
- *   and stored as the span name.  If <head> is non-NULL, the structure is
- *   appended to the list.
+ *   links, attributes, events, baggages, and statuses.  The <id> string is
+ *   duplicated and stored as the span name.  If <head> is non-NULL, the
+ *   structure is appended to the list.
  *
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
@@ -612,9 +612,10 @@ FLT_OTEL_CONF_FUNC_FREE(instrument, id,
  *
  * DESCRIPTION
  *   Allocates and initializes a conf_log_record structure.  Initializes the
- *   attributes and sample expressions lists.  The <id> string is required by
- *   the macro but is not used directly; the severity level is stored
- *   separately.  If <head> is non-NULL, the structure is appended to the list.
+ *   time, attributes and sample expressions lists.  The <id> string is
+ *   required by the macro but is not used directly; the severity level is
+ *   stored separately.  If <head> is non-NULL, the structure is appended to
+ *   the list.
  *
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
