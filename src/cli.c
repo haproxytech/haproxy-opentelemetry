@@ -343,8 +343,9 @@ static int flt_otel_cli_parse_rate(char **args, char *payload, struct appctx *ap
  *   for all OTel filter instances across all proxies.  The report includes
  *   the library version, proxy name, configuration file path, group and scope
  *   counts, disable counts, instrumentation ID, tracer and meter state, rate
- *   limit, error mode, disabled state, logging state, and analyzer bits.  When
- *   DEBUG_OTEL is enabled, the current debug level is also included.
+ *   limit, error mode, disabled state, logging state, idle timeout, and
+ *   analyzer bits.  When DEBUG_OTEL is enabled, the current debug level is
+ *   also included.
  *
  * RETURN VALUE
  *   Returns 1, or 0 on memory allocation failure.
@@ -364,7 +365,7 @@ static int flt_otel_cli_parse_status(char **args, char *payload, struct appctx *
 #ifdef DEBUG_OTEL
 	(void)memprintf(&msg, "%s   debug level:   0x%02hhx\n", msg, otelc_dbg_level);
 #endif
-	(void)memprintf(&msg, "%s   dropped count: %" PRId64 "/%" PRId64 " %" PRIu64 "\n", msg, otelc_processor_dropped_count(0), otelc_processor_dropped_count(1), _HA_ATOMIC_LOAD(&flt_otel_drop_cnt));
+	(void)memprintf(&msg, "%s   dropped count: spans %" PRId64 ", logs %" PRId64 ", sdk %" PRIu64 "\n", msg, otelc_processor_dropped_count(0), otelc_processor_dropped_count(1), _HA_ATOMIC_LOAD(&flt_otel_drop_cnt));
 
 	FLT_OTEL_PROXIES_LIST_START() {
 		struct flt_otel_conf_group *grp;
@@ -388,11 +389,12 @@ static int flt_otel_cli_parse_status(char **args, char *payload, struct appctx *
 		(void)memprintf(&msg, "%s       hard errors:   %s\n", msg, FLT_OTEL_STR_FLAG_YN(_HA_ATOMIC_LOAD(&(conf->instr->flag_harderr))));
 		(void)memprintf(&msg, "%s       disabled:      %s\n", msg, FLT_OTEL_STR_FLAG_YN(_HA_ATOMIC_LOAD(&(conf->instr->flag_disabled))));
 		(void)memprintf(&msg, "%s       logging:       %s\n", msg, FLT_OTEL_CLI_LOGGING_STATE(_HA_ATOMIC_LOAD(&(conf->instr->logging))));
+		(void)memprintf(&msg, "%s       idle timeout:  %u ms\n", msg, conf->instr->idle_timeout);
 		(void)memprintf(&msg, "%s       analyzers:     %08x", msg, conf->instr->analyzers);
 #ifdef FLT_OTEL_USE_COUNTERS
 		(void)memprintf(&msg, "%s\n\n     counters\n", msg);
-		(void)memprintf(&msg, "%s       attached: %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64 "\n", msg, conf->cnt.attached[0], conf->cnt.attached[1], conf->cnt.attached[2], conf->cnt.attached[3]);
-		(void)memprintf(&msg, "%s       disabled: %" PRIu64 " %" PRIu64, msg, conf->cnt.disabled[0], conf->cnt.disabled[1]);
+		(void)memprintf(&msg, "%s       attached: run %" PRIu64 ", rate-limit %" PRIu64 ", disabled %" PRIu64 ", error %" PRIu64 "\n", msg, conf->cnt.attached[0], conf->cnt.attached[1], conf->cnt.attached[2], conf->cnt.attached[3]);
+		(void)memprintf(&msg, "%s       disabled: scope %" PRIu64 ", hard-error %" PRIu64, msg, conf->cnt.disabled[0], conf->cnt.disabled[1]);
 #endif
 
 		nl = "\n";
@@ -405,14 +407,14 @@ static int flt_otel_cli_parse_status(char **args, char *payload, struct appctx *
 /* CLI command table for the OTel filter. */
 static struct cli_kw_list cli_kws = { { }, {
 #ifdef DEBUG_OTEL
-	{ { FLT_OTEL_CLI_CMD, "debug", NULL }, FLT_OTEL_CLI_CMD " debug [level]                  : set the OTEL filter debug level (default: get current debug level)", flt_otel_cli_parse_debug, NULL, NULL, NULL, ACCESS_LVL_ADMIN },
+	{ { FLT_OTEL_CLI_CMD, "debug", NULL }, FLT_OTEL_CLI_CMD " debug [level]                  : set the OTEL filter debug level (default: get current debug level)", flt_otel_cli_parse_debug, NULL, NULL, NULL, 0 },
 #endif
 	{ { FLT_OTEL_CLI_CMD, "disable", NULL }, FLT_OTEL_CLI_CMD " disable                        : disable the OTEL filter", flt_otel_cli_parse_disabled, NULL, NULL, (void *)1, ACCESS_LVL_ADMIN },
 	{ { FLT_OTEL_CLI_CMD, "enable", NULL }, FLT_OTEL_CLI_CMD " enable                         : enable the OTEL filter", flt_otel_cli_parse_disabled, NULL, NULL, (void *)0, ACCESS_LVL_ADMIN },
 	{ { FLT_OTEL_CLI_CMD, "soft-errors", NULL }, FLT_OTEL_CLI_CMD " soft-errors                    : disable hard-errors mode", flt_otel_cli_parse_option, NULL, NULL, (void *)0, ACCESS_LVL_ADMIN },
 	{ { FLT_OTEL_CLI_CMD, "hard-errors", NULL }, FLT_OTEL_CLI_CMD " hard-errors                    : enable hard-errors mode", flt_otel_cli_parse_option, NULL, NULL, (void *)1, ACCESS_LVL_ADMIN },
-	{ { FLT_OTEL_CLI_CMD, "logging",  NULL }, FLT_OTEL_CLI_CMD " logging [state]                : set logging state (default: get current logging state)", flt_otel_cli_parse_logging, NULL, NULL, NULL, ACCESS_LVL_ADMIN },
-	{ { FLT_OTEL_CLI_CMD, "rate", NULL }, FLT_OTEL_CLI_CMD " rate [value]                   : set the rate limit (default: get current rate value)", flt_otel_cli_parse_rate, NULL, NULL, NULL, ACCESS_LVL_ADMIN },
+	{ { FLT_OTEL_CLI_CMD, "logging",  NULL }, FLT_OTEL_CLI_CMD " logging [state]                : set logging state (default: get current logging state)", flt_otel_cli_parse_logging, NULL, NULL, NULL, 0 },
+	{ { FLT_OTEL_CLI_CMD, "rate", NULL }, FLT_OTEL_CLI_CMD " rate [value]                   : set the rate limit (default: get current rate value)", flt_otel_cli_parse_rate, NULL, NULL, NULL, 0 },
 	{ { FLT_OTEL_CLI_CMD, "status", NULL }, FLT_OTEL_CLI_CMD " status                         : show the OTEL filter status", flt_otel_cli_parse_status, NULL, NULL, NULL, 0 },
 	{ /* END */ }
 }};

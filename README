@@ -1301,6 +1301,48 @@ with a change in arguments when running the same):
 debug mode enabled.  When invoked without arguments, these commands display the
 current value of the respective setting.
 
+The 'flt-otel status' command prints a report for each configured filter
+instance.  A typical response looks like this (the 'debug level' line and
+the 'counters' block appear only in a debug build):
+
+  % echo "flt-otel status" | socat - UNIX-CONNECT:/tmp/haproxy.sock
+  --- command output ----------
+   opentelemetry filter status
+  ------------------------------------------------------------------------------
+     library:       C++ 1.26.0, C wrapper 2.0.0-862
+     debug level:   0x7f
+     dropped count: spans 0, logs 0, sdk 0
+
+     proxy fe_main, filter otel
+       configuration: otel.cfg
+       groups/scopes: 2/29
+
+         instrumentation otel-instr
+         configuration: otel.yml
+         tracer:        active
+         meter:         active
+         logger:        active
+         rate limit:    100.00 %
+         hard errors:   no
+         disabled:      no
+         logging:       enabled
+         idle timeout:  1000 ms
+         analyzers:     01e03fbe
+
+       counters
+         attached: run 0, rate-limit 0, disabled 0, error 0
+         disabled: scope 0, hard-error 0
+  --- command output ----------
+
+Most lines are self-explanatory.  'dropped count' lists the spans and the log
+records dropped by the two SDK batch processors, and 'sdk' the drop count the
+SDK itself reported.
+'idle timeout' is the smallest scope idle timeout in milliseconds (0 means
+off), and 'analyzers' is the channel analyzer bitmask the filter registered.
+The 'counters' block tallies how streams attached -- run, rate-limited,
+disabled or errored -- and how many later had tracing disabled, by a scope
+decision (a failed condition or 'otel-stop') or by a hard error.
+
 
 7. Known bugs and limitations
 -------------------------------
