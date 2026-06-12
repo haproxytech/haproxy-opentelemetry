@@ -491,13 +491,22 @@ int flt_otel_sample_to_str(const struct sample_data *data, char *value, size_t s
 		FLT_OTEL_ERR("invalid sample data type %d", data->type);
 	}
 	else if (data->type == SMP_T_BOOL) {
-		value[0] = data->u.sint ? '1' : '0';
-		value[1] = '\0';
+		if (size < 2) {
+			FLT_OTEL_ERR("sample data size too large");
+		} else {
+			value[0] = data->u.sint ? '1' : '0';
+			value[1] = '\0';
 
-		retval = 1;
+			retval = 1;
+		}
 	}
 	else if (data->type == SMP_T_SINT) {
 		retval = snprintf(value, size, "%lld", data->u.sint);
+		if ((retval < 0) || ((size_t)retval >= size)) {
+			FLT_OTEL_ERR("sample data size too large");
+
+			retval = FLT_OTEL_RET_ERROR;
+		}
 	}
 	else if (data->type == SMP_T_ADDR) {
 		/* This type is never used to qualify a sample. */
@@ -549,8 +558,12 @@ int flt_otel_sample_to_str(const struct sample_data *data, char *value, size_t s
 		} http_meth_str[] = { FLT_OTEL_HTTP_METH_DEFINES };
 #undef FLT_OTEL_HTTP_METH_DEF
 
-		retval = http_meth_str[data->u.meth.meth].len;
-		(void)memcpy(value, http_meth_str[data->u.meth.meth].str, retval + 1);
+		if (http_meth_str[data->u.meth.meth].len >= size) {
+			FLT_OTEL_ERR("sample data size too large");
+		} else {
+			retval = http_meth_str[data->u.meth.meth].len;
+			(void)memcpy(value, http_meth_str[data->u.meth.meth].str, retval + 1);
+		}
 	}
 	else if (data->u.meth.meth == HTTP_METH_OTHER) {
 		if (data->u.meth.str.data >= size) {

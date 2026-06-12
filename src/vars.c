@@ -936,7 +936,7 @@ static int flt_otel_vars_get_cb(struct sample *smp, size_t idx, const char *scop
 		 * variable name, the conversion of the replaced characters to
 		 * the original is performed here.
 		 */
-		retval = flt_otel_denormalize_name(name, otel_var_name, OTELC_TABLESIZE_1(otel_var_name), err);
+		retval = flt_otel_denormalize_name(name, otel_var_name, sizeof(otel_var_name), err);
 		if (retval >= 0)
 			retval = OTELC_TEXT_MAP_ADD(*map, otel_var_name, retval, b_orig(&(smp_ctx.data.u.str)), b_data(&(smp_ctx.data.u.str)), OTELC_TEXT_MAP_AUTO);
 		if (retval == FLT_OTEL_RET_ERROR) {

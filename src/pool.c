@@ -98,9 +98,11 @@ void *flt_otel_pool_strndup(struct pool_head *pool, const char *s, size_t size, 
 	if (pool != NULL) {
 		retptr = pool_alloc(pool);
 		if (retptr != NULL) {
-			(void)memcpy(retptr, s, MIN(pool->size - 1, size));
+			size_t len = strnlen(s, MIN(pool->size - 1, size));
 
-			((uint8_t *)retptr)[MIN(pool->size - 1, size)] = '\0';
+			(void)memcpy(retptr, s, len);
+
+			((uint8_t *)retptr)[len] = '\0';
 		}
 	} else {
 		retptr = OTELC_STRNDUP(s, size);
