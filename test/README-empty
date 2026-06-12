@@ -47,7 +47,13 @@ YAML pipeline
 Running the test
 ----------------
 
-There is no dedicated run script for the empty configuration.  To run it
-manually from the test/ directory:
+The run-empty.sh script (a symlink to run-test-config.sh) runs this
+configuration.  It invokes haproxy with -f haproxy-common.cfg -f
+empty/haproxy.cfg, the same as the manual command shown below.  From the
+test/ directory:
+
+  % ./run-empty.sh
+
+Or run it manually:
 
   % /path/to/haproxy -f haproxy-common.cfg -f empty/haproxy.cfg

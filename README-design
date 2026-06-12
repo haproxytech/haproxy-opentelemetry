@@ -41,7 +41,7 @@ Three X-macro lists drive the configuration parser:
 
   FLT_OTEL_PARSE_INSTR_DEFINES   (parser.h, 9 keywords)
   FLT_OTEL_PARSE_GROUP_DEFINES   (parser.h, 2 keywords)
-  FLT_OTEL_PARSE_SCOPE_DEFINES   (parser.h, 15 keywords)
+  FLT_OTEL_PARSE_SCOPE_DEFINES   (parser.h, 19 keywords)
 
 Each entry has the form:
 
@@ -94,10 +94,11 @@ The generated free function:
   3. Removes the node from its list.
   4. Frees the structure with OTELC_SFREE_CLEAR.
 
-conf.c instantiates these macros for all 13 configuration types: hdr, str, ph,
-sample_expr, sample, link, context, span, scope, instrument, log_record, group,
-instr.  The more complex types (span, scope, instr) carry non-trivial _func_
-bodies that initialize sub-lists or set default values.
+conf.c instantiates these macros for all 15 configuration types: hdr, str, ph,
+sample_expr, sample, link, context, span, scope, instrument, log_record,
+set_var_ctx, unset_var, group, instr.  The more complex types (span, scope,
+instr) carry non-trivial _func_ bodies that initialize sub-lists or set default
+values.
 
 
 2  Type-Safe Generic Macros
@@ -410,7 +411,7 @@ The rate limit is configured as a floating-point percentage (0.0 to 100.0) but
 stored internally as a uint32_t for lock-free comparison:
 
   FLT_OTEL_FLOAT_U32(a)  Converts a percentage to a uint32 value:
-                          (uint32_t)((a / 100.0) * UINT32_MAX)
+                          (uint32_t)((a) / 100.0 * UINT32_MAX + 0.5)
 
   FLT_OTEL_U32_FLOAT(a)  Converts back for display:
                           ((double)(a) / UINT32_MAX) * 100.0

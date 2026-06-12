@@ -150,7 +150,7 @@ After HAProxy is compiled, we can check if the OTel filter is enabled:
 
   % ./haproxy -vv | grep -i opentelemetry
   --- command output ----------
-  Built with OpenTelemetry support (C++ version 1.26.0, C Wrapper version 1.0.0-842).
+  Built with OpenTelemetry support (C++ version 1.26.0, C Wrapper version 2.0.0-862).
           [OTEL] opentelemetry
   --- command output ----------
 
@@ -461,8 +461,11 @@ otel-scope <name>
     - log-record
     - otel-event
     - otel-stop
+    - set-var
+    - set-var-ctx
     - span
     - status
+    - unset-var
 
 
 acl <aclname> <criterion> [flags] [operator] <value> ...
@@ -1052,7 +1055,7 @@ idle-timeout <time>
         otel-event on-idle-timeout
 
 
-span <name> [parent <ref>] [link <ref>] [root]
+span <name> [parent <ref>] [link <ref>] [root] [kind <kind>]
   Creating a new span (or referencing an already opened one).  If a new span is
   created, it can have a parent reference to another span or context, an inline
   link to another span, or be marked as a root span.  If no reference is
@@ -1063,7 +1066,8 @@ span <name> [parent <ref>] [link <ref>] [root]
   The parent reference is set using the 'parent' keyword followed by the name of
   an existing span or extracted context.  An inline link is set using the 'link'
   keyword followed by a span or context name.  The 'root' keyword explicitly
-  marks the span as a root span.
+  marks the span as a root span.  The 'kind' keyword sets the OTel span kind,
+  one of internal, server (the default), client, producer or consumer.
 
   For example:
     span "HAProxy session" root

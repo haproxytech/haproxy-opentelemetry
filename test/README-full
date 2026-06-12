@@ -2,11 +2,15 @@ Full event coverage test configuration (full/)
 ==============================================
 
 The 'full' test is a standalone single-instance configuration that exercises
-every supported OTel filter event with all three signal types: traces (spans),
-metrics (instruments) and logs (log-records).
+nearly every supported OTel filter event with all three signal types: traces
+(spans), metrics (instruments) and logs (log-records).  The only event it does
+not bind is on-http-tarpit-request; that event is exercised only by the 'sa'
+scenario.
 
-It extends the 'sa' (standalone) configuration by adding the events that 'sa'
-does not cover and by attaching log-records to every scope.
+It builds on the 'sa' (standalone) configuration by adding most of the events
+that 'sa' does not cover and by attaching log-records to every scope.  Note
+that 'full' is not a strict superset of 'sa': 'sa' covers on-http-tarpit-request
+while 'full' does not.
 
 
 Files
@@ -21,8 +25,10 @@ Files
 Events
 ------
 
-The table below lists every event defined in include/event.h together with the
-scope that handles it and the signals produced by that scope.
+The table below lists the events defined in include/event.h that this
+configuration handles, together with the scope that handles each one and the
+signals produced by that scope.  The on-http-tarpit-request event, also defined
+in include/event.h, is not bound here; it is covered only by the 'sa' scenario.
 
   T = Trace (span)    M = Metric (instrument)    L = Log (log-record)
 

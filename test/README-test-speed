@@ -33,9 +33,11 @@ iterates through a series of rate-limit values -- from full tracing (100%) down
 to the filter being completely removed -- measuring throughput and latency at
 each level.
 
-The script uses template files (haproxy.cfg.in and otel.cfg.in) from each test
-directory to generate the actual configuration files.  A sed substitution
-adjusts the rate-limit value (or disables/removes the filter) before each run.
+The script backs up the live configuration files in each test directory to
+.orig copies (haproxy.cfg.orig, otel.cfg.orig and otel.yml.orig) and then
+regenerates the live files for each run by applying a sed substitution to those
+.orig backups.  The substitution adjusts the rate-limit value (or disables or
+removes the filter) before each run.
 
 
 2. Prerequisites

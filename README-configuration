@@ -645,7 +645,8 @@ Supported keywords:
       span context still open on the stream is finished, and the filter is then
       disabled for the rest of that connection, so no further scopes run for it,
       whether triggered by a later event or by an 'otel-group' action.  It is
-      the per-connection counterpart to the global 'otel disable' CLI command.
+      the per-connection counterpart to the global 'flt-otel disable' CLI
+      command.
 
       The stop is evaluated after the rest of the scope has run, so a stopping
       scope still emits the spans, log records and metrics it defines first.

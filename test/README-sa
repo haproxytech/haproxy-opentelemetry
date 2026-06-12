@@ -44,6 +44,7 @@ Events
     on-http-wait-request               http_wait_request              x  -  -
     on-http-body-request               http_body_request              x  -  -
     on-frontend-http-request           frontend_http_request          x  x  x
+    on-http-tarpit-request             http_tarpit_request            x  x  x
     on-switching-rules-request         switching_rules_request        x  -  -
     on-backend-tcp-request             backend_tcp_request            x  -  -
     on-backend-http-request            backend_http_request           x  -  -
@@ -63,7 +64,7 @@ Events
     on-http-wait-response              http_wait_response             x  -  -
     on-process-store-rules-response    process_store_rules_response   x  -  -
     on-http-response                   http_response                  x  x  -
-    on-server-session-end              server_session_end             -  -  -
+    on-server-session-end              server_session_end             -  -  x
 
   Additionally, the http_response-error scope fires conditionally on the
   on-http-response event when the response status is outside the 100-399
@@ -85,6 +86,7 @@ Instruments
   haproxy.http.requests      cnt_int    frontend_http_request   http_response
   haproxy.http.latency       hist_int   frontend_http_request   frontend_http_request,
                                                                 http_response
+  haproxy.http.tarpit        cnt_int    http_tarpit_request     http_tarpit_request
 
 
 Span hierarchy

@@ -96,7 +96,7 @@ PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 TARGET=linux-glibc EXTRA_MAKE="../ha
 If the filter is built in, the output contains:
 
 ```
-Built with OpenTelemetry support (C++ version 1.26.0, C Wrapper version 1.0.0-842).
+Built with OpenTelemetry support (C++ version 1.26.0, C Wrapper version 2.0.0-862).
 	[OTEL] opentelemetry
 ```
 
@@ -192,7 +192,7 @@ signals:
 
 | Keyword        | Description                                             |
 |----------------|---------------------------------------------------------|
-| `span`         | Create or reference a span                              |
+| `span`         | Create or reference a span (accepts `kind`)             |
 | `attribute`    | Set key-value span attributes                           |
 | `event`        | Add timestamped span events                             |
 | `baggage`      | Set context propagation data                            |
@@ -204,7 +204,12 @@ signals:
 | `instrument`   | Create or update metric instruments                     |
 | `log-record`   | Emit a log record with severity                         |
 | `otel-event`   | Bind scope to a filter event with optional ACL          |
+| `otel-stop`    | Stop tracing for the rest of the connection             |
 | `idle-timeout` | Set periodic event interval for idle streams            |
+| `acl`          | Declare an ACL usable in conditions                     |
+| `set-var`      | Set a HAProxy variable from sample expressions          |
+| `set-var-ctx`  | Store a span/context field in a HAProxy variable        |
+| `unset-var`    | Remove one or more HAProxy variables                    |
 
 ### CLI commands
 
