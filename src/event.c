@@ -1101,7 +1101,8 @@ int flt_otel_event_run(struct stream *s, struct filter *f, struct channel *chn, 
 	OTELC_DBG(DEBUG, "run event '%s' %d %s", flt_otel_event_data[event].name, event, flt_otel_event_data[event].an_name);
 
 #ifdef DEBUG_OTEL
-	_HA_ATOMIC_ADD(conf->cnt.event[event].htx + ((chn == NULL) ? 1 : (htx_is_empty(htxbuf(&(chn->buf))) ? 1 : 0)), 1);
+	/* Only an HTX stream's buffer may be interpreted as an HTX structure. */
+	_HA_ATOMIC_ADD(conf->cnt.event[event].htx + (((chn == NULL) || !IS_HTX_STRM(s)) ? 1 : (htx_is_empty(htxbuf(&(chn->buf))) ? 1 : 0)), 1);
 #endif
 
 	FLT_OTEL_RT_CTX(f->ctx)->analyzers |= flt_otel_event_data[event].an_bit;

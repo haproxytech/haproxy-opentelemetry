@@ -105,7 +105,7 @@ static int flt_otel_thread_id(void)
 #if defined(USE_THREAD) && defined(DEBUG_OTEL)
 	static THREAD_LOCAL int retval = -1;
 
-	if (!OTELC_IN_RANGE(tid, 0, OTELC_TABLESIZE(flt_otel_tid)))
+	if (!OTELC_IN_RANGE(tid, 0, OTELC_TABLESIZE_1(flt_otel_tid)))
 		return -1;
 	else if (!flt_otel_tid[tid].registered)
 		return tid;

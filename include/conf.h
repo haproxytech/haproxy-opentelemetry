@@ -59,12 +59,12 @@
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%s }", (p), \
 	                 FLT_OTEL_CONF_HDR_ARGS(p, ref), flt_otel_list_dump(&((p)->attributes)))
 
-#define FLT_OTEL_DBG_CONF_SPAN(h,p)                                                                              \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %zu %s' %zu %hhu 0x%02hhx %d %s %s %s %s %s }", \
-	                 (p), FLT_OTEL_CONF_HDR_ARGS(p, id), FLT_OTEL_STR_HDR_ARGS(p, ref_id),                   \
-	                 FLT_OTEL_STR_HDR_ARGS(p, ctx_id), (p)->flag_root, (p)->ctx_flags, (p)->kind,            \
-	                 flt_otel_list_dump(&((p)->links)), flt_otel_list_dump(&((p)->attributes)),              \
-	                 flt_otel_list_dump(&((p)->events)), flt_otel_list_dump(&((p)->baggages)),               \
+#define FLT_OTEL_DBG_CONF_SPAN(h,p)                                                                               \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %zu '%s' %zu %hhu 0x%02hhx %d %s %s %s %s %s }", \
+	                 (p), FLT_OTEL_CONF_HDR_ARGS(p, id), FLT_OTEL_STR_HDR_ARGS(p, ref_id),                    \
+	                 FLT_OTEL_STR_HDR_ARGS(p, ctx_id), (p)->flag_root, (p)->ctx_flags, (p)->kind,             \
+	                 flt_otel_list_dump(&((p)->links)), flt_otel_list_dump(&((p)->attributes)),               \
+	                 flt_otel_list_dump(&((p)->events)), flt_otel_list_dump(&((p)->baggages)),                \
 	                 flt_otel_list_dump(&((p)->statuses)))
 
 #define FLT_OTEL_DBG_CONF_SCOPE(h,p)                                                                                  \

@@ -233,7 +233,7 @@ const char *flt_otel_analyzer(uint an_bit)
  */
 const char *flt_otel_list_dump(const struct list *head)
 {
-	FLT_OTEL_BUFFER_THR(retbuf, 4, 64, retptr);
+	FLT_OTEL_BUFFER_THR(retbuf, 16, 64, retptr);
 
 	if ((head == NULL) || LIST_ISEMPTY(head)) {
 		(void)strncpy(retptr, (head == NULL) ? "{ null list }" : "{ empty list }", sizeof(retbuf[0]));

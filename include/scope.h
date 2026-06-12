@@ -16,15 +16,15 @@
 	          FLT_OTEL_STR_HDR_ARGS(p, id), (p)->smp_opt_dir,   \
 	          (p)->flag_finish, (p)->span, (p)->ref_span, (p)->ref_ctx)
 
-#define FLT_OTEL_DBG_SCOPE_CONTEXT(h,p)                           \
-	OTELC_DBG(DEBUG, h "%p:{ '%s' %zu %u %hhu %p }", (p),     \
-	          FLT_OTEL_STR_HDR_ARGS(p, id), (p)->smp_opt_dir, \
-	          (p)->flag_finish, (p)->context)
+#define FLT_OTEL_DBG_SCOPE_CONTEXT(h,p)                            \
+	OTELC_DBG(DEBUG, h "%p:{ '%s' %zu %u %hhu %p '%s' }", (p), \
+	          FLT_OTEL_STR_HDR_ARGS(p, id), (p)->smp_opt_dir,  \
+	          (p)->flag_finish, (p)->context, OTELC_STR_ARG((p)->baggage))
 
-#define FLT_OTEL_DBG_SCOPE_DATA_EVENT(h,p)                    \
-	OTELC_DBG(DEBUG, h "%p:{ '%s' %p %zu %zu %s }", &(p), \
-	          (p).name, (p).attr, (p).cnt, (p).size,      \
-	          flt_otel_list_dump(&((p).list)))
+#define FLT_OTEL_DBG_SCOPE_DATA_EVENT(h,p)                                   \
+	OTELC_DBG(DEBUG, h "%p:{ '%s' %p %zu %zu %hhu %ld.%08ld %s }", &(p), \
+	          (p).name, (p).attr, (p).cnt, (p).size, (p).ts_set,         \
+	          OTELC_TV_ARGS(&((p).ts)), flt_otel_list_dump(&((p).list)))
 
 #define FLT_OTEL_DBG_SCOPE_DATA_STATUS(h,p) \
 	OTELC_DBG(DEBUG, h "%p:{ %d '%s' }", (p), (p)->code, OTELC_STR_ARG((p)->description))
