@@ -104,10 +104,10 @@ static enum act_return flt_otel_group_action(struct act_rule *rule, struct proxy
 	/* Execute each scope defined in this group. */
 	list_for_each_entry(ph_scope, &(conf_group->ph_scopes), list) {
 		rc = flt_otel_scope_run(s, rt_ctx->filter, (flt_otel_group_data[i].smp_opt_dir == SMP_OPT_DIR_REQ) ? &(s->req) : &(s->res), ph_scope->ptr, NULL, NULL, flt_otel_group_data[i].smp_opt_dir, &err);
-		if ((rc == FLT_OTEL_RET_ERROR) && (opts & ACT_OPT_FINAL)) {
+		if ((rc == FLT_OTEL_RET_ERROR) && (opts & ACT_OPT_FINAL))
 			FLT_OTEL_LOG(LOG_ERR, FLT_OTEL_ACTION_GROUP ": scope '%s' failed in group '%s'", ph_scope->id, conf_group->id);
-			OTELC_SFREE_CLEAR(err);
-		}
+
+		OTELC_SFREE_CLEAR(err);
 	}
 
 	OTELC_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
@@ -195,6 +195,17 @@ static int flt_otel_group_check(struct act_rule *rule, struct proxy *px, char **
 	}
 
 	/*
+	 * The instrumentation section is filled in by the filter configuration
+	 * parser; this check runs before flt_otel_ops_check() can report its
+	 * absence, so a missing section must be handled here as well.
+	 */
+	if (conf->instr == NULL) {
+		FLT_OTEL_ERR("no instrumentation defined in the OpenTelemetry filter '%s' configuration", filter_id);
+
+		OTELC_RETURN_INT(0);
+	}
+
+	/*
 	 * Attempt to find if the group is defined in the OpenTelemetry filter
 	 * configuration.
 	 */
@@ -235,9 +246,11 @@ static int flt_otel_group_check(struct act_rule *rule, struct proxy *px, char **
  *
  * DESCRIPTION
  *   Provides the release_ptr callback for the FLT_OTEL_ACTION_GROUP action.
- *   This is a no-op because the group action's argument pointers reference
- *   shared configuration structures that are freed separately during filter
- *   deinitialization.
+ *   Frees the filter and group ID strings duplicated during parsing when the
+ *   rule is released before flt_otel_group_check() has resolved them (e.g. on
+ *   a configuration error).  After resolution this is a no-op because the
+ *   argument pointers reference shared configuration structures that are
+ *   freed separately during filter deinitialization.
  *
  * RETURN VALUE
  *   This function does not return a value.
@@ -245,6 +258,16 @@ static int flt_otel_group_check(struct act_rule *rule, struct proxy *px, char **
 static void flt_otel_group_release(struct act_rule *rule)
 {
 	OTELC_FUNC("%p", rule);
+
+	/*
+	 * The group slot is set only by flt_otel_group_check(); while it is
+	 * NULL, the first two slots still hold the strings duplicated during
+	 * parsing and must be freed here.
+	 */
+	if (rule->arg.act.p[FLT_OTEL_ARG_GROUP] == NULL) {
+		OTELC_SFREE_CLEAR(rule->arg.act.p[FLT_OTEL_ARG_FILTER_ID]);
+		OTELC_SFREE_CLEAR(rule->arg.act.p[FLT_OTEL_ARG_GROUP_ID]);
+	}
 
 	OTELC_RETURN();
 }
