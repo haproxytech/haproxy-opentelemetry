@@ -1273,7 +1273,7 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 	if (instr_type[i].type == OTELC_METRIC_INSTRUMENT_UPDATE) {
 		list_for_each_entry(instr, &(flt_otel_current_scope->instruments), list)
 			if ((instr->type == OTELC_METRIC_INSTRUMENT_UPDATE) && FLT_OTEL_PARSE_KEYWORD(2, instr->id)) {
-				FLT_OTEL_ERR("'%s' : already defined", args[2]);
+				FLT_OTEL_PARSE_ERR(err, "'%s' : already defined", args[2]);
 
 				OTELC_RETURN_INT(retval);
 			}
@@ -1723,6 +1723,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 	const struct flt_otel_parse_data        *pdata = NULL;
 	char                                    *err = NULL;
 	int                                      i, retval = ERR_NONE;
+	bool                                     flag_kind = false;
 
 	OTELC_FUNC("\"%s\", %d, %p, 0x%08x", OTELC_STR_ARG(file), line, args, kw_mod);
 
@@ -1774,10 +1775,12 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 						flt_otel_current_span->flag_root = 1;
 				}
 				else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_SPAN_PARENT)) {
-					if (FLT_OTEL_ARG_ISVALID(i + 1))
-						retval |= flt_otel_parse_strdup(&(flt_otel_current_span->ref_id), &(flt_otel_current_span->ref_id_len), args[++i], &err, args[1]);
-					else
+					if (!FLT_OTEL_ARG_ISVALID(i + 1))
 						FLT_OTEL_PARSE_ERR(&err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+					else if (flt_otel_current_span->ref_id != NULL)
+						FLT_OTEL_PARSE_ERR(&err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+					else
+						retval |= flt_otel_parse_strdup(&(flt_otel_current_span->ref_id), &(flt_otel_current_span->ref_id_len), args[++i], &err, args[1]);
 				}
 				else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_SPAN_LINK)) {
 					if (FLT_OTEL_ARG_ISVALID(i + 1)) {
@@ -1798,7 +1801,11 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 
 					if (!FLT_OTEL_ARG_ISVALID(i + 1)) {
 						FLT_OTEL_PARSE_ERR(&err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
-					} else {
+					}
+					else if (flag_kind) {
+						FLT_OTEL_PARSE_ERR(&err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+					}
+					else {
 						for (k = 0; k < OTELC_TABLESIZE(span_kind); k++)
 							if (FLT_OTEL_PARSE_KEYWORD(i + 1, span_kind[k].keyword)) {
 								flt_otel_current_span->kind = span_kind[k].kind;
@@ -1806,10 +1813,13 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 								break;
 							}
 
-						if (k >= OTELC_TABLESIZE(span_kind))
+						if (k >= OTELC_TABLESIZE(span_kind)) {
 							FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid span kind", args[i + 1]);
-						else
+						} else {
+							flag_kind = true;
+
 							i++;
+						}
 					}
 				}
 				else {
