@@ -646,20 +646,31 @@ timeout across all scopes is stored in conf->instr->idle_timeout.
 10.2  Initialization
 
 In flt_otel_ops_stream_start(), the runtime context's idle_timeout and idle_exp
-fields are initialized from the precomputed minimum.  The expiration tick is
-merged into the request channel's analyse_exp to ensure the stream task wakes
-at the right time.
+fields are initialized from the precomputed minimum.  The first wake-up is then
+scheduled by flooring the stream task's expiry via flt_otel_idle_expire_set().
+The channel's analyse_exp is deliberately left untouched: the analysers own
+that field and freely overwrite it (the tarpit analyser assigns its timeout
+there and the HTTP analysers reset it on completion), so an idle tick stored
+in it would be lost and the idle event would starve.  Driving the wake-up via
+the stream task keeps the idle timer firing alongside analyser-owned timeouts
+such as the tarpit.
 
 10.3  Firing
 
 flt_otel_ops_check_timeouts() checks tick_is_expired(rt_ctx->idle_exp).
 When expired:
   - The on-idle-timeout event fires via flt_otel_event_run().
-  - The timer is rescheduled for the next interval.
-  - If analyse_exp itself has expired (which would cause a tight loop), it is
-    reset before the new idle_exp is merged.
+  - The timer is rescheduled for the next interval, unless the event itself
+    disabled the filter (e.g. through 'otel-stop'), in which case it is
+    disarmed.
   - STRM_EVT_MSG is set on stream->pending_events to ensure the stream is
     re-evaluated.
+
+On every invocation, expired or not, the idle wake-up is re-asserted on the
+stream task expiry: process_stream() recomputes the task expiry from scratch
+after a foreign timer fires and the idle tick is stored nowhere else.  When
+the filter has been disabled for the stream, the callback disarms the timer
+instead, so a stale tick cannot keep waking the stream task.
 
 
 11  Group Action Integration Pattern

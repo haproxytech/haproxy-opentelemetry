@@ -294,10 +294,13 @@ and the keyword parser via INITCALL1 (parser.c).
       destroys all remaining contexts.
 
   flt_otel_ops_check_timeouts():
+    - Disarms the idle timer when the filter is disabled for the stream.
     - Checks whether the idle-timeout timer has expired; if so, fires the
-      on-idle-timeout event and reschedules the timer for the next interval.
+      on-idle-timeout event and reschedules the timer for the next interval
+      (disarming instead when the event itself disabled the filter).
     - Sets STRM_EVT_MSG on the stream's pending_events to ensure the filter is
       re-evaluated after a timeout.
+    - Re-asserts the idle wake-up on the stream task expiry on every pass.
 
 5.3  Error Handling
 
@@ -366,7 +369,8 @@ and response fetches.
     - Fires on-stream-start with chn=NULL.
     - Called when a new stream begins, before any channel processing.
     - Initializes the idle timer from the precomputed minimum idle_timeout in
-      the instrumentation configuration.
+      the instrumentation configuration and schedules the first idle wake-up
+      on the stream task expiry.
 
   stream_set_backend(s, f, be):
     - Fires on-backend-set with chn=&s->req.
@@ -379,12 +383,13 @@ and response fetches.
   check_timeouts(s, f):
     - Checks whether the idle-timeout timer has expired.
     - If expired, fires on-idle-timeout and reschedules the timer.
+    - Keeps the idle wake-up on the stream task expiry; disarms the timer
+      when the filter is disabled for the stream.
 
   channel_start_analyze(chn):
     - Enables the per-channel analyzers from pre_analyzers.
     - Fires on-client-session-start (request) or on-server-session-start
       (response).
-    - Propagates the idle-timeout expiry to the channel's analyse_exp.
 
   channel_pre_analyze(chn, an_bit):
     - Looks up the event by an_bit in the event table.

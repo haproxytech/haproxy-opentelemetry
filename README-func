@@ -66,12 +66,19 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
       attached to a stream.  Applies rate limiting, creates the runtime context,
       and sets analyzer bits.
 
+  flt_otel_idle_expire_set
+      Floors the stream task expiry to the idle tick so the task wakes at the
+      idle interval.  The idle timer is kept out of the channel's analyse_exp,
+      which the analysers own and freely overwrite.  An already expired task
+      expiry is replaced rather than merged.
+
   flt_otel_ops_stream_start
       Stream start callback (flt_ops.stream_start).  Fires the
       on-stream-start event before any channel processing begins.  The channel
       argument is NULL.  After the event, initializes the idle timer in the
       runtime context from the precomputed minimum idle_timeout in the
-      instrumentation configuration.
+      instrumentation configuration and schedules the first idle wake-up on
+      the stream task.
 
   flt_otel_ops_stream_set_backend
       Stream set-backend callback (flt_ops.stream_set_backend).  Fires the
@@ -88,14 +95,14 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
 
   flt_otel_ops_check_timeouts
       Timeout callback (flt_ops.check_timeouts).  When the idle-timeout timer
-      has expired, fires the on-idle-timeout event and reschedules the timer
-      for the next interval.  Sets the STRM_EVT_MSG pending event flag on the
-      stream.
+      has expired, fires the on-idle-timeout event and reschedules the timer,
+      disarming it instead when the filter is or becomes disabled.  Sets the
+      STRM_EVT_MSG pending event flag on the stream and re-asserts the idle
+      wake-up on the stream task expiry on every invocation.
 
   flt_otel_ops_channel_start_analyze
       Channel start-analyze callback.  Registers analyzers on the channel and
-      runs the client/server session start event.  Propagates the idle-timeout
-      expiry to the channel's analyse_exp so the stream task keeps waking.
+      runs the client/server session start event.
 
   flt_otel_ops_channel_pre_analyze
       Channel pre-analyze callback.  Maps the analyzer bit to an event index and

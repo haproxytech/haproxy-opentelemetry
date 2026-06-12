@@ -611,7 +611,9 @@ Supported keywords:
       The on-idle-timeout event fires periodically when the stream has no data
       transfer activity.  It requires the 'idle-timeout' keyword to set the
       interval.  Scopes bound to this event can create heartbeat spans, record
-      idle-time metrics, and emit idle-time log records.
+      idle-time metrics, and emit idle-time log records.  The idle timer is
+      driven by the stream task itself, so it keeps firing while an analyser
+      holds the stream, such as during a tarpit timeout.
 
       The on-backend-set event fires when a backend is assigned to the stream.
       It is not called if the frontend and backend are the same.
