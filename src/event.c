@@ -555,31 +555,35 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 	/* Inject span context into HTTP headers and variables. */
 	if (conf_span->ctx_id != NULL) {
 		struct otelc_http_headers_writer  writer;
-		struct otelc_text_map            *text_map = NULL;
+		struct otelc_text_map            *text_map = &(writer.text_map);
+		int                               i;
 
-		if (flt_otel_inject_http_headers(span->span, &writer) != FLT_OTEL_RET_ERROR) {
-			int i = 0;
-
-			if (conf_span->ctx_flags & (FLT_OTEL_CTX_USE_VARS | FLT_OTEL_CTX_USE_HEADERS)) {
-				for (text_map = &(writer.text_map); i < text_map->count; i++) {
+		/*
+		 * A failed injection may have filled part of the carrier before
+		 * giving up, so the text map is destroyed on both paths.
+		 */
+		if (flt_otel_inject_http_headers(span->span, &writer) == FLT_OTEL_RET_ERROR) {
+			/* Do nothing. */
+		}
+		else if (conf_span->ctx_flags & (FLT_OTEL_CTX_USE_VARS | FLT_OTEL_CTX_USE_HEADERS)) {
+			for (i = 0; i < text_map->count; i++) {
 #ifdef USE_OTEL_VARS
-					if (!(conf_span->ctx_flags & FLT_OTEL_CTX_USE_VARS))
-						/* Do nothing. */;
-					else if (flt_otel_var_register(FLT_OTEL_VARS_SCOPE, conf_span->ctx_id, text_map->key[i], err) == FLT_OTEL_RET_ERROR)
-						retval = FLT_OTEL_RET_ERROR;
-					else if (flt_otel_var_set(s, FLT_OTEL_VARS_SCOPE, conf_span->ctx_id, text_map->key[i], text_map->value[i], dir, err) == FLT_OTEL_RET_ERROR)
-						retval = FLT_OTEL_RET_ERROR;
+				if (!(conf_span->ctx_flags & FLT_OTEL_CTX_USE_VARS))
+					/* Do nothing. */;
+				else if (flt_otel_var_register(FLT_OTEL_VARS_SCOPE, conf_span->ctx_id, text_map->key[i], err) == FLT_OTEL_RET_ERROR)
+					retval = FLT_OTEL_RET_ERROR;
+				else if (flt_otel_var_set(s, FLT_OTEL_VARS_SCOPE, conf_span->ctx_id, text_map->key[i], text_map->value[i], dir, err) == FLT_OTEL_RET_ERROR)
+					retval = FLT_OTEL_RET_ERROR;
 #endif
 
-					if (!(conf_span->ctx_flags & FLT_OTEL_CTX_USE_HEADERS))
-						/* Do nothing. */;
-					else if (flt_otel_http_header_set(chn, conf_span->ctx_id, text_map->key[i], text_map->value[i], err) == FLT_OTEL_RET_ERROR)
-						retval = FLT_OTEL_RET_ERROR;
-				}
+				if (!(conf_span->ctx_flags & FLT_OTEL_CTX_USE_HEADERS))
+					/* Do nothing. */;
+				else if (flt_otel_http_header_set(chn, conf_span->ctx_id, text_map->key[i], text_map->value[i], err) == FLT_OTEL_RET_ERROR)
+					retval = FLT_OTEL_RET_ERROR;
 			}
-
-			otelc_text_map_destroy(&text_map);
 		}
+
+		otelc_text_map_destroy(&text_map);
 	}
 
 	OTELC_RETURN_INT(retval);
