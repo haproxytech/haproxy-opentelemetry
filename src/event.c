@@ -311,7 +311,7 @@ static int flt_otel_scope_run_instrument(struct stream *s, uint dir, struct flt_
  *   optional 'if'/'unless' condition passes, evaluates the sample expressions
  *   into a body string, resolves the optional span reference against the
  *   runtime context, and emits the log record via the logger's log_span
- *   operation.
+ *   operation.  A record whose body evaluation fails is not emitted.
  *
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
@@ -333,6 +333,7 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 		const struct timespec            *ts_ptr;
 		struct timespec                   ts_log;
 		int                               rc;
+		bool                              flag_skip = false;
 
 		OTELC_DBG(DEBUG, "run log-record '%s' -> '%s'", scope->id, conf_log->id);
 
@@ -390,7 +391,8 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 				if (sample_process(s->be, s->sess, s, dir | SMP_OPT_FINAL, expr->expr, &smp) == NULL) {
 					OTELC_DBG(NOTICE, "WARNING: failed to fetch '%s'", expr->fmt_expr);
 
-					retval = FLT_OTEL_RET_ERROR;
+					retval    = FLT_OTEL_RET_ERROR;
+					flag_skip = true;
 
 					break;
 				}
@@ -403,7 +405,8 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 
 				rc = flt_otel_sample_to_str(&(smp.data), buffer.area + buffer.data, buffer.size - buffer.data, err);
 				if (rc == FLT_OTEL_RET_ERROR) {
-					retval = FLT_OTEL_RET_ERROR;
+					retval    = FLT_OTEL_RET_ERROR;
+					flag_skip = true;
 
 					break;
 				}
@@ -413,11 +416,20 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 		}
 
 		if (buffer.area == NULL) {
-			FLT_OTEL_ERR("out of memory");
+			if (retval != FLT_OTEL_RET_ERROR)
+				FLT_OTEL_ERR("out of memory");
 
 			retval = FLT_OTEL_RET_ERROR;
 
 			otelc_kv_destroy(&(log_attr.attr), log_attr.cnt);
+
+			continue;
+		}
+
+		/* Do not emit a log record whose body evaluation failed. */
+		if (flag_skip) {
+			otelc_kv_destroy(&(log_attr.attr), log_attr.cnt);
+			OTELC_SFREE(buffer.area);
 
 			continue;
 		}
