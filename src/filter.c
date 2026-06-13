@@ -363,34 +363,17 @@ static int flt_otel_return_int(const struct filter *f, char **err, int retval)
  *   err - indirect pointer to error message string
  *
  * DESCRIPTION
- *   Error handler for filter callbacks that return void.  If <err> contains
- *   a message, the filter is disabled when hard-error mode is enabled; in
- *   soft-error mode, the error is silently cleared.  The error message is
- *   always freed before returning.
+ *   Error handler for filter callbacks that return void.  It delegates to
+ *   flt_otel_return_int() with FLT_OTEL_RET_OK, whose error condition then
+ *   reduces to the same message check, so both handlers share a single
+ *   implementation and emit a single set of diagnostics.
  *
  * RETURN VALUE
  *   This function does not return a value.
  */
 static void flt_otel_return_void(const struct filter *f, char **err)
 {
-	struct flt_otel_runtime_context *rt_ctx = f->ctx;
-
-	/* Disable the filter on hard errors; ignore on soft errors. */
-	if ((err != NULL) && (*err != NULL)) {
-		if (rt_ctx->flag_harderr) {
-			OTELC_DBG(INFO, "WARNING: filter hard-error (disabled)");
-
-			rt_ctx->flag_disabled = 1;
-
-#ifdef FLT_OTEL_USE_COUNTERS
-			_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.disabled + 1, 1);
-#endif
-		} else {
-			OTELC_DBG(INFO, "WARNING: filter soft-error");
-		}
-	}
-
-	FLT_OTEL_ERR_FREE(*err);
+	(void)flt_otel_return_int(f, err, FLT_OTEL_RET_OK);
 }
 
 
