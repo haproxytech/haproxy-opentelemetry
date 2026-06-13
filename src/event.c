@@ -132,7 +132,7 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
 		FLT_OTEL_DBG_CONF_SAMPLE_EXPR("sample expression ", expr);
 
 		if (sample_process(s->be, s->sess, s, dir | SMP_OPT_FINAL, expr->expr, &smp) == NULL) {
-			OTELC_DBG(NOTICE, "WARNING: failed to fetch '%s'", expr->fmt_expr);
+			OTELC_DBG(WARNING, "WARNING: failed to fetch instrument value '%s'", expr->fmt_expr);
 
 			retval = FLT_OTEL_RET_ERROR;
 		}
@@ -156,7 +156,7 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
 		 * arbitrary string data as a numeric measurement.
 		 */
 		if (value.u_type == OTELC_VALUE_DATA) {
-			OTELC_DBG(NOTICE, "WARNING: non-numeric value type for instrument '%s'", instr_ref->id);
+			OTELC_DBG(WARNING, "WARNING: non-numeric value type for instrument '%s'", instr_ref->id);
 
 			if (otelc_value_strtonum(&value, OTELC_VALUE_INT64) == OTELC_RET_ERROR) {
 				OTELC_SFREE(value.u.value_data);
@@ -223,7 +223,7 @@ static int flt_otel_scope_run_instrument(struct stream *s, uint dir, struct flt_
 			int64_t expected = OTELC_METRIC_INSTRUMENT_UNSET;
 			int     rc;
 
-			OTELC_DBG(DEBUG, "run instrument '%s' -> '%s'", scope->id, conf_instr->id);
+			OTELC_DBG(INFO, "create instrument '%s' -> '%s'", scope->id, conf_instr->id);
 			FLT_OTEL_DBG_CONF_INSTRUMENT("", conf_instr);
 
 			/*
@@ -241,11 +241,11 @@ static int flt_otel_scope_run_instrument(struct stream *s, uint dir, struct flt_
 			 */
 			if ((conf_instr->bounds != NULL) && (conf_instr->bounds_num > 0))
 				if (OTELC_OPS(meter, add_view, conf_instr->id, conf_instr->description, conf_instr->id, conf_instr->unit, conf_instr->type, conf_instr->aggr_type, conf_instr->bounds, conf_instr->bounds_num) == OTELC_RET_ERROR)
-					OTELC_DBG(NOTICE, "WARNING: failed to add view for instrument '%s'", conf_instr->id);
+					OTELC_DBG(WARNING, "WARNING: failed to add view for instrument '%s'", conf_instr->id);
 
 			rc = OTELC_OPS(meter, create_instrument, conf_instr->id, conf_instr->description, conf_instr->unit, conf_instr->type, NULL);
 			if (rc == OTELC_RET_ERROR) {
-				OTELC_DBG(NOTICE, "WARNING: failed to create instrument '%s'", conf_instr->id);
+				OTELC_DBG(WARNING, "WARNING: failed to create instrument '%s'", conf_instr->id);
 
 				HA_ATOMIC_STORE(&(conf_instr->idx), OTELC_METRIC_INSTRUMENT_UNSET);
 
@@ -262,7 +262,7 @@ static int flt_otel_scope_run_instrument(struct stream *s, uint dir, struct flt_
 		if (conf_instr->type == OTELC_METRIC_INSTRUMENT_UPDATE) {
 			struct flt_otel_conf_instrument *instr = conf_instr->ref;
 
-			OTELC_DBG(DEBUG, "run instrument '%s' -> '%s'", scope->id, conf_instr->id);
+			OTELC_DBG(INFO, "update instrument '%s' -> '%s'", scope->id, conf_instr->id);
 			FLT_OTEL_DBG_CONF_INSTRUMENT("", conf_instr);
 
 			/*
@@ -270,12 +270,12 @@ static int flt_otel_scope_run_instrument(struct stream *s, uint dir, struct flt_
 			 * create-form instrument.
 			 */
 			if (instr == NULL) {
-				OTELC_DBG(NOTICE, "WARNING: invalid reference instrument '%s'", conf_instr->id);
+				OTELC_DBG(WARNING, "WARNING: invalid reference instrument '%s'", conf_instr->id);
 
 				retval = FLT_OTEL_RET_ERROR;
 			}
 			else if (HA_ATOMIC_LOAD(&(instr->idx)) < 0) {
-				OTELC_DBG(NOTICE, "WARNING: instrument '%s' not yet created, skipping", instr->id);
+				OTELC_DBG(WARNING, "WARNING: instrument '%s' not yet created, skipping", instr->id);
 			}
 			else if ((flt_otel_cond_pass(instr->cond, s, dir) == 0) || (flt_otel_cond_pass(conf_instr->cond, s, dir) == 0)) {
 				/* Gated out by an if/unless condition. */
@@ -335,7 +335,7 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 		int                               rc;
 		bool                              flag_skip = false;
 
-		OTELC_DBG(DEBUG, "run log-record '%s' -> '%s'", scope->id, conf_log->id);
+		OTELC_DBG(INFO, "run log-record '%s' -> '%s'", scope->id, conf_log->id);
 
 		/* Skip if the logger is not enabled for this severity. */
 		if (OTELC_OPS(logger, enabled, conf_log->severity) == 0)
@@ -389,7 +389,7 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 				(void)memset(&smp, 0, sizeof(smp));
 
 				if (sample_process(s->be, s->sess, s, dir | SMP_OPT_FINAL, expr->expr, &smp) == NULL) {
-					OTELC_DBG(NOTICE, "WARNING: failed to fetch '%s'", expr->fmt_expr);
+					OTELC_DBG(WARNING, "WARNING: failed to fetch log-record body '%s'", expr->fmt_expr);
 
 					retval    = FLT_OTEL_RET_ERROR;
 					flag_skip = true;
@@ -451,7 +451,7 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 				}
 
 			if (otel_span == NULL)
-				OTELC_DBG(NOTICE, "WARNING: cannot find span '%s' for log-record", conf_log->span);
+				OTELC_DBG(WARNING, "WARNING: cannot find span '%s' for log-record", conf_log->span);
 		}
 
 		/*
@@ -719,7 +719,7 @@ static int flt_otel_scope_run_set_var_ctx(struct stream *s, struct filter *f, ui
 				}
 
 		if ((ref_span == NULL) && (ref_ctx == NULL)) {
-			OTELC_DBG(NOTICE, "WARNING: cannot find span/context '%s'", conf_set_var_ctx->ref);
+			OTELC_DBG(WARNING, "WARNING: cannot find span/context '%s'", conf_set_var_ctx->ref);
 
 			continue;
 		}
@@ -776,7 +776,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 	OTELC_FUNC("%p, %p, %p, %p, %p, %p, %u, %p:%p", s, f, chn, conf_scope, ts_steady, ts_system, dir, OTELC_DPTR_ARGS(err));
 
 	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s)", flt_otel_chn_label(chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s));
-	OTELC_DBG(DEBUG, "run scope '%s' %d", conf_scope->id, conf_scope->event);
+	OTELC_DBG(INFO, "run scope '%s' %d", conf_scope->id, conf_scope->event);
 	FLT_OTEL_DBG_CONF_SCOPE("run scope ", conf_scope);
 
 	/*
@@ -814,7 +814,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 		if (rc == 0) {
 			list_for_each_entry(conf_span, &(conf_scope->spans), list)
 				if (conf_span->flag_root) {
-					OTELC_DBG(LOG, "session disabled");
+					OTELC_DBG(INFO, "session disabled");
 
 					FLT_OTEL_RT_CTX(f->ctx)->flag_disabled = 1;
 
@@ -833,7 +833,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 	list_for_each_entry(conf_ctx, &(conf_scope->contexts), list) {
 		struct otelc_text_map *text_map = NULL;
 
-		OTELC_DBG(DEBUG, "run context '%s' -> '%s'", conf_scope->id, conf_ctx->id);
+		OTELC_DBG(INFO, "run context '%s' -> '%s'", conf_scope->id, conf_ctx->id);
 		FLT_OTEL_DBG_CONF_CONTEXT("run context ", conf_ctx);
 
 		/*
@@ -876,7 +876,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 		struct flt_otel_scope_span  *span;
 		struct flt_otel_conf_sample *sample;
 
-		OTELC_DBG(DEBUG, "run span '%s' -> '%s'", conf_scope->id, conf_span->id);
+		OTELC_DBG(INFO, "run span '%s' -> '%s'", conf_scope->id, conf_span->id);
 		FLT_OTEL_DBG_CONF_SPAN("run span ", conf_span);
 
 		flt_otel_scope_data_init(&data);
@@ -921,7 +921,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 				}
 
 				if ((link_span == NULL) && (link_ctx == NULL)) {
-					OTELC_DBG(NOTICE, "WARNING: cannot find linked span/context '%s'", conf_link->ref);
+					OTELC_DBG(WARNING, "WARNING: cannot find linked span/context '%s'", conf_link->ref);
 
 					continue;
 				}
@@ -1052,7 +1052,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 	 * scopes belonging to the same connection.
 	 */
 	if (flag_stop) {
-		OTELC_DBG(LOG, "session stopped");
+		OTELC_DBG(INFO, "session stopped");
 
 		FLT_OTEL_RT_CTX(f->ctx)->flag_disabled = 1;
 
@@ -1098,7 +1098,7 @@ int flt_otel_event_run(struct stream *s, struct filter *f, struct channel *chn, 
 	OTELC_FUNC("%p, %p, %p, %d, %p:%p", s, f, chn, event, OTELC_DPTR_ARGS(err));
 
 	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s)", flt_otel_chn_label(chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s));
-	OTELC_DBG(DEBUG, "run event '%s' %d %s", flt_otel_event_data[event].name, event, flt_otel_event_data[event].an_name);
+	OTELC_DBG(INFO, "run event '%s' %d %s", flt_otel_event_data[event].name, event, flt_otel_event_data[event].an_name);
 
 #ifdef DEBUG_OTEL
 	/* Only an HTX stream's buffer may be interpreted as an HTX structure. */
@@ -1130,7 +1130,7 @@ int flt_otel_event_run(struct stream *s, struct filter *f, struct channel *chn, 
 #endif
 	flt_otel_http_headers_dump(chn);
 
-	OTELC_DBG(DEBUG, "event = %d %s, chn = %p, s->req = %p, s->res = %p", event, flt_otel_event_data[event].an_name, chn, &(s->req), &(s->res));
+	OTELC_DBG(DEBUG, "event: %d %s, chn: %p, req: %p, res: %p", event, flt_otel_event_data[event].an_name, chn, &(s->req), &(s->res));
 
 	OTELC_RETURN_INT(retval);
 }

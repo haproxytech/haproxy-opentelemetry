@@ -157,7 +157,7 @@ static int flt_otel_text_map_reader_foreach_key_cb(const struct otelc_text_map_r
 	OTELC_FUNC("%p, %p, %p", reader, handler, arg);
 
 	for (i = 0; (retval != -1) && (i < reader->text_map.count); i++) {
-		OTELC_DBG(OTELC, "\"%s\" -> \"%s\"", OTELC_STR_ARG(reader->text_map.key[i]), OTELC_STR_ARG(reader->text_map.value[i]));
+		OTELC_DBG(OTELC, "text map '%s' -> '%s'", OTELC_STR_ARG(reader->text_map.key[i]), OTELC_STR_ARG(reader->text_map.value[i]));
 
 		retval = handler(arg, reader->text_map.key[i], reader->text_map.value[i]);
 	}
@@ -194,7 +194,7 @@ static int flt_otel_http_headers_reader_foreach_key_cb(const struct otelc_http_h
 	OTELC_FUNC("%p, %p, %p", reader, handler, arg);
 
 	for (i = 0; (retval != -1) && (i < reader->text_map.count); i++) {
-		OTELC_DBG(OTELC, "\"%s\" -> \"%s\"", OTELC_STR_ARG(reader->text_map.key[i]), OTELC_STR_ARG(reader->text_map.value[i]));
+		OTELC_DBG(OTELC, "HTTP header '%s' -> '%s'", OTELC_STR_ARG(reader->text_map.key[i]), OTELC_STR_ARG(reader->text_map.value[i]));
 
 		retval = handler(arg, reader->text_map.key[i], reader->text_map.value[i]);
 	}

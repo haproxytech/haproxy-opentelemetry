@@ -75,7 +75,7 @@ static enum act_return flt_otel_group_action(struct act_rule *rule, struct proxy
 		}
 
 	if (rt_ctx == NULL) {
-		OTELC_DBG(INFO, "cannot find filter, probably not attached to the stream");
+		OTELC_DBG(WARNING, "WARNING: cannot find filter, probably not attached to the stream");
 
 		OTELC_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
 	}
@@ -83,7 +83,7 @@ static enum act_return flt_otel_group_action(struct act_rule *rule, struct proxy
 		OTELC_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
 	}
 	else {
-		OTELC_DBG(DEBUG, "run group '%s'", conf_group->id);
+		OTELC_DBG(INFO, "run group '%s'", conf_group->id);
 		FLT_OTEL_DBG_CONF_GROUP("run group ", conf_group);
 	}
 
@@ -153,7 +153,7 @@ static int flt_otel_group_check(struct act_rule *rule, struct proxy *px, char **
 	filter_id = rule->arg.act.p[FLT_OTEL_ARG_FILTER_ID];
 	group_id  = rule->arg.act.p[FLT_OTEL_ARG_GROUP_ID];
 
-	OTELC_DBG(NOTICE, "checking filter_id='%s', group_id='%s'", filter_id, group_id);
+	OTELC_DBG(DEBUG, "checking filter '%s', group '%s'", filter_id, group_id);
 
 	/*
 	 * Check the value of rule->from; in case it is incorrect, report an

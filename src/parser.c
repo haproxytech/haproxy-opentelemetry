@@ -420,7 +420,7 @@ static int flt_otel_parse_cfg_sample(const char *file, int line, char **args, in
 		flt_otel_current_config->proxy->conf.args.file = NULL;
 		flt_otel_current_config->proxy->conf.args.line = 0;
 
-		OTELC_DBG(DEBUG, "sample '%s' -> '%s' added, (%d %d)", sample->key, sample->fmt_string, sample->num_exprs, count);
+		OTELC_DBG(DEBUG, "sample '%s' -> '%s' added (num_exprs %d, parsed %d)", sample->key, sample->fmt_string, sample->num_exprs, count);
 	}
 
 	if (retval & ERR_CODE)
@@ -916,7 +916,7 @@ static int flt_otel_parse_cfg_scope_ctx(char **args, int cur_arg, char **err)
 	else
 		flt_otel_current_span->ctx_flags |= flags;
 
-	OTELC_DBG(NOTICE, "ctx_flags: 0x%02hhx (0x%02hhx)", flt_otel_current_span->ctx_flags, flags);
+	OTELC_DBG(DEBUG, "ctx_flags: 0x%02hhx (0x%02hhx)", flt_otel_current_span->ctx_flags, flags);
 
 	OTELC_RETURN_INT(retval);
 }
@@ -958,7 +958,7 @@ static struct acl_cond *flt_otel_parse_acl(const char *file, int line, struct pr
 	for (va_start(ap, head); (retptr == NULL) && (head != NULL); head = va_arg(ap, typeof(head)), n++) {
 		retptr = build_acl_cond(file, line, head, px, args, (n == 0) ? err : NULL);
 		if (retptr != NULL)
-			OTELC_DBG(NOTICE, "ACL build done, using list %p %d", head, n);
+			OTELC_DBG(DEBUG, "ACL build done, using list %p %d", head, n);
 	}
 	va_end(ap);
 
@@ -2375,7 +2375,7 @@ static int flt_otel_parse(char **args, int *cur_arg, struct proxy *px, struct fl
 
 		*cur_arg = pos;
 
-		OTELC_DBG(DEBUG, "filter set: id '%s', config '%s'", conf->id, conf->cfg_file);
+		OTELC_DBG(INFO, "filter set: id '%s', config '%s'", conf->id, conf->cfg_file);
 		FLT_OTEL_DBG_CONF("- conf ", (typeof(conf))fconf->conf);
 	}
 

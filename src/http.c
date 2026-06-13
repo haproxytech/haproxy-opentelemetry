@@ -47,7 +47,7 @@ void flt_otel_http_headers_dump(const struct channel *chn)
 			struct ist n = htx_get_blk_name(htx, blk);
 			struct ist v = htx_get_blk_value(htx, blk);
 
-			OTELC_DBG(NOTICE, "'%.*s: %.*s'", (int)n.len, n.ptr, (int)v.len, v.ptr);
+			OTELC_DBG(DEBUG, "'%.*s: %.*s'", (int)n.len, n.ptr, (int)v.len, v.ptr);
 		}
 		else if (type == HTX_BLK_EOH)
 			break;
@@ -166,7 +166,7 @@ struct otelc_text_map *flt_otel_http_headers_get(struct channel *chn, const char
 	OTELC_TEXT_MAP_DUMP(retptr, "extracted HTTP headers");
 
 	if ((retptr != NULL) && (retptr->count == 0)) {
-		OTELC_DBG(NOTICE, "WARNING: no HTTP headers found");
+		OTELC_DBG(WARNING, "WARNING: no HTTP headers found");
 
 		otelc_text_map_destroy(&retptr);
 	}

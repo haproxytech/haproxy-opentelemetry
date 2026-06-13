@@ -63,13 +63,13 @@ void flt_otel_filters_dump(void)
 	OTELC_FUNC("");
 
 	for (px = proxies_list; px != NULL; px = px->next) {
-		OTELC_DBG(NOTICE, "proxy '%s'", px->id);
+		OTELC_DBG(DEBUG, "proxy '%s'", px->id);
 
 		list_for_each_entry(fconf, &(px->filter_configs), list)
 			if (fconf->id == otel_flt_id) {
 				struct flt_otel_conf *conf = fconf->conf;
 
-				OTELC_DBG(NOTICE, "  OTEL filter '%s'", conf->id);
+				OTELC_DBG(DEBUG, "  OTEL filter '%s'", conf->id);
 			}
 	}
 
@@ -962,7 +962,7 @@ int flt_otel_sample_eval(struct stream *s, uint dir, struct flt_otel_conf_sample
 			if (sample_process(s->be, s->sess, s, dir | SMP_OPT_FINAL, expr->expr, &smp) != NULL) {
 				OTELC_DBG(DEBUG, "data type %d: '%s'", smp.data.type, expr->fmt_expr);
 			} else {
-				OTELC_DBG(NOTICE, "WARNING: failed to fetch '%s' value", expr->fmt_expr);
+				OTELC_DBG(WARNING, "WARNING: failed to fetch sample '%s'", expr->fmt_expr);
 
 				/*
 				 * In case the fetch failed, we will set the result
@@ -1067,7 +1067,7 @@ int flt_otel_sample_eval_time(struct stream *s, uint dir, struct flt_otel_conf_s
 		if (value.u_type == OTELC_VALUE_DATA)
 			if (!OTELC_STR_IS_VALID((const char *)value.u.value_data) ||
 			    (otelc_value_strtonum(&value, OTELC_VALUE_INT64) == OTELC_RET_ERROR)) {
-				OTELC_DBG(NOTICE, "WARNING: 'time' value not numeric");
+				OTELC_DBG(WARNING, "WARNING: 'time' value not numeric");
 
 				OTELC_SFREE(value.u.value_data);
 				value.u_type = OTELC_VALUE_NULL;
@@ -1078,7 +1078,7 @@ int flt_otel_sample_eval_time(struct stream *s, uint dir, struct flt_otel_conf_s
 		 * sub-second unit yields a negative tv_nsec), so ignore it.
 		 */
 		if ((value.u_type == OTELC_VALUE_INT64) && (value.u.value_int64 < 0)) {
-			OTELC_DBG(NOTICE, "WARNING: 'time' value is negative");
+			OTELC_DBG(WARNING, "WARNING: 'time' value is negative");
 
 			value.u_type = OTELC_VALUE_NULL;
 		}
@@ -1378,7 +1378,7 @@ int flt_otel_ctx_field_to_str(const struct otelc_span *span, const struct otelc_
 	}
 	else if (field == FLT_OTEL_VAR_FIELD_TRACESTATE) {
 		if (context == NULL)
-			OTELC_DBG(NOTICE, "WARNING: tracestate is only available for a context reference");
+			OTELC_DBG(WARNING, "WARNING: tracestate is only available for a context reference");
 		else if (field_key != NULL) {
 			if (OTELC_OPS(context, trace_state_get, field_key, value, size) == OTELC_RET_ERROR)
 				value[0] = '\0';

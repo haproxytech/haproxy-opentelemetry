@@ -54,7 +54,7 @@ int flt_otel_var_register_byname(const char *name, char **err)
 		else
 			FLT_OTEL_ERR("failed to register variable '%s'", var_name);
 	} else {
-		OTELC_DBG(NOTICE, "variable '%s' registered", var_name);
+		OTELC_DBG(DEBUG, "variable '%s' registered", var_name);
 
 		retval = FLT_OTEL_RET_OK;
 	}
@@ -106,7 +106,7 @@ int flt_otel_var_set_byname(struct stream *s, const char *name, const char *valu
 	if (vars_set_by_name_ifexist(name, strlen(name), &smp) == 0) {
 		FLT_OTEL_ERR("failed to set variable '%s'", name);
 	} else {
-		OTELC_DBG(NOTICE, "variable '%s' set to '%s'", name, OTELC_STR_ARG(value));
+		OTELC_DBG(DEBUG, "variable '%s' set to '%s'", name, OTELC_STR_ARG(value));
 
 		retval = FLT_OTEL_RET_OK;
 	}
@@ -153,9 +153,9 @@ int flt_otel_var_unset_byname(struct stream *s, const char *name, uint opt, char
 	(void)smp_set_owner(&smp, s->be, s->sess, s, opt | SMP_OPT_FINAL);
 
 	if (vars_unset_by_name_ifexist(name, strlen(name), &smp) == 0)
-		OTELC_DBG(NOTICE, "variable '%s' not unset (absent)", name);
+		OTELC_DBG(WARNING, "WARNING: variable '%s' not found", name);
 	else
-		OTELC_DBG(NOTICE, "variable '%s' unset", name);
+		OTELC_DBG(DEBUG, "variable '%s' unset", name);
 
 	retval = FLT_OTEL_RET_OK;
 
@@ -202,7 +202,7 @@ static void flt_otel_vars_scope_dump(struct vars *vars, const char *scope)
 		for ( ; node != NULL; node = cebu64_imm_next(&(vars->name_root[i]), node)) {
 			struct var *var = container_of(node, struct var, name_node);
 
-			OTELC_DBG(NOTICE, "'%s.%016" PRIx64 "' -> '%.*s'", scope, var->name_hash, (int)b_data(&(var->data.u.str)), b_orig(&(var->data.u.str)));
+			OTELC_DBG(DEBUG, "'%s.%016" PRIx64 "' -> '%.*s'", scope, var->name_hash, (int)b_data(&(var->data.u.str)), b_orig(&(var->data.u.str)));
 		}
 	}
 	vars_rdunlock(vars);
@@ -340,7 +340,7 @@ static int flt_otel_normalize_name(char *var_name, size_t size, int *len, const 
 		var_name[*len] = '\0';
 	}
 
-	OTELC_DBG(DEBUG, "var_name: \"%s\" %d/%d", OTELC_STR_ARG(var_name), retval, *len);
+	OTELC_DBG(DEBUG, "var_name: '%s' %d/%d", OTELC_STR_ARG(var_name), retval, *len);
 
 	if (retval == FLT_OTEL_RET_ERROR)
 		*len = retval;
@@ -505,7 +505,7 @@ static int flt_otel_smp_add(struct sample_data *data, const char *name, size_t l
 
 	OTELC_FUNC("%p, \"%.*s\", %zu, %p:%p", data, (int)len, name, len, OTELC_DPTR_ARGS(err));
 
-	FLT_OTEL_DBG_BUF(INFO, &(data->u.str));
+	FLT_OTEL_DBG_BUF(DEBUG, &(data->u.str));
 
 	/* Lazily allocate the sample buffer on first use. */
 	if (b_orig(&(data->u.str)) == NULL) {
@@ -531,7 +531,7 @@ static int flt_otel_smp_add(struct sample_data *data, const char *name, size_t l
 		b_putchr(&(data->u.str), len);
 		(void)__b_putblk(&(data->u.str), name, len);
 
-		FLT_OTEL_DBG_BUF(INFO, &(data->u.str));
+		FLT_OTEL_DBG_BUF(DEBUG, &(data->u.str));
 	}
 
 	if ((retval == FLT_OTEL_RET_ERROR) && flag_alloc)
@@ -591,7 +591,7 @@ static int flt_otel_ctx_loop(struct sample *smp, const char *scope, const char *
 	 * saved names.
 	 */
 	if (vars_get_by_name(var_name, var_name_len, smp, NULL) == 0) {
-		OTELC_DBG(NOTICE, "ctx '%s' no variable found", var_name);
+		OTELC_DBG(NOTICE, "ctx '%s' tracking variable not found", var_name);
 	}
 	else if (smp->data.type != SMP_T_BIN) {
 		FLT_OTEL_ERR("ctx '%s' invalid data type %d", var_name, smp->data.type);
@@ -599,7 +599,7 @@ static int flt_otel_ctx_loop(struct sample *smp, const char *scope, const char *
 		retval = FLT_OTEL_RET_ERROR;
 	}
 	else {
-		FLT_OTEL_DBG_BUF(INFO, &(smp->data.u.str));
+		FLT_OTEL_DBG_BUF(DEBUG, &(smp->data.u.str));
 
 		for (i = 0; i < b_data(&(smp->data.u.str)); i += sizeof(var_ctx_size) + var_ctx_len, n++) {
 			var_ctx_size = *((typeof(var_ctx_size) *)(b_orig(&(smp->data.u.str)) + i));
@@ -666,7 +666,7 @@ static int flt_otel_ctx_set_cb(struct sample *smp, size_t idx, const char *scope
 	OTELC_FUNC("%p, %zu, \"%s\", \"%s\", \"%s\", %hhd, %p:%p, %p", smp, idx, OTELC_STR_ARG(scope), OTELC_STR_ARG(prefix), OTELC_STR_ARG(name), name_len, OTELC_DPTR_ARGS(err), ptr);
 
 	if ((name_len == ctx->value_len) && (strncmp(name, ctx->value, name_len) == 0)) {
-		OTELC_DBG(NOTICE, "ctx '%s' found", name);
+		OTELC_DBG(DEBUG, "ctx '%s' found", name);
 
 		retval = 1;
 	}
@@ -742,7 +742,7 @@ static int flt_otel_ctx_set(struct stream *s, const char *scope, const char *pre
 		/* Do nothing. */
 	}
 	else if (retval > 0) {
-		OTELC_DBG(NOTICE, "ctx '%s' data found", ctx.value);
+		OTELC_DBG(DEBUG, "ctx '%s' data found", ctx.value);
 	}
 	else if (vars_set_by_name_ifexist(var_name, var_name_len, &smp_ctx) == 0) {
 		FLT_OTEL_ERR("failed to set ctx '%s'", var_name);
@@ -750,7 +750,7 @@ static int flt_otel_ctx_set(struct stream *s, const char *scope, const char *pre
 		retval = FLT_OTEL_RET_ERROR;
 	}
 	else {
-		OTELC_DBG(NOTICE, "ctx '%s' -> '%.*s' set", var_name, (int)b_data(&(smp_ctx.data.u.str)), b_orig(&(smp_ctx.data.u.str)));
+		OTELC_DBG(DEBUG, "ctx '%s' -> '%.*s' set", var_name, (int)b_data(&(smp_ctx.data.u.str)), b_orig(&(smp_ctx.data.u.str)));
 
 		retval = b_data(&(smp_ctx.data.u.str));
 	}
@@ -807,7 +807,7 @@ static int flt_otel_vars_unset_cb(struct sample *smp, size_t idx, const char *sc
 	if (vars_unset_by_name_ifexist(var_ctx, var_ctx_len, &smp_ctx) == 0) {
 		FLT_OTEL_ERR("ctx '%s' no variable found", var_ctx);
 	} else {
-		OTELC_DBG(NOTICE, "ctx '%s' unset", var_ctx);
+		OTELC_DBG(DEBUG, "ctx '%s' unset", var_ctx);
 
 		retval = 0;
 	}
@@ -863,9 +863,9 @@ int flt_otel_vars_unset(struct stream *s, const char *scope, const char *prefix,
 		flt_otel_smp_init(s, &smp_ctx, opt, 0, NULL);
 
 		if (vars_unset_by_name_ifexist(var_name, var_name_len, &smp_ctx) == 0) {
-			OTELC_DBG(NOTICE, "variable '%s' not found", var_name);
+			OTELC_DBG(WARNING, "WARNING: tracking variable '%s' not found", var_name);
 		} else {
-			OTELC_DBG(NOTICE, "variable '%s' unset", var_name);
+			OTELC_DBG(DEBUG, "tracking variable '%s' unset", var_name);
 
 			retval = 1;
 		}
@@ -923,7 +923,7 @@ static int flt_otel_vars_get_cb(struct sample *smp, size_t idx, const char *scop
 
 	/* Retrieve the context variable and build a text map entry. */
 	if (vars_get_by_name(var_ctx, var_ctx_len, &smp_ctx, NULL) != 0) {
-		OTELC_DBG(NOTICE, "'%s' -> '%.*s'", var_ctx, (int)b_data(&(smp_ctx.data.u.str)), b_orig(&(smp_ctx.data.u.str)));
+		OTELC_DBG(DEBUG, "'%s' -> '%.*s'", var_ctx, (int)b_data(&(smp_ctx.data.u.str)), b_orig(&(smp_ctx.data.u.str)));
 
 		if (*map == NULL) {
 			*map = OTELC_TEXT_MAP_NEW(NULL, 8);
@@ -950,7 +950,7 @@ static int flt_otel_vars_get_cb(struct sample *smp, size_t idx, const char *scop
 			retval = 0;
 		}
 	} else {
-		OTELC_DBG(NOTICE, "ctx '%s' no variable found", var_ctx);
+		OTELC_DBG(WARNING, "WARNING: ctx variable '%s' not found", var_ctx);
 	}
 
 	OTELC_RETURN_INT(retval);
@@ -995,7 +995,7 @@ struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, co
 	OTELC_TEXT_MAP_DUMP(retptr, "extracted variables");
 
 	if ((retptr != NULL) && (retptr->count == 0)) {
-		OTELC_DBG(NOTICE, "WARNING: no variables found");
+		OTELC_DBG(WARNING, "WARNING: no variables found");
 
 		otelc_text_map_destroy(&retptr);
 	}
@@ -1093,7 +1093,7 @@ int flt_otel_vars_unset(struct stream *s, const char *scope, const char *prefix,
 			if ((var->name != NULL) &&
 			    (strncmp(var->name, norm_prefix, prefix_len) == 0) &&
 			    (var->name[prefix_len] == '.')) {
-				OTELC_DBG(NOTICE, "prefix unset '%s'", var->name);
+				OTELC_DBG(DEBUG, "prefix unset '%s'", var->name);
 
 				size += var_clear(vars, var, 1);
 				retval++;
@@ -1183,7 +1183,7 @@ struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, co
 				continue;
 			}
 
-			OTELC_DBG(NOTICE, "'%s' -> '%.*s'", var->name, (int)b_data(&(var->data.u.str)), b_orig(&(var->data.u.str)));
+			OTELC_DBG(DEBUG, "'%s' -> '%.*s'", var->name, (int)b_data(&(var->data.u.str)), b_orig(&(var->data.u.str)));
 
 			if (retptr == NULL) {
 				retptr = OTELC_TEXT_MAP_NEW(NULL, 8);
@@ -1208,7 +1208,7 @@ struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, co
 	OTELC_TEXT_MAP_DUMP(retptr, "extracted variables");
 
 	if ((retptr != NULL) && (retptr->count == 0)) {
-		OTELC_DBG(NOTICE, "WARNING: no variables found");
+		OTELC_DBG(WARNING, "WARNING: no variables found");
 
 		otelc_text_map_destroy(&retptr);
 	}

@@ -294,9 +294,9 @@ bool flt_otel_is_disabled(const struct filter *f FLT_OTEL_DBG_ARGS(, int event))
 	msg    = retval ? " (disabled)" : "";
 
 	if (OTELC_IN_RANGE(event, 0, FLT_OTEL_EVENT_MAX - 1))
-		OTELC_DBG(NOTICE, "filter '%s', type: %s, event: '%s' %d%s", conf->id, flt_otel_type(f), flt_otel_event_data[event].name, event, msg);
+		OTELC_DBG(DEBUG, "filter '%s', type: %s, event: '%s' %d%s", conf->id, flt_otel_type(f), flt_otel_event_data[event].name, event, msg);
 	else
-		OTELC_DBG(NOTICE, "filter '%s', type: %s%s", conf->id, flt_otel_type(f), msg);
+		OTELC_DBG(DEBUG, "filter '%s', type: %s%s", conf->id, flt_otel_type(f), msg);
 #endif
 
 	return retval;
@@ -331,7 +331,7 @@ static int flt_otel_return_int(const struct filter *f, char **err, int retval)
 	/* Disable the filter on hard errors; ignore on soft errors. */
 	if ((retval == FLT_OTEL_RET_ERROR) || ((err != NULL) && (*err != NULL))) {
 		if (rt_ctx->flag_harderr) {
-			OTELC_DBG(INFO, "WARNING: filter hard-error (disabled)");
+			OTELC_DBG(WARNING, "WARNING: filter hard-error (disabled)");
 
 			rt_ctx->flag_disabled = 1;
 
@@ -339,7 +339,7 @@ static int flt_otel_return_int(const struct filter *f, char **err, int retval)
 			_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.disabled + 1, 1);
 #endif
 		} else {
-			OTELC_DBG(INFO, "WARNING: filter soft-error");
+			OTELC_DBG(WARNING, "WARNING: filter soft-error");
 		}
 
 		retval = FLT_OTEL_RET_OK;
@@ -468,16 +468,16 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 
 #ifdef DEBUG_OTEL
 	otelc_statistics(buffer, sizeof(buffer));
-	OTELC_DBG(LOG, "%s", buffer);
+	OTELC_DBG(INFO, "%s", buffer);
 
 #  ifdef FLT_OTEL_USE_COUNTERS
-	OTELC_DBG(LOG, "attach counters: %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, (*conf)->cnt.attached[0], (*conf)->cnt.attached[1], (*conf)->cnt.attached[2], (*conf)->cnt.attached[3]);
+	OTELC_DBG(INFO, "attach counters: %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, (*conf)->cnt.attached[0], (*conf)->cnt.attached[1], (*conf)->cnt.attached[2], (*conf)->cnt.attached[3]);
 #  endif
 
-	OTELC_DBG(LOG, "--- used events ----------");
+	OTELC_DBG(INFO, "--- used events ----------");
 	for (i = 0; i < OTELC_TABLESIZE((*conf)->cnt.event); i++)
 		if ((*conf)->cnt.event[i].flag_used)
-			OTELC_DBG(LOG, "  %02d %25s: %" PRIu64 " / %" PRIu64, i, flt_otel_event_data[i].an_name, (*conf)->cnt.event[i].htx[0], (*conf)->cnt.event[i].htx[1]);
+			OTELC_DBG(INFO, "  %02d %25s: %" PRIu64 " / %" PRIu64, i, flt_otel_event_data[i].an_name, (*conf)->cnt.event[i].htx[0], (*conf)->cnt.event[i].htx[1]);
 #endif /* DEBUG_OTEL */
 
 	/*
@@ -574,7 +574,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	for (px = proxies_list; px != NULL; px = px->next) {
 		struct flt_conf *fconf_tmp;
 
-		OTELC_DBG(NOTICE, "proxy '%s'", px->id);
+		OTELC_DBG(DEBUG, "check proxy '%s'", px->id);
 
 		/*
 		 * The names of all OTEL filters (filter ID) should be checked,
@@ -584,7 +584,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 			if ((fconf_tmp != fconf) && (fconf_tmp->id == otel_flt_id)) {
 				struct flt_otel_conf *conf_tmp = fconf_tmp->conf;
 
-				OTELC_DBG(NOTICE, "  OTEL filter '%s'", conf_tmp->id);
+				OTELC_DBG(DEBUG, "  check OTEL filter '%s'", conf_tmp->id);
 
 				if (strcmp(conf_tmp->id, conf->id) == 0) {
 					FLT_OTEL_ALERT("''%s' : duplicated filter ID'", conf_tmp->id);
@@ -1064,7 +1064,7 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 
 	/* Skip attachment when the filter is globally disabled. */
 	if (_HA_ATOMIC_LOAD(&(conf->instr->flag_disabled))) {
-		OTELC_DBG(NOTICE, "filter '%s', type: %s (disabled)", conf->id, flt_otel_type(f));
+		OTELC_DBG(DEBUG, "filter '%s', type: %s (disabled)", conf->id, flt_otel_type(f));
 
 #ifdef FLT_OTEL_USE_COUNTERS
 		_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 2, 1);
@@ -1079,7 +1079,7 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 			uint32_t rnd = ha_random32();
 
 			if (rate <= rnd) {
-				OTELC_DBG(NOTICE, "filter '%s', type: %s (ignored: %u <= %u)", conf->id, flt_otel_type(f), rate, rnd);
+				OTELC_DBG(DEBUG, "filter '%s', type: %s (ignored: %u <= %u)", conf->id, flt_otel_type(f), rate, rnd);
 
 #ifdef FLT_OTEL_USE_COUNTERS
 				_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 1, 1);
@@ -1090,7 +1090,7 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 		}
 	}
 
-	OTELC_DBG(NOTICE, "filter '%s', type: %s (run)", conf->id, flt_otel_type(f));
+	OTELC_DBG(DEBUG, "filter '%s', type: %s (run)", conf->id, flt_otel_type(f));
 
 	/* Create the per-stream runtime context. */
 	f->ctx = flt_otel_runtime_context_init(s, f, &err);
@@ -1248,7 +1248,7 @@ static int flt_otel_ops_stream_set_backend(struct stream *s, struct filter *f, s
 	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, FLT_OTEL_EVENT__BACKEND_SET)))
 		OTELC_RETURN_INT(retval);
 
-	OTELC_DBG(DEBUG, "backend: %s", be->id);
+	OTELC_DBG(DEBUG, "backend '%s'", be->id);
 
 	(void)flt_otel_event_run(s, f, &(s->req), FLT_OTEL_EVENT__BACKEND_SET, &err);
 
@@ -1316,7 +1316,7 @@ static void flt_otel_ops_detach(struct stream *s, struct filter *f)
 {
 	OTELC_FUNC("%p, %p", s, f);
 
-	OTELC_DBG(NOTICE, "filter '%s', type: %s", FLT_OTEL_CONF(f)->id, flt_otel_type(f));
+	OTELC_DBG(DEBUG, "filter '%s', type: %s", FLT_OTEL_CONF(f)->id, flt_otel_type(f));
 
 	flt_otel_runtime_context_free(f);
 

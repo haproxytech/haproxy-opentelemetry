@@ -48,7 +48,7 @@
 		if (!FLT_OTEL_LIST_ISVALID(h) || LIST_ISEMPTY(h))                      \
 			break;                                                         \
 		                                                                       \
-		OTELC_DBG(NOTICE, "- deleting " #t " list %s", flt_otel_list_dump(h)); \
+		OTELC_DBG(DEBUG, "- deleting " #t " list %s", flt_otel_list_dump(h));  \
 		                                                                       \
 		list_for_each_entry_safe(_ptr, _back, (h), list)                       \
 			flt_otel_conf_##t##_free(&_ptr);                               \
@@ -82,8 +82,8 @@
 		if ((p) == NULL)                                             \
 			break;                                               \
 		                                                             \
-		OTELC_DBG(LOG, "%s:%d: ERROR: %s", __func__, __LINE__, (p)); \
-		OTELC_SFREE_CLEAR(p);                                        \
+		OTELC_DBG(ERROR, "%s:%d: ERROR: %s", __func__, __LINE__, (p)); \
+		OTELC_SFREE_CLEAR(p);                                          \
 	} while (0)
 
 #endif /* _OTEL_DEFINE_H_ */

@@ -35,7 +35,7 @@
 		if (!(conf->instr->logging & FLT_OTEL_LOGGING_ON))                                                               \
 			OTELC_DBG(DEBUG, "NOLOG[%d]: [" FLT_OTEL_SCOPE "]: [%s] " f, (l), conf->id, ##__VA_ARGS__);              \
 		else if ((conf->instr->logging & FLT_OTEL_LOGGING_NOLOGNORM) && ((l) > LOG_ERR))                                 \
-			OTELC_DBG(NOTICE, "NOLOG[%d]: [" FLT_OTEL_SCOPE "]: [%s] " f, (l), conf->id, ##__VA_ARGS__);             \
+			OTELC_DBG(DEBUG, "NOLOG[%d]: [" FLT_OTEL_SCOPE "]: [%s] " f, (l), conf->id, ##__VA_ARGS__);              \
 		else {                                                                                                           \
 			send_log(&(conf->instr->proxy_log), (l), "[" FLT_OTEL_SCOPE "]: [%s] " f "\n", conf->id, ##__VA_ARGS__); \
 			                                                                                                         \

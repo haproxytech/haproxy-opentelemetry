@@ -942,13 +942,13 @@ FLT_OTEL_CONF_FUNC_FREE(instr, id,
 	FLT_OTEL_DBG_CONF_INSTR("- conf_instr free ", *ptr);
 
 	OTELC_SFREE((*ptr)->config);
-	OTELC_DBG(NOTICE, "- deleting acls list %s", flt_otel_list_dump(&((*ptr)->acls)));
+	OTELC_DBG(DEBUG, "- deleting acls list %s", flt_otel_list_dump(&((*ptr)->acls)));
 	list_for_each_entry_safe(acl, aclback, &((*ptr)->acls), list) {
 		prune_acl(acl);
 		FLT_OTEL_LIST_DEL(&(acl->list));
 		OTELC_SFREE(acl);
 	}
-	OTELC_DBG(NOTICE, "- deleting proxy_log.loggers list %s", flt_otel_list_dump(&((*ptr)->proxy_log.loggers)));
+	OTELC_DBG(DEBUG, "- deleting proxy_log.loggers list %s", flt_otel_list_dump(&((*ptr)->proxy_log.loggers)));
 	list_for_each_entry_safe(logger, loggerback, &((*ptr)->proxy_log.loggers), list) {
 		LIST_DELETE(&(logger->list));
 		ha_free(&logger);

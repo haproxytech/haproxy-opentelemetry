@@ -167,7 +167,7 @@ struct flt_otel_scope_span *flt_otel_scope_span_init(struct flt_otel_runtime_con
 	/* Return the existing span if one matches this ID. */
 	list_for_each_entry(span, &(rt_ctx->spans), list)
 		if (FLT_OTEL_CONF_STR_CMP(span->id, id)) {
-			OTELC_DBG(NOTICE, "found span %p", span);
+			OTELC_DBG(DEBUG, "found span '%s' %p", span->id, span);
 
 			OTELC_RETURN_PTR(span);
 		}
@@ -182,7 +182,7 @@ struct flt_otel_scope_span *flt_otel_scope_span_init(struct flt_otel_runtime_con
 			}
 
 		if (ref_span != NULL) {
-			OTELC_DBG(NOTICE, "found referenced span %p", span);
+			OTELC_DBG(DEBUG, "found referenced span '%s' %p", ref_id, span);
 		} else {
 			list_for_each_entry(ctx, &(rt_ctx->contexts), list)
 				if (FLT_OTEL_CONF_STR_CMP(ctx->id, ref_id)) {
@@ -192,7 +192,7 @@ struct flt_otel_scope_span *flt_otel_scope_span_init(struct flt_otel_runtime_con
 				}
 
 			if (ref_ctx != NULL) {
-				OTELC_DBG(NOTICE, "found referenced context %p", ctx);
+				OTELC_DBG(DEBUG, "found referenced context '%s' %p", ref_id, ctx);
 			} else {
 				/*
 				 * An unresolved reference is not an error: a
@@ -201,7 +201,7 @@ struct flt_otel_scope_span *flt_otel_scope_span_init(struct flt_otel_runtime_con
 				 * root span -- the same treatment unresolved
 				 * link and set-var-ctx references receive.
 				 */
-				OTELC_DBG(NOTICE, "WARNING: cannot find referenced span/context '%s'", ref_id);
+				OTELC_DBG(WARNING, "WARNING: cannot find referenced span/context '%s'", ref_id);
 			}
 		}
 	}
@@ -306,7 +306,7 @@ struct flt_otel_scope_context *flt_otel_scope_context_init(struct flt_otel_runti
 	/* Return the existing context if one matches this ID. */
 	list_for_each_entry(retptr, &(rt_ctx->contexts), list)
 		if (FLT_OTEL_CONF_STR_CMP(retptr->id, id)) {
-			OTELC_DBG(NOTICE, "found context %p", retptr);
+			OTELC_DBG(DEBUG, "found context '%s' %p", id, retptr);
 
 			OTELC_RETURN_PTR(retptr);
 		}
@@ -415,51 +415,51 @@ void flt_otel_scope_data_dump(const struct flt_otel_scope_data *data)
 		return;
 
 	if (data->baggage.attr == NULL) {
-		OTELC_DBG(WORKER, "baggage %p:{ }", &(data->baggage));
+		OTELC_DBG(DEBUG, "baggage %p:{ }", &(data->baggage));
 	} else {
-		OTELC_DBG(WORKER, "baggage %p:{", &(data->baggage));
+		OTELC_DBG(DEBUG, "baggage %p:{", &(data->baggage));
 		for (i = 0; i < data->baggage.cnt; i++)
-			OTELC_DBG_KV(WORKER, "  ", data->baggage.attr + i);
-		OTELC_DBG(WORKER, "}");
+			OTELC_DBG_KV(DEBUG, "  ", data->baggage.attr + i);
+		OTELC_DBG(DEBUG, "}");
 	}
 
 	if (data->attributes.attr == NULL) {
-		OTELC_DBG(WORKER, "attributes %p:{ }", &(data->attributes));
+		OTELC_DBG(DEBUG, "attributes %p:{ }", &(data->attributes));
 	} else {
-		OTELC_DBG(WORKER, "attributes %p:{", &(data->attributes));
+		OTELC_DBG(DEBUG, "attributes %p:{", &(data->attributes));
 		for (i = 0; i < data->attributes.cnt; i++)
-			OTELC_DBG_KV(WORKER, "  ", data->attributes.attr + i);
-		OTELC_DBG(WORKER, "}");
+			OTELC_DBG_KV(DEBUG, "  ", data->attributes.attr + i);
+		OTELC_DBG(DEBUG, "}");
 	}
 
 	if (LIST_ISEMPTY(&(data->events))) {
-		OTELC_DBG(WORKER, "events %p:{ }", &(data->events));
+		OTELC_DBG(DEBUG, "events %p:{ }", &(data->events));
 	} else {
 		struct flt_otel_scope_data_event *event;
 
-		OTELC_DBG(WORKER, "events %p:{", &(data->events));
+		OTELC_DBG(DEBUG, "events %p:{", &(data->events));
 		list_for_each_entry_rev(event, &(data->events), list) {
-			OTELC_DBG(WORKER, "  '%s' %zu/%zu", event->name, event->cnt, event->size);
+			OTELC_DBG(DEBUG, "  '%s' %zu/%zu", event->name, event->cnt, event->size);
 			if (event->attr != NULL)
 				for (i = 0; i < event->cnt; i++)
-					OTELC_DBG_KV(WORKER, "  ", event->attr + i);
+					OTELC_DBG_KV(DEBUG, "  ", event->attr + i);
 		}
-		OTELC_DBG(WORKER, "}");
+		OTELC_DBG(DEBUG, "}");
 	}
 
 	if (LIST_ISEMPTY(&(data->links))) {
-		OTELC_DBG(WORKER, "links %p:{ }", &(data->links));
+		OTELC_DBG(DEBUG, "links %p:{ }", &(data->links));
 	} else {
 		struct flt_otel_scope_data_link *link;
 
-		OTELC_DBG(WORKER, "links %p:{", &(data->links));
+		OTELC_DBG(DEBUG, "links %p:{", &(data->links));
 		list_for_each_entry(link, &(data->links), list)
-			OTELC_DBG(WORKER, "  %p %p %zu", link->span, link->context, link->attributes.cnt);
-		OTELC_DBG(WORKER, "}");
+			OTELC_DBG(DEBUG, "  %p %p %zu", link->span, link->context, link->attributes.cnt);
+		OTELC_DBG(DEBUG, "}");
 	}
 
 	if ((data->status.code == 0) && (data->status.description == NULL))
-		OTELC_DBG(WORKER, "status %p:{ }", &(data->status));
+		OTELC_DBG(DEBUG, "status %p:{ }", &(data->status));
 	else
 		FLT_OTEL_DBG_SCOPE_DATA_STATUS("status ", &(data->status));
 }
@@ -591,7 +591,7 @@ int flt_otel_scope_finish_mark(const struct flt_otel_runtime_context *rt_ctx, co
 			ctx_cnt++;
 		}
 
-		OTELC_DBG(NOTICE, "marked %d span(s), %d context(s)", span_cnt, ctx_cnt);
+		OTELC_DBG(DEBUG, "marked %d span(s), %d context(s)", span_cnt, ctx_cnt);
 	}
 	else if (FLT_OTEL_STR_CMP(FLT_OTEL_SCOPE_SPAN_FINISH_REQ, id)) {
 		list_for_each_entry(span, &(rt_ctx->spans), list)
@@ -606,7 +606,7 @@ int flt_otel_scope_finish_mark(const struct flt_otel_runtime_context *rt_ctx, co
 				ctx_cnt++;
 			}
 
-		OTELC_DBG(NOTICE, "marked REQuest channel %d span(s), %d context(s)", span_cnt, ctx_cnt);
+		OTELC_DBG(DEBUG, "marked REQuest channel %d span(s), %d context(s)", span_cnt, ctx_cnt);
 	}
 	else if (FLT_OTEL_STR_CMP(FLT_OTEL_SCOPE_SPAN_FINISH_RES, id)) {
 		list_for_each_entry(span, &(rt_ctx->spans), list)
@@ -621,7 +621,7 @@ int flt_otel_scope_finish_mark(const struct flt_otel_runtime_context *rt_ctx, co
 				ctx_cnt++;
 			}
 
-		OTELC_DBG(NOTICE, "marked RESponse channel %d span(s), %d context(s)", span_cnt, ctx_cnt);
+		OTELC_DBG(DEBUG, "marked RESponse channel %d span(s), %d context(s)", span_cnt, ctx_cnt);
 	}
 	else {
 		list_for_each_entry(span, &(rt_ctx->spans), list)
@@ -641,11 +641,11 @@ int flt_otel_scope_finish_mark(const struct flt_otel_runtime_context *rt_ctx, co
 			}
 
 		if (span_cnt > 0)
-			OTELC_DBG(NOTICE, "marked span '%s'", id);
+			OTELC_DBG(DEBUG, "marked span '%s'", id);
 		if (ctx_cnt > 0)
-			OTELC_DBG(NOTICE, "marked context '%s'", id);
+			OTELC_DBG(DEBUG, "marked context '%s'", id);
 		if ((span_cnt + ctx_cnt) == 0)
-			OTELC_DBG(NOTICE, "cannot find span/context '%s'", id);
+			OTELC_DBG(WARNING, "WARNING: cannot find span/context '%s' to finish", id);
 	}
 
 	retval = span_cnt + ctx_cnt;

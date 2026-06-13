@@ -32,13 +32,13 @@ static int flt_otel_cli_set_msg(struct appctx *appctx, char *err, char *msg)
 		OTELC_RETURN_INT(0);
 
 	if (err != NULL) {
-		OTELC_DBG(INFO, "err(%d): \"%s\"", appctx->st0, err);
+		OTELC_DBG(INFO, "err(%d): '%s'", appctx->st0, err);
 
 		OTELC_SFREE(msg);
 		OTELC_RETURN_INT(cli_dynerr(appctx, err));
 	}
 
-	OTELC_DBG(INFO, "msg(%d): \"%s\"", appctx->st0, msg);
+	OTELC_DBG(INFO, "msg(%d): '%s'", appctx->st0, msg);
 
 	OTELC_RETURN_INT(cli_dynmsg(appctx, LOG_INFO, msg));
 }

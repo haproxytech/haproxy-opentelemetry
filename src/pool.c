@@ -53,7 +53,7 @@ void *flt_otel_pool_alloc(struct pool_head *pool, size_t size, bool flag_clear, 
 	if (pool != NULL) {
 		retptr = pool_alloc(pool);
 		if (retptr != NULL)
-			OTELC_DBG(NOTICE, "POOL_ALLOC: %s:%d(%p %zu)", __func__, __LINE__, retptr, FLT_OTEL_DEREF(pool, size, size));
+			OTELC_DBG(MEM, "POOL_ALLOC: %s:%d(%p %zu)", __func__, __LINE__, retptr, FLT_OTEL_DEREF(pool, size, size));
 	} else {
 		retptr = OTELC_MALLOC(size);
 	}
@@ -109,7 +109,7 @@ void *flt_otel_pool_strndup(struct pool_head *pool, const char *s, size_t size, 
 	}
 
 	if (retptr != NULL)
-		OTELC_DBG(NOTICE, "POOL_STRNDUP: %s:%d(%p %zu)", __func__, __LINE__, retptr, FLT_OTEL_DEREF(pool, size, size));
+		OTELC_DBG(MEM, "POOL_STRNDUP: %s:%d(%p %zu)", __func__, __LINE__, retptr, FLT_OTEL_DEREF(pool, size, size));
 	else
 		FLT_OTEL_ERR("out of memory");
 
@@ -144,7 +144,7 @@ void flt_otel_pool_free(struct pool_head *pool, void **ptr)
 	if ((ptr == NULL) || (*ptr == NULL))
 		OTELC_RETURN();
 
-	OTELC_DBG(NOTICE, "POOL_FREE: %s:%d(%p %u)", __func__, __LINE__, *ptr, FLT_OTEL_DEREF(pool, size, 0));
+	OTELC_DBG(MEM, "POOL_FREE: %s:%d(%p %u)", __func__, __LINE__, *ptr, FLT_OTEL_DEREF(pool, size, 0));
 
 	if (pool != NULL)
 		pool_free(pool, *ptr);
@@ -256,30 +256,30 @@ void flt_otel_pool_destroy(void)
  */
 void flt_otel_pool_info(void)
 {
-	OTELC_DBG(NOTICE, "--- pool info ----------");
+	OTELC_DBG(MEM, "--- pool info ----------");
 
 	/*
 	 * In case we have some error in the configuration file,
 	 * it is possible that this pool was not initialized.
 	 */
 #ifdef USE_POOL_BUFFER
-	OTELC_DBG(NOTICE, "  buffer: %p %u", pool_head_buffer, FLT_OTEL_DEREF(pool_head_buffer, size, 0));
+	OTELC_DBG(MEM, "  buffer: %p %u", pool_head_buffer, FLT_OTEL_DEREF(pool_head_buffer, size, 0));
 #endif
 #ifdef USE_TRASH_CHUNK
-	OTELC_DBG(NOTICE, "  trash: %p %u", pool_head_trash, FLT_OTEL_DEREF(pool_head_trash, size, 0));
+	OTELC_DBG(MEM, "  trash: %p %u", pool_head_trash, FLT_OTEL_DEREF(pool_head_trash, size, 0));
 #endif
 
 #ifdef USE_POOL_OTEL_SCOPE_SPAN
-	OTELC_DBG(NOTICE, "  otel_scope_span: %p %u", pool_head_otel_scope_span, FLT_OTEL_DEREF(pool_head_otel_scope_span, size, 0));
+	OTELC_DBG(MEM, "  otel_scope_span: %p %u", pool_head_otel_scope_span, FLT_OTEL_DEREF(pool_head_otel_scope_span, size, 0));
 #endif
 #ifdef USE_POOL_OTEL_SCOPE_CONTEXT
-	OTELC_DBG(NOTICE, "  otel_scope_context: %p %u", pool_head_otel_scope_context, FLT_OTEL_DEREF(pool_head_otel_scope_context, size, 0));
+	OTELC_DBG(MEM, "  otel_scope_context: %p %u", pool_head_otel_scope_context, FLT_OTEL_DEREF(pool_head_otel_scope_context, size, 0));
 #endif
 #ifdef USE_POOL_OTEL_RUNTIME_CONTEXT
-	OTELC_DBG(NOTICE, "  otel_runtime_context: %p %u", pool_head_otel_runtime_context, FLT_OTEL_DEREF(pool_head_otel_runtime_context, size, 0));
+	OTELC_DBG(MEM, "  otel_runtime_context: %p %u", pool_head_otel_runtime_context, FLT_OTEL_DEREF(pool_head_otel_runtime_context, size, 0));
 #endif
 #ifdef USE_POOL_OTEL_SPAN_CONTEXT
-	OTELC_DBG(NOTICE, "  otel_span_context: %p %u", pool_head_otel_span_context, FLT_OTEL_DEREF(pool_head_otel_span_context, size, 0));
+	OTELC_DBG(MEM, "  otel_span_context: %p %u", pool_head_otel_span_context, FLT_OTEL_DEREF(pool_head_otel_span_context, size, 0));
 #endif
 }
 
@@ -316,7 +316,7 @@ struct buffer *flt_otel_trash_alloc(bool flag_clear, char **err)
 #ifdef USE_TRASH_CHUNK
 	retptr = alloc_trash_chunk();
 	if (retptr != NULL)
-		OTELC_DBG(NOTICE, "TRASH_ALLOC: %s:%d(%p %zu)", __func__, __LINE__, retptr, retptr->size);
+		OTELC_DBG(MEM, "TRASH_ALLOC: %s:%d(%p %zu)", __func__, __LINE__, retptr, retptr->size);
 #else
 	retptr = OTELC_MALLOC(sizeof(*retptr));
 	if (retptr != NULL) {
@@ -363,7 +363,7 @@ void flt_otel_trash_free(struct buffer **ptr)
 	if ((ptr == NULL) || (*ptr == NULL))
 		OTELC_RETURN();
 
-	OTELC_DBG(NOTICE, "TRASH_FREE: %s:%d(%p %zu)", __func__, __LINE__, *ptr, (*ptr)->size);
+	OTELC_DBG(MEM, "TRASH_FREE: %s:%d(%p %zu)", __func__, __LINE__, *ptr, (*ptr)->size);
 
 #ifdef USE_TRASH_CHUNK
 	free_trash_chunk(*ptr);
