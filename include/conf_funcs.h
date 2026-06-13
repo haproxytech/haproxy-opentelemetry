@@ -65,7 +65,7 @@
 		}                                                                                                             \
 		                                                                                                              \
 		if (retptr == NULL)                                                                                           \
-			FLT_OTEL_ERR("out of memory");                                                                        \
+			FLT_OTEL_ERR_NOMEM();                                                                                 \
 		                                                                                                              \
 		OTELC_RETURN_PTR(retptr);                                                                                     \
 	}

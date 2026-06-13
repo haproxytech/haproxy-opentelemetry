@@ -70,6 +70,8 @@
 			OTELC_DBG(DEBUG, "err: '%s'", *err);    \
 		}                                               \
 	} while (0)
+/* Format the standard out-of-memory error. */
+#define FLT_OTEL_ERR_NOMEM()         FLT_OTEL_ERR("out of memory")
 /* Append to an existing error message unconditionally. */
 #define FLT_OTEL_ERR_APPEND(f, ...)                             \
 	do {                                                    \

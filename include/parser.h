@@ -223,6 +223,9 @@ struct flt_otel_parse_data {
 		retval |= ERR_ABORT | ERR_ALERT;                \
 	} while (0)
 
+/* Format the standard out-of-memory parse error with a context label. */
+#define FLT_OTEL_PARSE_ERR_NOMEM(e,p)         FLT_OTEL_PARSE_ERR((e), "'%s' : out of memory", (p))
+
 #define FLT_OTEL_PARSE_IFERR_ALERT()                         \
 	do {                                                 \
 		if (err == NULL)                             \

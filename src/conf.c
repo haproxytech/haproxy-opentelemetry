@@ -365,7 +365,7 @@ struct flt_otel_conf_sample *flt_otel_conf_sample_init_ex(const char **args, int
 		retptr->extra.u_type       = OTELC_VALUE_DATA;
 		retptr->extra.u.value_data = OTELC_STRDUP(extra->u.value_string);
 		if (retptr->extra.u.value_data == NULL) {
-			FLT_OTEL_ERR("out of memory");
+			FLT_OTEL_ERR_NOMEM();
 			flt_otel_conf_sample_free(&retptr);
 
 			OTELC_RETURN_PTR(retptr);
@@ -385,7 +385,7 @@ struct flt_otel_conf_sample *flt_otel_conf_sample_init_ex(const char **args, int
 	/* The sample value starts in the args[] array after the key. */
 	retptr->num_exprs = flt_otel_args_concat(args, idx, n, &(retptr->fmt_string));
 	if (retptr->num_exprs == FLT_OTEL_RET_ERROR) {
-		FLT_OTEL_ERR("out of memory");
+		FLT_OTEL_ERR_NOMEM();
 		flt_otel_conf_sample_free(&retptr);
 
 		OTELC_RETURN_PTR(retptr);

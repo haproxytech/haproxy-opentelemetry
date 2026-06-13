@@ -319,7 +319,7 @@ static enum act_parse_ret flt_otel_group_parse(const char **args, int *cur_arg, 
 	/* Copy the OpenTelemetry filter id. */
 	rule->arg.act.p[FLT_OTEL_ARG_FILTER_ID] = OTELC_STRDUP(args[*cur_arg]);
 	if (rule->arg.act.p[FLT_OTEL_ARG_FILTER_ID] == NULL) {
-		FLT_OTEL_ERR("%s : out of memory", args[*cur_arg]);
+		FLT_OTEL_ERR_NOMEM();
 
 		OTELC_RETURN_EX(ACT_RET_PRS_ERR, enum act_parse_ret, "%d");
 	}
@@ -327,7 +327,7 @@ static enum act_parse_ret flt_otel_group_parse(const char **args, int *cur_arg, 
 	/* Copy the OpenTelemetry group id. */
 	rule->arg.act.p[FLT_OTEL_ARG_GROUP_ID] = OTELC_STRDUP(args[*cur_arg + 1]);
 	if (rule->arg.act.p[FLT_OTEL_ARG_GROUP_ID] == NULL) {
-		FLT_OTEL_ERR("%s : out of memory", args[*cur_arg + 1]);
+		FLT_OTEL_ERR_NOMEM();
 
 		OTELC_SFREE_CLEAR(rule->arg.act.p[FLT_OTEL_ARG_FILTER_ID]);
 

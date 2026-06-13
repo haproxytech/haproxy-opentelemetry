@@ -59,7 +59,7 @@ void *flt_otel_pool_alloc(struct pool_head *pool, size_t size, bool flag_clear, 
 	}
 
 	if (retptr == NULL)
-		FLT_OTEL_ERR("out of memory");
+		FLT_OTEL_ERR_NOMEM();
 	else if (flag_clear)
 		(void)memset(retptr, 0, size);
 
@@ -111,7 +111,7 @@ void *flt_otel_pool_strndup(struct pool_head *pool, const char *s, size_t size, 
 	if (retptr != NULL)
 		OTELC_DBG(MEM, "POOL_STRNDUP: %s:%d(%p %zu)", __func__, __LINE__, retptr, FLT_OTEL_DEREF(pool, size, size));
 	else
-		FLT_OTEL_ERR("out of memory");
+		FLT_OTEL_ERR_NOMEM();
 
 	OTELC_RETURN_PTR(retptr);
 }
@@ -329,7 +329,7 @@ struct buffer *flt_otel_trash_alloc(bool flag_clear, char **err)
 #endif
 
 	if (retptr == NULL)
-		FLT_OTEL_ERR("out of memory");
+		FLT_OTEL_ERR_NOMEM();
 	else if (flag_clear)
 		(void)memset(retptr->area, 0, retptr->size);
 

@@ -116,7 +116,7 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
 		 */
 		smp.data.u.str.area = OTELC_CALLOC(1, global.tune.bufsize);
 		if (smp.data.u.str.area == NULL) {
-			FLT_OTEL_ERR("out of memory");
+			FLT_OTEL_ERR_NOMEM();
 
 			otelc_kv_destroy(&(instr_attr.attr), instr_attr.cnt);
 
@@ -417,7 +417,7 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 
 		if (buffer.area == NULL) {
 			if (retval != FLT_OTEL_RET_ERROR)
-				FLT_OTEL_ERR("out of memory");
+				FLT_OTEL_ERR_NOMEM();
 
 			retval = FLT_OTEL_RET_ERROR;
 

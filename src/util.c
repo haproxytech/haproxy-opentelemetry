@@ -635,7 +635,7 @@ int flt_otel_sample_to_value(const char *key, const struct sample_data *data, st
 		value->u.value_data = OTELC_MALLOC(global.tune.bufsize);
 
 		if (value->u.value_data == NULL)
-			FLT_OTEL_ERR("out of memory");
+			FLT_OTEL_ERR_NOMEM();
 		else
 			retval = flt_otel_sample_to_str(data, value->u.value_data, global.tune.bufsize, err);
 	}
@@ -818,7 +818,7 @@ static int flt_otel_sample_set_status(struct flt_otel_scope_data_status *status,
 	status->code        = sample->extra.u.value_int32;
 	status->description = OTELC_STRDUP((value->u_type == OTELC_VALUE_NULL) ? "" : OTELC_VALUE_STR(value));
 	if (status->description == NULL) {
-		FLT_OTEL_ERR("out of memory");
+		FLT_OTEL_ERR_NOMEM();
 
 		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
 	}
@@ -944,7 +944,7 @@ int flt_otel_sample_eval(struct stream *s, uint dir, struct flt_otel_conf_sample
 		 */
 		chunk_init(&buffer, OTELC_CALLOC(1, global.tune.bufsize), global.tune.bufsize);
 		if (buffer.area == NULL) {
-			FLT_OTEL_ERR("out of memory");
+			FLT_OTEL_ERR_NOMEM();
 
 			retval = FLT_OTEL_RET_ERROR;
 		} else {
@@ -990,7 +990,7 @@ int flt_otel_sample_eval(struct stream *s, uint dir, struct flt_otel_conf_sample
 				if (buffer.area == NULL) {
 					chunk_init(&buffer, OTELC_CALLOC(1, global.tune.bufsize), global.tune.bufsize);
 					if (buffer.area == NULL) {
-						FLT_OTEL_ERR("out of memory");
+						FLT_OTEL_ERR_NOMEM();
 
 						retval = FLT_OTEL_RET_ERROR;
 
@@ -1156,17 +1156,17 @@ int flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample 
 	else if (type == FLT_OTEL_EVENT_SAMPLE_ATTRIBUTE) {
 		retval = flt_otel_sample_add_kv(&(data->attributes), sample->key, &value);
 		if (retval == FLT_OTEL_RET_ERROR)
-			FLT_OTEL_ERR("out of memory");
+			FLT_OTEL_ERR_NOMEM();
 	}
 	else if (type == FLT_OTEL_EVENT_SAMPLE_EVENT) {
 		retval = flt_otel_sample_add_event(s, dir, &(data->events), sample, &value, err);
 		if (retval == FLT_OTEL_RET_ERROR)
-			FLT_OTEL_ERR("out of memory");
+			FLT_OTEL_ERR_NOMEM();
 	}
 	else if (type == FLT_OTEL_EVENT_SAMPLE_BAGGAGE) {
 		retval = flt_otel_sample_add_kv(&(data->baggage), sample->key, &value);
 		if (retval == FLT_OTEL_RET_ERROR)
-			FLT_OTEL_ERR("out of memory");
+			FLT_OTEL_ERR_NOMEM();
 	}
 	else if (type == FLT_OTEL_EVENT_SAMPLE_STATUS) {
 		retval = flt_otel_sample_set_status(&(data->status), sample, &value, err);
@@ -1471,7 +1471,7 @@ int flt_otel_sample_add_attr(struct stream *s, uint dir, struct flt_otel_conf_sa
 	if (retval != FLT_OTEL_RET_ERROR) {
 		retval = flt_otel_sample_add_kv(kv, sample->key, &value);
 		if (retval == FLT_OTEL_RET_ERROR) {
-			FLT_OTEL_ERR("out of memory");
+			FLT_OTEL_ERR_NOMEM();
 
 			if (value.u_type == OTELC_VALUE_DATA)
 				OTELC_SFREE(value.u.value_data);

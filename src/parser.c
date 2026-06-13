@@ -47,7 +47,7 @@ static int flt_otel_parse_strdup(char **dst, size_t *dst_len, const char *src, c
 	/* dst_len is not set if the string has not been copied. */
 	*dst = OTELC_STRDUP(src);
 	if (*dst == NULL)
-		FLT_OTEL_PARSE_ERR(err, "'%s' : out of memory", err_msg);
+		FLT_OTEL_PARSE_ERR_NOMEM(err, err_msg);
 	else if (dst_len != NULL)
 		*dst_len = strlen(*dst);
 
@@ -355,7 +355,7 @@ static int flt_otel_parse_cfg_sample(const char *file, int line, char **args, in
 
 	sample = flt_otel_conf_sample_init_ex((const char **)args, idx, n, extra, line, head, err);
 	if (sample == NULL)
-		FLT_OTEL_PARSE_ERR(err, "'%s' : out of memory", args[0]);
+		FLT_OTEL_PARSE_ERR_NOMEM(err, args[0]);
 
 	if (retval & ERR_CODE) {
 		/* Do nothing. */
@@ -381,7 +381,7 @@ static int flt_otel_parse_cfg_sample(const char *file, int line, char **args, in
 		if ((lf_len >= 4) && (lf_str[lf_len - 1] == ']') && (memchr(lf_str + 2, '%', lf_len - 3) != NULL)) {
 			lf_buf = OTELC_STRNDUP(lf_str + 2, lf_len - 3);
 			if (lf_buf == NULL)
-				FLT_OTEL_PARSE_ERR(err, "'%s' : out of memory", args[0]);
+				FLT_OTEL_PARSE_ERR_NOMEM(err, args[0]);
 			else
 				lf_str = lf_buf;
 		}
@@ -1144,7 +1144,7 @@ static int flt_otel_parse_bounds(const char *str, double **bounds, size_t *bound
 		OTELC_SFREE(buffer);
 		OTELC_SFREE(*bounds);
 
-		FLT_OTEL_PARSE_ERR(err, "'%s' : out of memory", err_msg);
+		FLT_OTEL_PARSE_ERR_NOMEM(err, err_msg);
 
 		OTELC_RETURN_INT(retval);
 	}
@@ -1159,7 +1159,7 @@ static int flt_otel_parse_bounds(const char *str, double **bounds, size_t *bound
 		else if (bounds_len >= bounds_size) {
 			ptr = OTELC_REALLOC(*bounds, (bounds_size + 8) * sizeof(*ptr));
 			if (ptr == NULL) {
-				FLT_OTEL_PARSE_ERR(err, "'%s' : out of memory", err_msg);
+				FLT_OTEL_PARSE_ERR_NOMEM(err, err_msg);
 
 				OTELC_SFREE_CLEAR(*bounds);
 
@@ -1562,7 +1562,7 @@ static int flt_otel_parse_cfg_set_var_ctx(const char *file, int line, char **arg
 	/* Duplicate the referenced span or context name. */
 	conf->ref = OTELC_STRDUP(args[2]);
 	if (conf->ref == NULL) {
-		FLT_OTEL_PARSE_ERR(err, "'%s' : out of memory", args[0]);
+		FLT_OTEL_PARSE_ERR_NOMEM(err, args[0]);
 
 		OTELC_RETURN_INT(retval);
 	}
@@ -1583,7 +1583,7 @@ static int flt_otel_parse_cfg_set_var_ctx(const char *file, int line, char **arg
 		name_len  = paren - args[3];
 		field_key = OTELC_STRNDUP(paren + 1, close - paren - 1);
 		if (field_key == NULL) {
-			FLT_OTEL_PARSE_ERR(err, "'%s' : out of memory", args[0]);
+			FLT_OTEL_PARSE_ERR_NOMEM(err, args[0]);
 
 			OTELC_RETURN_INT(retval);
 		}
@@ -2332,7 +2332,7 @@ static int flt_otel_parse(char **args, int *cur_arg, struct proxy *px, struct fl
 
 	conf = flt_otel_conf_init(px);
 	if (conf == NULL) {
-		FLT_OTEL_PARSE_ERR(err, "'%s' : out of memory", args[*cur_arg]);
+		FLT_OTEL_PARSE_ERR_NOMEM(err, args[*cur_arg]);
 
 		OTELC_RETURN_INT(retval);
 	}
