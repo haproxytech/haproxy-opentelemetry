@@ -2,7 +2,7 @@
 #
 # Copyright 2026 HAProxy Technologies, Miroslav Zagorac <mzagorac@haproxy.com>
 #
-SH_ARG_HAPROXY="${1:-$(realpath -L ${PWD}/../../../haproxy)}"
+SH_ARG_HAPROXY="${1:-$(realpath -L ${PWD}/../../haproxy/haproxy)}"
 SH_ARG_PIDFILE="${2:-haproxy.pid}"
        SH_TIME="$(date +%s)"
     SH_LOG_DIR="_logs"
