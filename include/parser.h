@@ -205,11 +205,13 @@ struct flt_otel_kw_map {
 	const char *keyword; /* The configuration keyword. */
 };
 
-/* Declares the keyword/code table <b> from the <...> entry list together with
- * a lookup cursor <a> of type 'const struct flt_otel_kw_map *'. */
-#define FLT_OTEL_KW_MAP(a, b, ...)                                 \
-	static const struct flt_otel_kw_map b[] = { __VA_ARGS__ }; \
-	const struct flt_otel_kw_map *a
+/*
+ * Declares the keyword/code table <t> from the <...> entry list together with
+ * a lookup cursor <p> of type 'const struct flt_otel_kw_map *'.
+ */
+#define FLT_OTEL_KW_MAP(p,t, ...)                                   \
+	static const struct flt_otel_kw_map  t[] = { __VA_ARGS__ }; \
+	const struct flt_otel_kw_map        *p
 
 #define FLT_OTEL_PARSE_KEYWORD(n,s)           (strcmp(args[n], (s)) == 0)
 #define FLT_OTEL_ARG_ISCOND(n)                (FLT_OTEL_PARSE_KEYWORD(n, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(n, FLT_OTEL_CONDITION_UNLESS))
