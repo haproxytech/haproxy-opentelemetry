@@ -70,6 +70,12 @@ Events
   on-http-response event when the response status is outside the 100-399
   range, setting an error status on the "HTTP response" span.
 
+  The "HAProxy response" span in the http_after_response scope carries several
+  conditional status lines: a 5xx response is labelled a server error, a 4xx a
+  client error, and any other response a plain error.  A span has only a single
+  status, so the first line whose condition holds is the one applied (first
+  match wins), and each error response is given the most specific status.
+
   The http_response_group (http_response_1, http_response_2) and
   http_after_response_group (http_after_response) are invoked via
   http-response and http-after-response directives in haproxy.cfg.

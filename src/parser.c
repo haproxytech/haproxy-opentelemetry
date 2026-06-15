@@ -1918,6 +1918,8 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			const char *keyword;
 		} status[] = { FLT_OTEL_PARSE_SCOPE_STATUS_DEFINES };
 #undef FLT_OTEL_PARSE_SCOPE_STATUS_DEF
+		struct flt_otel_conf_sample *sample;
+		struct list                  status_list = LIST_HEAD_INIT(status_list);
 
 		for (i = 0; i < OTELC_TABLESIZE(status); i++)
 			if (FLT_OTEL_PARSE_KEYWORD(1, status[i].keyword)) {
@@ -1927,38 +1929,48 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			}
 
 		/*
-		 * Regardless of the use of the list, only one status per event
-		 * is allowed.
+		 * Several status lines may be defined per span, each carrying
+		 * its own condition; at runtime the first whose condition holds
+		 * sets the span status.  The code word doubles as the sample
+		 * key and thus repeats across lines, so each line is parsed on
+		 * a private list to bypass the duplicate-key check before being
+		 * appended to the span in configuration order.
 		 */
 		if (i >= OTELC_TABLESIZE(status)) {
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid span status", args[1]);
 		}
-		else if (LIST_ISEMPTY(&(flt_otel_current_span->statuses))) {
-			/*
-			 * The status description is optional.  A sample after the
-			 * code is the description; an 'if'/'unless' there, or
-			 * nothing, leaves a description-less status.  Either form
-			 * may carry a trailing condition.
-			 */
-			if (FLT_OTEL_ARG_ISVALID(2) && !FLT_OTEL_ARG_ISCOND(2)) {
-				struct otelc_value extra = { .u_type = OTELC_VALUE_INT32, .u.value_int32 = status[i].code };
+		/*
+		 * The status description is optional.  A sample after the
+		 * code is the description; an 'if'/'unless' there, or nothing,
+		 * leaves a description-less status.  Either form may carry a
+		 * trailing condition.
+		 */
+		else if (FLT_OTEL_ARG_ISVALID(2) && !FLT_OTEL_ARG_ISCOND(2)) {
+			struct otelc_value extra = { .u_type = OTELC_VALUE_INT32, .u.value_int32 = status[i].code };
 
-				retval = flt_otel_parse_cfg_sample_cond(file, line, args, 2, &extra, &(flt_otel_current_span->statuses), &err);
-			}
-			else if (flt_otel_conf_sample_init_code(status[i].code, args[1], line, &(flt_otel_current_span->statuses), &err) == NULL) {
-				retval |= ERR_ABORT | ERR_ALERT;
-			}
-			else if (FLT_OTEL_ARG_ISVALID(2)) {
-				struct flt_otel_conf_sample *sample;
-
-				sample = LIST_PREV(&(flt_otel_current_span->statuses), typeof(sample), list);
-
-				retval = flt_otel_parse_attach_cond(file, line, args, 2, &(sample->cond), &err);
-			}
+			retval = flt_otel_parse_cfg_sample_cond(file, line, args, 2, &extra, &status_list, &err);
 		}
-		else {
-			FLT_OTEL_PARSE_ERR(&err, "only one status per event is allowed");
+		else if (flt_otel_conf_sample_init_code(status[i].code, args[1], line, &status_list, &err) == NULL) {
+			retval |= ERR_ABORT | ERR_ALERT;
 		}
+		else if (FLT_OTEL_ARG_ISVALID(2)) {
+			sample = LIST_PREV(&status_list, typeof(sample), list);
+
+			retval = flt_otel_parse_attach_cond(file, line, args, 2, &(sample->cond), &err);
+		}
+
+		/* Move the parsed status onto the span, preserving order. */
+		if (!(retval & ERR_CODE))
+			while (!LIST_ISEMPTY(&status_list)) {
+				sample = LIST_NEXT(&status_list, typeof(sample), list);
+
+				LIST_DELETE(&(sample->list));
+				LIST_APPEND(&(flt_otel_current_span->statuses), &(sample->list));
+			}
+
+		/* On error, release a parsed status that was not attached. */
+		if (retval & ERR_CODE)
+			FLT_OTEL_LIST_DESTROY(sample, &status_list);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_INJECT) {
 		/*

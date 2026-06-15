@@ -200,7 +200,7 @@ struct flt_otel_conf_span {
 	struct list attributes;    /* The set of key:value attributes. */
 	struct list events;        /* The set of events with key-value attributes. */
 	struct list baggages;      /* The set of key:value baggage items. */
-	struct list statuses;      /* Span status code and description (only one per list). */
+	struct list statuses;      /* Span status; first matching condition wins. */
 };
 
 /*

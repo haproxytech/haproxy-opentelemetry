@@ -786,8 +786,9 @@ static int flt_otel_sample_add_event(struct stream *s, uint dir, struct list *ev
  *   code is taken from the sample's extra field (an int32 value) and the
  *   description from <value>, which must be a string type.  A NULL-typed
  *   <value> denotes a status without a description and yields an empty
- *   description string, so a status may carry only its code.  Multiple
- *   status settings for the same span are rejected with an error.
+ *   description string, so a status may carry only its code.  A span
+ *   holds a single status, so the caller applies only the first status
+ *   whose condition holds; a repeated set here is refused as a safeguard.
  *
  * RETURN VALUE
  *   Returns 1 on success, or FLT_OTEL_RET_ERROR on failure.
@@ -800,9 +801,9 @@ static int flt_otel_sample_set_status(struct flt_otel_scope_data_status *status,
 		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
 
 	/*
-	 * This scenario should never occur, but the check is still enforced -
-	 * multiple status settings are not allowed within the filter
-	 * configuration for each span event.
+	 * Only the first status whose condition holds is applied per span, so
+	 * this point should not be reached twice; the guard is kept as a
+	 * safeguard.
 	 */
 	if (status->description != NULL) {
 		FLT_OTEL_ERR("'%s' : span status already set", sample->key);

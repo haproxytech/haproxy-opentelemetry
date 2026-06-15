@@ -977,8 +977,9 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 		}
 
 		/*
-		 * Regardless of the use of the list, only one status per event
-		 * is allowed.
+		 * A span has a single status.  Several status lines may be
+		 * defined, each gated by a condition; the first whose condition
+		 * holds is applied and the remaining lines are skipped.
 		 */
 		list_for_each_entry(sample, &(conf_span->statuses), list) {
 			if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
@@ -988,6 +989,8 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 
 			if (flt_otel_sample_add(s, dir, sample, &data, FLT_OTEL_EVENT_SAMPLE_STATUS, err) == FLT_OTEL_RET_ERROR)
 				retval = FLT_OTEL_RET_ERROR;
+
+			break;
 		}
 
 		/* Attempt to run the span regardless of earlier errors. */
