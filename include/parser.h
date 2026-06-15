@@ -199,6 +199,18 @@ struct flt_otel_parse_data {
 	const char *usage;         /* Usage text to be printed in case of an error. */
 };
 
+/* Maps a configuration keyword to the integer (enum) code it selects. */
+struct flt_otel_kw_map {
+	int         code;    /* The enum value bound to the keyword. */
+	const char *keyword; /* The configuration keyword. */
+};
+
+/* Declares the keyword/code table <b> from the <...> entry list together with
+ * a lookup cursor <a> of type 'const struct flt_otel_kw_map *'. */
+#define FLT_OTEL_KW_MAP(a, b, ...)                                 \
+	static const struct flt_otel_kw_map b[] = { __VA_ARGS__ }; \
+	const struct flt_otel_kw_map *a
+
 #define FLT_OTEL_PARSE_KEYWORD(n,s)           (strcmp(args[n], (s)) == 0)
 #define FLT_OTEL_ARG_ISCOND(n)                (FLT_OTEL_PARSE_KEYWORD(n, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(n, FLT_OTEL_CONDITION_UNLESS))
 

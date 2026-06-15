@@ -1210,6 +1210,41 @@ static int flt_otel_parse_bounds(const char *str, double **bounds, size_t *bound
 
 /***
  * NAME
+ *   flt_otel_kw_lookup - keyword-to-code table lookup
+ *
+ * SYNOPSIS
+ *   static const struct flt_otel_kw_map *flt_otel_kw_lookup(const struct flt_otel_kw_map *map, size_t count, const char *str)
+ *
+ * ARGUMENTS
+ *   map   - keyword/code mapping table
+ *   count - number of entries in <map>
+ *   str   - keyword string to look up
+ *
+ * DESCRIPTION
+ *   Scans the <count> entries of the keyword/code mapping <map> for the one
+ *   whose keyword equals <str>, using a byte-exact string comparison.  Such
+ *   tables pair a configuration keyword with the integer (enum) code it
+ *   selects.
+ *
+ * RETURN VALUE
+ *   Returns a pointer to the matching entry, or NULL if no keyword matches.
+ */
+static const struct flt_otel_kw_map *flt_otel_kw_lookup(const struct flt_otel_kw_map *map, size_t count, const char *str)
+{
+	size_t i;
+
+	OTELC_FUNC("%p, %zu, \"%s\"", map, count, OTELC_STR_ARG(str));
+
+	for (i = 0; i < count; i++)
+		if (strcmp(str, map[i].keyword) == 0)
+			OTELC_RETURN_PTR(map + i);
+
+	OTELC_RETURN_PTR(NULL);
+}
+
+
+/***
+ * NAME
  *   flt_otel_parse_cfg_instrument - instrument keyword parser
  *
  * SYNOPSIS
@@ -1240,10 +1275,7 @@ static int flt_otel_parse_bounds(const char *str, double **bounds, size_t *bound
 static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args, const struct flt_otel_parse_data *pdata, char **err)
 {
 #define FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEF(a,b)   { OTELC_METRIC_INSTRUMENT_##a, b },
-	static const struct {
-		otelc_metric_instrument_t  type;
-		const char                *keyword;
-	} instr_type[] = { FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEFINES };
+	FLT_OTEL_KW_MAP(kw, instr_type, FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEFINES);
 #undef FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEF
 	struct flt_otel_conf_instrument *instr;
 	int                              i, retval = ERR_NONE;
@@ -1251,18 +1283,14 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 	OTELC_FUNC("\"%s\", %d, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, pdata, OTELC_DPTR_ARGS(err));
 
 	/* Look up the instrument type from args[1]. */
-	for (i = 0; i < OTELC_TABLESIZE(instr_type); i++)
-		if (FLT_OTEL_PARSE_KEYWORD(1, instr_type[i].keyword)) {
-			OTELC_DBG(DEBUG, "instrument type: %d '%s'", instr_type[i].type, instr_type[i].keyword);
-
-			break;
-		}
-
-	if (i >= OTELC_TABLESIZE(instr_type)) {
+	kw = flt_otel_kw_lookup(instr_type, OTELC_TABLESIZE(instr_type), args[1]);
+	if (kw == NULL) {
 		FLT_OTEL_PARSE_ERR(err, "'%s' : invalid instrument type", args[1]);
 
 		OTELC_RETURN_INT(retval);
 	}
+
+	OTELC_DBG(DEBUG, "instrument type: %d '%s'", kw->code, kw->keyword);
 
 	/*
 	 * Only one create and one update instrument per name are allowed.
@@ -1270,7 +1298,7 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 	 * duplicate check (which would reject the shared name), check for
 	 * update duplicates separately, and append to the list manually.
 	 */
-	if (instr_type[i].type == OTELC_METRIC_INSTRUMENT_UPDATE) {
+	if (kw->code == OTELC_METRIC_INSTRUMENT_UPDATE) {
 		list_for_each_entry(instr, &(flt_otel_current_scope->instruments), list)
 			if ((instr->type == OTELC_METRIC_INSTRUMENT_UPDATE) && FLT_OTEL_PARSE_KEYWORD(2, instr->id)) {
 				FLT_OTEL_PARSE_ERR(err, "'%s' : already defined", args[2]);
@@ -1288,10 +1316,10 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 	if (instr == NULL) {
 		retval |= ERR_ABORT | ERR_ALERT;
 	}
-	else if (instr_type[i].type == OTELC_METRIC_INSTRUMENT_UPDATE) {
+	else if (kw->code == OTELC_METRIC_INSTRUMENT_UPDATE) {
 		bool flag_add_attr = false;
 
-		instr->type = instr_type[i].type;
+		instr->type = (otelc_metric_instrument_t)(kw->code);
 
 		/* Update instruments only accept additional attributes. */
 		for (i = 3; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++) {
@@ -1322,7 +1350,7 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 			FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
 	}
 	else {
-		instr->type = instr_type[i].type;
+		instr->type = (otelc_metric_instrument_t)(kw->code);
 
 		/*
 		 * Create instruments accept aggr, description, unit, value,
@@ -1547,15 +1575,12 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
 static int flt_otel_parse_cfg_set_var_ctx(const char *file, int line, char **args, struct flt_otel_conf_set_var_ctx *conf, char **err)
 {
 #define FLT_OTEL_VAR_FIELD_DEF(a,b)   { FLT_OTEL_VAR_FIELD_##a, b },
-	static const struct {
-		int         field;
-		const char *keyword;
-	} fields[] = { FLT_OTEL_VAR_FIELD_DEFINES };
+	FLT_OTEL_KW_MAP(kw, fields, FLT_OTEL_VAR_FIELD_DEFINES);
 #undef FLT_OTEL_VAR_FIELD_DEF
 	const char *paren;
 	char        field_name[32], *field_key = NULL;
 	size_t      name_len;
-	int         i, retval = ERR_NONE;
+	int         retval = ERR_NONE;
 
 	OTELC_FUNC("\"%s\", %d, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, conf, OTELC_DPTR_ARGS(err));
 
@@ -1600,11 +1625,8 @@ static int flt_otel_parse_cfg_set_var_ctx(const char *file, int line, char **arg
 	(void)memcpy(field_name, args[3], name_len);
 	field_name[name_len] = '\0';
 
-	for (i = 0; i < OTELC_TABLESIZE(fields); i++)
-		if (strcmp(field_name, fields[i].keyword) == 0)
-			break;
-
-	if (i >= OTELC_TABLESIZE(fields)) {
+	kw = flt_otel_kw_lookup(fields, OTELC_TABLESIZE(fields), field_name);
+	if (kw == NULL) {
 		FLT_OTEL_PARSE_ERR(err, "'%s' : unknown field '%s'", args[0], field_name);
 
 		OTELC_FREE(field_key);
@@ -1612,7 +1634,7 @@ static int flt_otel_parse_cfg_set_var_ctx(const char *file, int line, char **arg
 		OTELC_RETURN_INT(retval);
 	}
 
-	conf->field     = fields[i].field;
+	conf->field     = kw->code;
 	conf->field_key = field_key;
 
 	/* Validate the presence or absence of a key for the chosen field. */
@@ -1792,12 +1814,8 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 				}
 				else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_SPAN_KIND)) {
 #define FLT_OTEL_PARSE_SPAN_KIND_DEF(a,b)   { OTELC_SPAN_KIND_##a, b },
-					static const struct {
-						otelc_span_kind_t  kind;
-						const char        *keyword;
-					} span_kind[] = { FLT_OTEL_PARSE_SPAN_KIND_DEFINES };
+					FLT_OTEL_KW_MAP(kw, span_kind, FLT_OTEL_PARSE_SPAN_KIND_DEFINES);
 #undef FLT_OTEL_PARSE_SPAN_KIND_DEF
-					int k;
 
 					if (!FLT_OTEL_ARG_ISVALID(i + 1)) {
 						FLT_OTEL_PARSE_ERR(&err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
@@ -1806,16 +1824,11 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 						FLT_OTEL_PARSE_ERR(&err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
 					}
 					else {
-						for (k = 0; k < OTELC_TABLESIZE(span_kind); k++)
-							if (FLT_OTEL_PARSE_KEYWORD(i + 1, span_kind[k].keyword)) {
-								flt_otel_current_span->kind = span_kind[k].kind;
-
-								break;
-							}
-
-						if (k >= OTELC_TABLESIZE(span_kind)) {
+						kw = flt_otel_kw_lookup(span_kind, OTELC_TABLESIZE(span_kind), args[i + 1]);
+						if (kw == NULL) {
 							FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid span kind", args[i + 1]);
 						} else {
+							flt_otel_current_span->kind = (otelc_span_kind_t)(kw->code);
 							flag_kind = true;
 
 							i++;
@@ -1913,20 +1926,14 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_STATUS) {
 #define FLT_OTEL_PARSE_SCOPE_STATUS_DEF(a,b)   { OTELC_SPAN_STATUS_##a, b },
-		static const struct {
-			int         code;
-			const char *keyword;
-		} status[] = { FLT_OTEL_PARSE_SCOPE_STATUS_DEFINES };
+		FLT_OTEL_KW_MAP(kw, status, FLT_OTEL_PARSE_SCOPE_STATUS_DEFINES);
 #undef FLT_OTEL_PARSE_SCOPE_STATUS_DEF
 		struct flt_otel_conf_sample *sample;
 		struct list                  status_list = LIST_HEAD_INIT(status_list);
 
-		for (i = 0; i < OTELC_TABLESIZE(status); i++)
-			if (FLT_OTEL_PARSE_KEYWORD(1, status[i].keyword)) {
-				OTELC_DBG(DEBUG, "span status: %d '%s'", status[i].code, status[i].keyword);
-
-				break;
-			}
+		kw = flt_otel_kw_lookup(status, OTELC_TABLESIZE(status), args[1]);
+		if (kw != NULL)
+			OTELC_DBG(DEBUG, "span status: %d '%s'", kw->code, kw->keyword);
 
 		/*
 		 * Several status lines may be defined per span, each carrying
@@ -1936,7 +1943,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		 * a private list to bypass the duplicate-key check before being
 		 * appended to the span in configuration order.
 		 */
-		if (i >= OTELC_TABLESIZE(status)) {
+		if (kw == NULL) {
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid span status", args[1]);
 		}
 		/*
@@ -1946,11 +1953,11 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		 * trailing condition.
 		 */
 		else if (FLT_OTEL_ARG_ISVALID(2) && !FLT_OTEL_ARG_ISCOND(2)) {
-			struct otelc_value extra = { .u_type = OTELC_VALUE_INT32, .u.value_int32 = status[i].code };
+			struct otelc_value extra = { .u_type = OTELC_VALUE_INT32, .u.value_int32 = kw->code };
 
 			retval = flt_otel_parse_cfg_sample_cond(file, line, args, 2, &extra, &status_list, &err);
 		}
-		else if (flt_otel_conf_sample_init_code(status[i].code, args[1], line, &status_list, &err) == NULL) {
+		else if (flt_otel_conf_sample_init_code(kw->code, args[1], line, &status_list, &err) == NULL) {
 			retval |= ERR_ABORT | ERR_ALERT;
 		}
 		else if (FLT_OTEL_ARG_ISVALID(2)) {
