@@ -1463,8 +1463,8 @@ with a change in arguments when running the same):
   flt-otel debug [level]   : set the OTel filter debug level
   flt-otel disable         : disable the OTel filter
   flt-otel enable          : enable the OTel filter
-  flt-otel soft-errors     : turning off hard-errors mode
-  flt-otel hard-errors     : enabling hard-errors mode
+  flt-otel soft-errors     : disable hard-errors mode
+  flt-otel hard-errors     : enable hard-errors mode
   flt-otel logging [state] : set logging state
   flt-otel rate [value]    : set the rate limit
   flt-otel status          : show the OTel filter status
