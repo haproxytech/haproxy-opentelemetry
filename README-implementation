@@ -328,7 +328,9 @@ Each event entry carries:
   - an_bit:           the HAProxy analyzer bit (AN_REQ_*, AN_RES_*)
   - an_name:          the analyzer bit name (e.g. "AN_REQ_HTTP_PROCESS_FE")
   - smp_opt_dir:      sample fetch direction (REQ or RES)
-  - smp_val_fe/be:    valid sample fetch locations
+  - smp_val_fe/be:    reserved SMP_VAL_FE_*/SMP_VAL_BE_* fetch-location masks
+                      for a future fetch-validity check (mirrors the SPOE
+                      filter's per-event mapping; not read yet)
   - flag_http_inject: whether span context can be injected into HTTP headers
                       at this point
   - name:             configuration event name (e.g. "on-frontend-http-request")

@@ -116,13 +116,22 @@ enum FLT_OTEL_EVENT_SAMPLE_enum {
 	FLT_OTEL_EVENT_SAMPLE_STATUS,
 };
 
-/* Per-event metadata mapping analyzer bits to filter event names. */
+/*
+ * Per-event metadata mapping analyzer bits to filter event names.
+ *
+ * The smp_val_fe and smp_val_be fields are reserved for a future sample-fetch
+ * location check.  They carry the SMP_VAL_FE_* and SMP_VAL_BE_* validity bits
+ * for the event's processing point, matched against a fetch's own validity as
+ * the SPOE filter does per event.  Both capability variants are stored so the
+ * pending check can mask them by the proxy's PR_CAP_FE / PR_CAP_BE; the fields
+ * are not read anywhere yet.
+ */
 struct flt_otel_event_data {
 	uint        an_bit;           /* Used channel analyser. */
 	const char *an_name;          /* Channel analyser name. */
 	uint        smp_opt_dir;      /* Fetch direction (request/response). */
-	uint        smp_val_fe;       /* Valid FE fetch location. */
-	uint        smp_val_be;       /* Valid BE fetch location. */
+	uint        smp_val_fe;       /* Reserved FE fetch location. */
+	uint        smp_val_be;       /* Reserved BE fetch location. */
 	bool        flag_http_inject; /* Span context injection allowed. */
 	const char *name;             /* Filter event name. */
 };
