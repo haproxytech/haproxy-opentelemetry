@@ -456,6 +456,101 @@ static int flt_otel_cli_parse_flush(char **args, char *payload, struct appctx *a
 }
 
 
+/***
+ * NAME
+ *   flt_otel_cli_parse_instruments - CLI metric instrument display handler
+ *
+ * SYNOPSIS
+ *   static int flt_otel_cli_parse_instruments(char **args, char *payload, struct appctx *appctx, void *private)
+ *
+ * ARGUMENTS
+ *   args    - CLI command arguments array
+ *   payload - CLI command payload string
+ *   appctx  - CLI application context
+ *   private - unused private data pointer
+ *
+ * DESCRIPTION
+ *   Handles the "flt-otel instruments" CLI command.  Lists, for every OTel
+ *   filter instance, the metric instruments configured in each scope.  A
+ *   create-form instrument is shown with its type, unit and lazy-creation
+ *   state (not created, pending, or the meter index once created); an
+ *   update-form instrument has no unit or creation state of its own, so
+ *   only its name and 'update' type appear.
+ *
+ * RETURN VALUE
+ *   Returns 1, or 0 on memory allocation failure.
+ */
+static int flt_otel_cli_parse_instruments(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	/*
+	 * Metric instrument configuration keywords, indexed by
+	 * otelc_metric_instrument_t.
+	 */
+#define FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEF(a,b)   [OTELC_METRIC_INSTRUMENT_##a] = b,
+	static const char *const instr_type[] = { FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEFINES };
+#undef FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEF
+	const char *nl = "";
+	char       *msg = NULL;
+
+	OTELC_FUNC("%p, \"%s\", %p, %p", args, OTELC_STR_ARG(payload), appctx, private);
+
+	FLT_OTEL_ARGS_DUMP();
+
+	(void)memprintf(&msg, " " FLT_OTEL_OPT_NAME " filter instruments\n" FLT_OTEL_STR_DASH_78 "\n");
+
+	FLT_OTEL_PROXIES_LIST_START() {
+		struct flt_otel_conf_scope      *scope;
+		struct flt_otel_conf_instrument *instr;
+		int                              w_scope = 0, w_instr = 0, w_type = 0, w_unit = 0;
+
+		(void)memprintf(&msg, "%s\n%s   proxy %s, filter %s\n", msg, nl, px->id, conf->id);
+		nl = "\n";
+
+		list_for_each_entry(scope, &(conf->scopes), list)
+			list_for_each_entry(instr, &(scope->instruments), list) {
+				w_scope = OTELC_MAX(w_scope, (int)strlen(scope->id));
+				w_instr = OTELC_MAX(w_instr, (int)strlen(instr->id));
+				w_type  = OTELC_MAX(w_type, (int)strlen(instr_type[instr->type]));
+
+				if (instr->type != OTELC_METRIC_INSTRUMENT_UPDATE)
+					w_unit = OTELC_MAX(w_unit, (int)strlen((instr->unit != NULL) ? instr->unit : ""));
+			}
+
+		if (w_scope == 0) {
+			(void)memprintf(&msg, "%s     (no instruments)\n", msg);
+
+			continue;
+		}
+
+		w_scope = OTELC_MAX(w_scope, FLT_OTEL_STR_SIZE(FLT_OTEL_CLI_SCOPE));
+		w_instr = OTELC_MAX(w_instr, FLT_OTEL_STR_SIZE(FLT_OTEL_CLI_INSTRUMENT));
+		w_type  = OTELC_MAX(w_type, FLT_OTEL_STR_SIZE(FLT_OTEL_CLI_TYPE));
+		w_unit  = OTELC_MAX(w_unit, FLT_OTEL_STR_SIZE(FLT_OTEL_CLI_UNIT));
+
+		(void)memprintf(&msg, "%s     %-*s  %-*s  %-*s  %-*s  state\n", msg, w_scope, FLT_OTEL_CLI_SCOPE, w_instr, FLT_OTEL_CLI_INSTRUMENT, w_type, FLT_OTEL_CLI_TYPE, w_unit, FLT_OTEL_CLI_UNIT);
+
+		list_for_each_entry(scope, &(conf->scopes), list)
+			list_for_each_entry(instr, &(scope->instruments), list)
+				if (instr->type == OTELC_METRIC_INSTRUMENT_UPDATE) {
+					(void)memprintf(&msg, "%s     %-*s  %-*s  %s\n", msg, w_scope, scope->id, w_instr, instr->id, instr_type[instr->type]);
+				} else {
+					int64_t idx = HA_ATOMIC_LOAD(&(instr->idx));
+
+					(void)memprintf(&msg, "%s     %-*s  %-*s  %-*s  %-*s  ", msg, w_scope, scope->id, w_instr, instr->id, w_type, instr_type[instr->type], w_unit, (instr->unit != NULL) ? instr->unit : "");
+
+					if (idx == OTELC_METRIC_INSTRUMENT_UNSET)
+						(void)memprintf(&msg, "%snot created\n", msg);
+					else if (idx == OTELC_METRIC_INSTRUMENT_PENDING)
+						(void)memprintf(&msg, "%spending\n", msg);
+					else
+						(void)memprintf(&msg, "%screated (idx %" PRId64 ")\n", msg, idx);
+				}
+	} FLT_OTEL_PROXIES_LIST_END();
+
+	OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, NULL, msg));
+}
+
+
 /* CLI command table for the OTel filter. */
 static struct cli_kw_list cli_kws = { { }, {
 #ifdef DEBUG_OTEL
@@ -469,6 +564,7 @@ static struct cli_kw_list cli_kws = { { }, {
 	{ { FLT_OTEL_CLI_CMD, "rate", NULL }, FLT_OTEL_CLI_CMD " rate [value]                   : set the rate limit (default: get current rate value)", flt_otel_cli_parse_rate, NULL, NULL, NULL, 0 },
 	{ { FLT_OTEL_CLI_CMD, "status", NULL }, FLT_OTEL_CLI_CMD " status                         : show the OTEL filter status", flt_otel_cli_parse_status, NULL, NULL, NULL, 0 },
 	{ { FLT_OTEL_CLI_CMD, "flush", NULL }, FLT_OTEL_CLI_CMD " flush                          : force-export buffered telemetry now", flt_otel_cli_parse_flush, NULL, NULL, NULL, ACCESS_LVL_ADMIN },
+	{ { FLT_OTEL_CLI_CMD, "instruments", NULL }, FLT_OTEL_CLI_CMD " instruments                    : show configured metric instruments", flt_otel_cli_parse_instruments, NULL, NULL, NULL, 0 },
 	{ /* END */ }
 }};
 
@@ -486,8 +582,8 @@ static struct cli_kw_list cli_kws = { { }, {
  * DESCRIPTION
  *   Registers the OTel filter CLI keywords with the HAProxy CLI subsystem.
  *   The keywords include commands for enable/disable, error mode, logging,
- *   rate limit, status display, telemetry flush, and (when DEBUG_OTEL is
- *   defined) debug level management.
+ *   rate limit, status display, telemetry flush, instrument introspection,
+ *   and (when DEBUG_OTEL is defined) debug level management.
  *
  * RETURN VALUE
  *   This function does not return a value.

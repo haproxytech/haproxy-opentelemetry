@@ -1469,6 +1469,7 @@ with a change in arguments when running the same):
   flt-otel rate [value]    : set the rate limit
   flt-otel status          : show the OTel filter status
   flt-otel flush           : force-export buffered telemetry now
+  flt-otel instruments     : show configured metric instruments
   --- command output ----------
 
 'flt-otel debug' can only be used in case the OTel filter is compiled with the
@@ -1520,6 +1521,28 @@ decision (a failed condition or 'otel-stop') or by a hard error.
 'flt-otel flush' forces every filter instance to export its buffered telemetry
 at once, calling force_flush on the active tracer, meter and logger, each one
 bounded by a five-second timeout.  It requires admin access.
+
+'flt-otel instruments' lists the metric instruments declared in each scope.  A
+create-form instrument is shown with its type, unit and creation state -- 'not
+created' before first use, 'created (idx N)' once the meter has built it (which
+happens lazily, on the first record), or 'pending' while another thread builds
+it.  An update-form instrument has no unit or creation state of its own, so
+only its name and 'update' type are shown:
+
+  % echo "flt-otel instruments" | socat - UNIX-CONNECT:/tmp/haproxy.sock
+  --- command output ----------
+   opentelemetry filter instruments
+  ------------------------------------------------------------------------------
+
+     proxy otel-test-full-frontend, filter otel-test-full
+       scope                  instrument               type       unit          state
+       on_stream_start        haproxy.sessions.active  udcnt_int  {session}     created (idx 0)
+       on_stream_start        haproxy.fe.connections   gauge_int  {connection}  created (idx 1)
+       [...]
+       frontend_http_request  haproxy.http.latency     update
+  --- command output ----------
+
+A filter that has no instruments configured is shown as '(no instruments)'.
 
 
 7. Known bugs and limitations
