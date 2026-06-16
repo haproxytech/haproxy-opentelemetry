@@ -702,9 +702,9 @@ function.
   Execute (flt_otel_group_action):
     Finds the filter instance in the stream's filter list.  Validates rule->from
     against the flt_otel_group_data[] table to determine the sample fetch
-    direction and valid fetch locations.  Iterates all scopes in the group and
-    calls flt_otel_scope_run() for each.  Always returns ACT_RET_CONT -- a group
-    action never interrupts rule processing.
+    direction.  Iterates all scopes in the group and calls flt_otel_scope_run()
+    for each.  Always returns ACT_RET_CONT -- a group action never interrupts
+    rule processing.
 
 11.3  Group Data Table
 
@@ -712,7 +712,8 @@ The flt_otel_group_data[] table (group.c) maps each HAProxy action context
 (ACT_F_*) to:
 
   act_from     The action context enum value.
-  smp_val      The valid sample fetch location (FE or BE).
+  smp_val      Reserved SMP_VAL_* fetch location (FE or BE) for a future
+               fetch-validity check; not read yet.
   smp_opt_dir  The sample fetch direction (REQ or RES).
 
 This table is generated from the FLT_OTEL_GROUP_DEFINES X-macro list (group.h).

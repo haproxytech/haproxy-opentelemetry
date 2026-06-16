@@ -27,10 +27,17 @@ enum FLT_OTEL_ARG_enum {
 	FLT_OTEL_GROUP_DEF(ACT_F_HTTP_REQ,    SMP_VAL_FE_HRQ_HDR, SMP_OPT_DIR_REQ) \
 	FLT_OTEL_GROUP_DEF(ACT_F_HTTP_RES,    SMP_VAL_BE_HRS_HDR, SMP_OPT_DIR_RES)
 
-/* Per-action-from metadata mapping action types to fetch directions. */
+/*
+ * Per-action-from metadata mapping action types to fetch directions.
+ *
+ * smp_val is reserved for a future sample-fetch location check: it holds the
+ * SMP_VAL_* validity bit for the action's processing point, matched against a
+ * fetch's own validity as the SPOE filter does per event.  It is not read
+ * anywhere yet; see the matching smp_val_fe/smp_val_be note in event.h.
+ */
 struct flt_otel_group_data {
 	enum act_from act_from;    /* ACT_F_* */
-	uint          smp_val;     /* Valid FE/BE fetch location. */
+	uint          smp_val;     /* Reserved FE/BE fetch location. */
 	uint          smp_opt_dir; /* Fetch direction (request/response). */
 };
 
