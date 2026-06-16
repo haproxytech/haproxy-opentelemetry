@@ -671,7 +671,9 @@ Supported keywords:
       Set the idle timeout interval for a scope bound to the 'on-idle-timeout'
       event.  The timer fires periodically at the given interval when the stream
       has no data transfer activity.  This keyword is mandatory for scopes using
-      the 'on-idle-timeout' event and cannot be used with any other event.
+      the 'on-idle-timeout' event and cannot be used with any other event.  Only
+      one 'idle-timeout' may be defined per scope; a second is a configuration
+      error.
 
       The <time> argument accepts the standard HAProxy time format: a number
       followed by a unit suffix (us, ms, s, m, h, d).  A value of zero is not

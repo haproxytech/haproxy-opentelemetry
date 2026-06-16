@@ -2081,7 +2081,9 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		uint        timeout;
 
 		res = parse_time_err(args[1], &timeout, TIME_UNIT_MS);
-		if (res == PARSE_TIME_OVER)
+		if (flt_otel_current_scope->idle_timeout != 0)
+			FLT_OTEL_PARSE_ERR(&err, "'%s' : already set", args[0]);
+		else if (res == PARSE_TIME_OVER)
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : timer overflow in argument '%s'", args[0], args[1]);
 		else if (res == PARSE_TIME_UNDER)
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : timer underflow in argument '%s'", args[0], args[1]);
