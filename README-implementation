@@ -326,7 +326,7 @@ defined in event.h (FLT_OTEL_EVENT_DEFINES).
 
 Each event entry carries:
   - an_bit:           the HAProxy analyzer bit (AN_REQ_*, AN_RES_*)
-  - an_name:          the analyzer bit name (e.g. "AN_REQ_FLT_HTTP_HDRS")
+  - an_name:          the analyzer bit name (e.g. "AN_REQ_HTTP_PROCESS_FE")
   - smp_opt_dir:      sample fetch direction (REQ or RES)
   - smp_val_fe/be:    valid sample fetch locations
   - flag_http_inject: whether span context can be injected into HTTP headers
@@ -440,7 +440,7 @@ and response fetches.
           reference.
        b. Resolves span links against the runtime context -- first searching
           active spans, then extracted contexts.  Unresolved links produce a
-          NOTICE-level warning and are skipped.
+          WARNING-level message and are skipped.
        c. Evaluates attributes, events, baggages, and status from sample
           expressions via flt_otel_sample_add().
        d. Calls flt_otel_scope_run_span() which:
@@ -591,7 +591,7 @@ At scope execution time (event.c, flt_otel_scope_run), for each configured link:
   2. If not found in spans, the name is searched in rt_ctx->contexts (extracted
      scope_context entries).  If found, the OTel span_context pointer is
      captured.
-  3. If neither found, a NOTICE warning is logged and the link is skipped.
+  3. If neither found, a WARNING is logged and the link is skipped.
   4. A flt_otel_scope_data_link node is allocated and appended to the scope
      data's links list.
 
@@ -1307,8 +1307,8 @@ For each configured log record the function performs:
   4. Span resolution: if conf_log->span is non-NULL, the runtime
      context's spans list is searched for a scope_span with a matching
      name.  If found, the OTel span pointer is captured for correlation.
-     A missing span is non-fatal -- a NOTICE warning is logged and the
-     record is emitted without span correlation.
+     A missing span is non-fatal -- a WARNING is logged and the record is
+     emitted without span correlation.
 
   5. Event timestamp selection: when conf_log->time is non-empty, its single
      sample is evaluated via flt_otel_sample_eval() in native mode.  A string

@@ -625,6 +625,17 @@ inject <name-prefix> [use-vars] [use-headers]
   transfer via HTTP header can be used to transfer data to another process (ie
   microservice).  All data is organized in the form of key-value data pairs.
 
+  Header injection (use-headers) is only available on events that provide a
+  writable HTTP header carrier when they fire.  Using it on any other event is
+  a configuration error, reported at startup.  It is rejected for these events:
+
+    on-stream-start, on-stream-stop, on-idle-timeout, on-backend-set,
+    on-client-session-end, on-server-unavailable, on-server-session-start,
+    on-tcp-response, on-http-end-response, on-http-reply, on-server-session-end
+
+  Variable injection (use-vars) carries no such restriction and may be used
+  with any event.
+
   No matter which data transfer method you use, we need to specify a prefix for
   the key element.  All alphanumerics (lowercase only) and underline character
   can be used to construct the data name prefix.  Uppercase letters can actually

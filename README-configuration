@@ -344,6 +344,17 @@ Supported keywords:
       A span carries a single context, so 'inject' may appear at most once per
       span; a second is a configuration error.
 
+      Header injection (use-headers) works only on events that expose a writable
+      HTTP header carrier; using it on any other event is a configuration error.
+      It is rejected for these events:
+
+        on-stream-start, on-stream-stop, on-idle-timeout, on-backend-set,
+        on-client-session-end, on-server-unavailable, on-server-session-start,
+        on-tcp-response, on-http-end-response, on-http-reply,
+        on-server-session-end
+
+      Variable injection (use-vars) has no such restriction.
+
       When transferring the context via HTTP headers, if the first character of
       the context name is '-', the context name is excluded from the header.
       This enables the use of OpenTelemetry contexts with external services that
