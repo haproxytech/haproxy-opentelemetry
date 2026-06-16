@@ -60,6 +60,12 @@ static enum act_return flt_otel_group_action(struct act_rule *rule, struct proxy
 		OTELC_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
 	}
 
+	if (!conf_group->flag_used) {
+		OTELC_DBG(DEBUG, "group '%s' not used", conf_group->id);
+
+		OTELC_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
+	}
+
 	if (_HA_ATOMIC_LOAD(&(conf->instr->flag_disabled))) {
 		OTELC_DBG(INFO, "filter '%s' disabled, group action '%s' ignored", conf->id, conf_group->id);
 
