@@ -1468,6 +1468,7 @@ with a change in arguments when running the same):
   flt-otel logging [state] : set logging state
   flt-otel rate [value]    : set the rate limit
   flt-otel status          : show the OTel filter status
+  flt-otel flush           : force-export buffered telemetry now
   --- command output ----------
 
 'flt-otel debug' can only be used in case the OTel filter is compiled with the
@@ -1515,6 +1516,10 @@ off), and 'analyzers' is the channel analyzer bitmask the filter registered.
 The 'counters' block tallies how streams attached -- run, rate-limited,
 disabled or errored -- and how many later had tracing disabled, by a scope
 decision (a failed condition or 'otel-stop') or by a hard error.
+
+'flt-otel flush' forces every filter instance to export its buffered telemetry
+at once, calling force_flush on the active tracer, meter and logger, each one
+bounded by a five-second timeout.  It requires admin access.
 
 
 7. Known bugs and limitations

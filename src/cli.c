@@ -405,6 +405,57 @@ static int flt_otel_cli_parse_status(char **args, char *payload, struct appctx *
 }
 
 
+/***
+ * NAME
+ *   flt_otel_cli_parse_flush - CLI telemetry flush handler
+ *
+ * SYNOPSIS
+ *   static int flt_otel_cli_parse_flush(char **args, char *payload, struct appctx *appctx, void *private)
+ *
+ * ARGUMENTS
+ *   args    - CLI command arguments array
+ *   payload - CLI command payload string
+ *   appctx  - CLI application context
+ *   private - unused private data pointer
+ *
+ * DESCRIPTION
+ *   Handles the "flt-otel flush" CLI command.  Requires admin access level.
+ *   For every OTel filter instance across all proxies, forces the export of
+ *   buffered telemetry by calling force_flush on the active tracer, meter and
+ *   logger, each bounded by a five-second timeout.  Handles that are not yet
+ *   initialized are skipped.
+ *
+ * RETURN VALUE
+ *   Returns 1, or 0 if no OTel filter instances are configured or on memory
+ *   allocation failure.
+ */
+static int flt_otel_cli_parse_flush(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	const struct timespec  timeout = { .tv_sec = 5, .tv_nsec = 0 };
+	char                  *msg = NULL;
+
+	OTELC_FUNC("%p, \"%s\", %p, %p", args, OTELC_STR_ARG(payload), appctx, private);
+
+	FLT_OTEL_ARGS_DUMP();
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		OTELC_RETURN_INT(1);
+
+	FLT_OTEL_PROXIES_LIST_START() {
+		if (conf->instr->tracer != NULL)
+			(void)OTELC_OPS(conf->instr->tracer, force_flush, &timeout);
+		if (conf->instr->meter != NULL)
+			(void)OTELC_OPS(conf->instr->meter, force_flush, &timeout);
+		if (conf->instr->logger != NULL)
+			(void)OTELC_OPS(conf->instr->logger, force_flush, &timeout);
+
+		(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : flushed proxy %s, filter %s", FLT_OTEL_CLI_MSG_CAT(msg), px->id, conf->id);
+	} FLT_OTEL_PROXIES_LIST_END();
+
+	OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, NULL, msg));
+}
+
+
 /* CLI command table for the OTel filter. */
 static struct cli_kw_list cli_kws = { { }, {
 #ifdef DEBUG_OTEL
@@ -417,6 +468,7 @@ static struct cli_kw_list cli_kws = { { }, {
 	{ { FLT_OTEL_CLI_CMD, "logging",  NULL }, FLT_OTEL_CLI_CMD " logging [state]                : set logging state (default: get current logging state)", flt_otel_cli_parse_logging, NULL, NULL, NULL, 0 },
 	{ { FLT_OTEL_CLI_CMD, "rate", NULL }, FLT_OTEL_CLI_CMD " rate [value]                   : set the rate limit (default: get current rate value)", flt_otel_cli_parse_rate, NULL, NULL, NULL, 0 },
 	{ { FLT_OTEL_CLI_CMD, "status", NULL }, FLT_OTEL_CLI_CMD " status                         : show the OTEL filter status", flt_otel_cli_parse_status, NULL, NULL, NULL, 0 },
+	{ { FLT_OTEL_CLI_CMD, "flush", NULL }, FLT_OTEL_CLI_CMD " flush                          : force-export buffered telemetry now", flt_otel_cli_parse_flush, NULL, NULL, NULL, ACCESS_LVL_ADMIN },
 	{ /* END */ }
 }};
 
@@ -434,8 +486,8 @@ static struct cli_kw_list cli_kws = { { }, {
  * DESCRIPTION
  *   Registers the OTel filter CLI keywords with the HAProxy CLI subsystem.
  *   The keywords include commands for enable/disable, error mode, logging,
- *   rate limit, status display, and (when DEBUG_OTEL is defined) debug level
- *   management.
+ *   rate limit, status display, telemetry flush, and (when DEBUG_OTEL is
+ *   defined) debug level management.
  *
  * RETURN VALUE
  *   This function does not return a value.

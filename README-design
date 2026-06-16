@@ -735,6 +735,7 @@ keyword sequences to handler functions with access level requirements.
   "flt-otel logging"      ACCESS_LVL_ADMIN for setting; any for reading.
   "flt-otel rate"         ACCESS_LVL_ADMIN for setting; any for reading.
   "flt-otel debug"        ACCESS_LVL_ADMIN.  DEBUG_OTEL only.
+  "flt-otel flush"        ACCESS_LVL_ADMIN.  Forces a telemetry export.
 
 The "flt-otel enable" and "flt-otel disable" commands share the same handler
 (flt_otel_cli_parse_disabled) with the private argument distinguishing the
@@ -759,3 +760,11 @@ containing:
   - Per-proxy: config file, group/scope counts, instrumentation details, rate
     limit, error mode, disabled state, logging state, analyzer bitmask, and
     counters (if FLT_OTEL_USE_COUNTERS).
+
+12.4  Introspection and Flush
+
+The "flt-otel flush" command iterates every configured filter instance with
+the FLT_OTEL_PROXIES_LIST_START / FLT_OTEL_PROXIES_LIST_END macros and, rather
+than changing state, forces output: it calls force_flush on each instance's
+tracer, meter and logger handles, each bounded by a five-second timeout, and
+skips any handle that is not yet initialized.
