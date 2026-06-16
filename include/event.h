@@ -78,7 +78,7 @@
 /*	FLT_OTEL_EVENT_DEF(     FLT_XFER_DATA, REQ,        ,        ,  , "") */                               \
 /*	FLT_OTEL_EVENT_DEF(           FLT_END, REQ,        ,        ,  , "") */                               \
 	FLT_OTEL_EVENT_DEF(      HTTP_HEADERS, REQ, HRQ_HDR, HRQ_HDR, 1, "on-http-headers-request")           \
-	FLT_OTEL_EVENT_DEF(          HTTP_END, REQ,        ,        , 1, "on-http-end-request")               \
+	FLT_OTEL_EVENT_DEF(          HTTP_END, REQ,        ,        , 0, "on-http-end-request")               \
 	FLT_OTEL_EVENT_DEF(   CLIENT_SESS_END, REQ,        ,        , 0, "on-client-session-end")             \
 	FLT_OTEL_EVENT_DEF(SERVER_UNAVAILABLE, REQ,        ,        , 0, "on-server-unavailable")             \
 	                                                                                                      \

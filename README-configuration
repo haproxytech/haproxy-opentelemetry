@@ -350,8 +350,8 @@ Supported keywords:
 
         on-stream-start, on-stream-stop, on-idle-timeout, on-backend-set,
         on-client-session-end, on-server-unavailable, on-server-session-start,
-        on-tcp-response, on-http-end-response, on-http-reply,
-        on-server-session-end
+        on-tcp-response, on-http-end-request, on-http-end-response,
+        on-http-reply, on-server-session-end
 
       Variable injection (use-vars) has no such restriction.
 
