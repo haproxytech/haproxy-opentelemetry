@@ -737,6 +737,7 @@ keyword sequences to handler functions with access level requirements.
   "flt-otel debug"        ACCESS_LVL_ADMIN.  DEBUG_OTEL only.
   "flt-otel flush"        ACCESS_LVL_ADMIN.  Forces a telemetry export.
   "flt-otel instruments"  No access restriction.  Lists metric instruments.
+  "flt-otel scopes"       No access restriction.  Lists scopes and groups.
 
 The "flt-otel enable" and "flt-otel disable" commands share the same handler
 (flt_otel_cli_parse_disabled) with the private argument distinguishing the
@@ -774,3 +775,8 @@ The "flt-otel instruments" command reports, for every filter instance, the
 instruments declared in each scope.  A create-form instrument is shown with
 its type, unit and lazy-creation state, an update-form instrument by name with
 the 'update' type, its create-only columns left blank.
+
+The "flt-otel scopes" command likewise builds a per-instance report, printing
+each scope with its bound event and used flag, each group with its used flag
+and scope count, and -- in a debug build -- the per-event dispatch counts held
+in conf->cnt.event[].

@@ -14,6 +14,9 @@
 #define FLT_OTEL_CLI_INSTRUMENT          "instrument"
 #define FLT_OTEL_CLI_TYPE                "type"
 #define FLT_OTEL_CLI_UNIT                "unit"
+#define FLT_OTEL_CLI_EVENT               "event"
+#define FLT_OTEL_CLI_GROUP               "group"
+#define FLT_OTEL_CLI_USED                "used"
 
 #define FLT_OTEL_CLI_MSG_CAT(a)          (((a) == NULL) ? "" : (a)), (((a) == NULL) ? "" : "\n")
 

@@ -1470,6 +1470,7 @@ with a change in arguments when running the same):
   flt-otel status          : show the OTel filter status
   flt-otel flush           : force-export buffered telemetry now
   flt-otel instruments     : show configured metric instruments
+  flt-otel scopes          : show configured scopes and groups
   --- command output ----------
 
 'flt-otel debug' can only be used in case the OTel filter is compiled with the
@@ -1543,6 +1544,34 @@ only its name and 'update' type are shown:
   --- command output ----------
 
 A filter that has no instruments configured is shown as '(no instruments)'.
+
+'flt-otel scopes' lists the configured scopes, each with its bound event and
+whether the configuration uses it, then the groups with their used state and
+scope count.  A debug build appends an 'events' section that reports how often
+each event was dispatched:
+
+  % echo "flt-otel scopes" | socat - UNIX-CONNECT:/tmp/haproxy.sock
+  --- command output ----------
+   opentelemetry filter scopes
+  ------------------------------------------------------------------------------
+
+     proxy otel-test-full-frontend, filter otel-test-full
+       scopes:
+         scope            event            used
+         on_stream_start  on-stream-start  yes
+         [...]
+       groups:
+         group                      used  scopes
+         http_response_group        yes   2
+         http_after_response_group  yes   1
+       events:
+         event            dispatched
+         on-stream-start  3
+         [...]
+  --- command output ----------
+
+Each section is shown as '(no scopes)', '(no groups)' or '(no events)' when it
+has no rows.
 
 
 7. Known bugs and limitations

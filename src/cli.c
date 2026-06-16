@@ -551,6 +551,121 @@ static int flt_otel_cli_parse_instruments(char **args, char *payload, struct app
 }
 
 
+/***
+ * NAME
+ *   flt_otel_cli_parse_scopes - CLI scope and group display handler
+ *
+ * SYNOPSIS
+ *   static int flt_otel_cli_parse_scopes(char **args, char *payload, struct appctx *appctx, void *private)
+ *
+ * ARGUMENTS
+ *   args    - CLI command arguments array
+ *   payload - CLI command payload string
+ *   appctx  - CLI application context
+ *   private - unused private data pointer
+ *
+ * DESCRIPTION
+ *   Handles the "flt-otel scopes" CLI command.  For every OTel filter instance,
+ *   lists the configured scopes with their bound event and used state, and the
+ *   configured groups with their used state and scope count.  When DEBUG_OTEL
+ *   is enabled, an events section additionally reports how many times each
+ *   event has been dispatched.
+ *
+ * RETURN VALUE
+ *   Returns 1, or 0 on memory allocation failure.
+ */
+static int flt_otel_cli_parse_scopes(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	const char *nl = "";
+	char       *msg = NULL;
+
+	OTELC_FUNC("%p, \"%s\", %p, %p", args, OTELC_STR_ARG(payload), appctx, private);
+
+	FLT_OTEL_ARGS_DUMP();
+
+	(void)memprintf(&msg, " " FLT_OTEL_OPT_NAME " filter scopes\n" FLT_OTEL_STR_DASH_78 "\n");
+
+	FLT_OTEL_PROXIES_LIST_START() {
+		struct flt_otel_conf_scope *scp;
+		struct flt_otel_conf_group *grp;
+		int                         w_scope = 0, w_event = 0, w_group = 0, w_used = FLT_OTEL_STR_SIZE(FLT_OTEL_CLI_USED);
+#ifdef DEBUG_OTEL
+		int                         i, w_name = 0;
+#endif
+
+		(void)memprintf(&msg, "%s\n%s   proxy %s, filter %s\n", msg, nl, px->id, conf->id);
+
+		list_for_each_entry(scp, &(conf->scopes), list) {
+			const char *evname = flt_otel_event_data[scp->event].name;
+
+			w_scope = OTELC_MAX(w_scope, (int)strlen(scp->id));
+			w_event = OTELC_MAX(w_event, (int)strlen((*evname != '\0') ? evname : "(none)"));
+		}
+
+		if (w_scope > 0) {
+			w_scope = OTELC_MAX(w_scope, FLT_OTEL_STR_SIZE(FLT_OTEL_CLI_SCOPE));
+			w_event = OTELC_MAX(w_event, FLT_OTEL_STR_SIZE(FLT_OTEL_CLI_EVENT));
+
+			(void)memprintf(&msg, "%s     scopes:\n", msg);
+			(void)memprintf(&msg, "%s       %-*s  %-*s  used\n", msg, w_scope, FLT_OTEL_CLI_SCOPE, w_event, FLT_OTEL_CLI_EVENT);
+			list_for_each_entry(scp, &(conf->scopes), list) {
+				const char *evname = flt_otel_event_data[scp->event].name;
+
+				(void)memprintf(&msg, "%s       %-*s  %-*s  %s\n", msg, w_scope, scp->id, w_event, (*evname != '\0') ? evname : "(none)", FLT_OTEL_STR_FLAG_YN(scp->flag_used));
+			}
+		} else {
+			(void)memprintf(&msg, "%s     (no scopes)\n", msg);
+		}
+
+		list_for_each_entry(grp, &(conf->groups), list)
+			w_group = OTELC_MAX(w_group, (int)strlen(grp->id));
+
+		if (w_group > 0) {
+			w_group = OTELC_MAX(w_group, FLT_OTEL_STR_SIZE(FLT_OTEL_CLI_GROUP));
+
+			(void)memprintf(&msg, "%s     groups:\n", msg);
+			(void)memprintf(&msg, "%s       %-*s  %-*s  scopes\n", msg, w_group, FLT_OTEL_CLI_GROUP, w_used, FLT_OTEL_CLI_USED);
+			list_for_each_entry(grp, &(conf->groups), list) {
+				struct flt_otel_conf_ph *ph_scope;
+				int                      n_scopes = 0;
+
+				list_for_each_entry(ph_scope, &(grp->ph_scopes), list)
+					n_scopes++;
+
+				(void)memprintf(&msg, "%s       %-*s  %-*s  %d\n", msg, w_group, grp->id, w_used, FLT_OTEL_STR_FLAG_YN(grp->flag_used), n_scopes);
+			}
+		} else {
+			(void)memprintf(&msg, "%s     (no groups)\n", msg);
+		}
+
+#ifdef DEBUG_OTEL
+		for (i = 0; i < FLT_OTEL_EVENT_MAX; i++)
+			if ((conf->cnt.event[i].htx[0] + conf->cnt.event[i].htx[1]) > 0)
+				w_name = OTELC_MAX(w_name, (int)strlen(flt_otel_event_data[i].name));
+
+		if (w_name > 0) {
+			w_name = OTELC_MAX(w_name, FLT_OTEL_STR_SIZE(FLT_OTEL_CLI_EVENT));
+
+			(void)memprintf(&msg, "%s     events:\n", msg);
+			(void)memprintf(&msg, "%s       %-*s  dispatched\n", msg, w_name, FLT_OTEL_CLI_EVENT);
+			for (i = 0; i < FLT_OTEL_EVENT_MAX; i++) {
+				uint64_t runs = conf->cnt.event[i].htx[0] + conf->cnt.event[i].htx[1];
+
+				if (runs > 0)
+					(void)memprintf(&msg, "%s       %-*s  %" PRIu64 "\n", msg, w_name, flt_otel_event_data[i].name, runs);
+			}
+		} else {
+			(void)memprintf(&msg, "%s     (no events)\n", msg);
+		}
+#endif /* DEBUG_OTEL */
+
+		nl = "\n";
+	} FLT_OTEL_PROXIES_LIST_END();
+
+	OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, NULL, msg));
+}
+
+
 /* CLI command table for the OTel filter. */
 static struct cli_kw_list cli_kws = { { }, {
 #ifdef DEBUG_OTEL
@@ -565,6 +680,7 @@ static struct cli_kw_list cli_kws = { { }, {
 	{ { FLT_OTEL_CLI_CMD, "status", NULL }, FLT_OTEL_CLI_CMD " status                         : show the OTEL filter status", flt_otel_cli_parse_status, NULL, NULL, NULL, 0 },
 	{ { FLT_OTEL_CLI_CMD, "flush", NULL }, FLT_OTEL_CLI_CMD " flush                          : force-export buffered telemetry now", flt_otel_cli_parse_flush, NULL, NULL, NULL, ACCESS_LVL_ADMIN },
 	{ { FLT_OTEL_CLI_CMD, "instruments", NULL }, FLT_OTEL_CLI_CMD " instruments                    : show configured metric instruments", flt_otel_cli_parse_instruments, NULL, NULL, NULL, 0 },
+	{ { FLT_OTEL_CLI_CMD, "scopes", NULL }, FLT_OTEL_CLI_CMD " scopes                         : show configured scopes and groups", flt_otel_cli_parse_scopes, NULL, NULL, NULL, 0 },
 	{ /* END */ }
 }};
 
@@ -582,8 +698,8 @@ static struct cli_kw_list cli_kws = { { }, {
  * DESCRIPTION
  *   Registers the OTel filter CLI keywords with the HAProxy CLI subsystem.
  *   The keywords include commands for enable/disable, error mode, logging,
- *   rate limit, status display, telemetry flush, instrument introspection,
- *   and (when DEBUG_OTEL is defined) debug level management.
+ *   rate limit, status display, telemetry flush, instrument and scope
+ *   introspection, and (when DEBUG_OTEL is defined) debug level management.
  *
  * RETURN VALUE
  *   This function does not return a value.
