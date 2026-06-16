@@ -1442,9 +1442,10 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
  * DESCRIPTION
  *   Parses the "log-record" keyword inside an otel-scope section.  The first
  *   argument is a required severity level string.  Optional keywords "id",
- *   "event", "span", and "attr" follow in any order.  The remaining arguments
- *   at the end are parsed as fetch expressions or a log-format string, with an
- *   optional trailing 'if'/'unless' condition that gates the whole record.
+ *   "event", "time", "span", and "attr" follow in any order.  The remaining
+ *   arguments at the end are parsed as fetch expressions or a log-format
+ *   string, with an optional trailing 'if'/'unless' condition that gates the
+ *   whole record.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -2321,8 +2322,8 @@ static int flt_otel_parse_cfg(struct flt_otel_conf *conf, const char *flt_name, 
  *   private - unused private data pointer
  *
  * DESCRIPTION
- *   Main filter parser entry point, registered for the "otel" filter keyword.
- *   Parses the filter ID and configuration file path from the HAProxy
+ *   Main filter parser entry point, registered for the "opentelemetry" filter
+ *   keyword.  Parses the filter ID and configuration file path from the HAProxy
  *   configuration line.  If no filter ID is specified, the default ID is used.
  *
  * RETURN VALUE

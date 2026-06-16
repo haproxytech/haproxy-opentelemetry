@@ -109,7 +109,7 @@ compiled inside vars.c.
 Configuration parsing is driven by parser.c.  The filter is declared in the
 HAProxy configuration with:
 
-  filter opentelemetry [id <name>] config <file>
+  filter opentelemetry [id <id>] config <file>
 
 The flt_otel_parse() function (parser.c) handles the "filter" line, creates an
 flt_otel_conf structure, and delegates to parse_cfg() which loads the referenced

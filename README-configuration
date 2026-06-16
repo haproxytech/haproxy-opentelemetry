@@ -65,10 +65,13 @@ configuration, in a proxy section (frontend / listen / backend):
 If no filter id is specified, 'otel-filter' is used as default.  The 'config'
 parameter is mandatory and specifies the path to the OTel configuration file.
 
-Note: only one instance of the OTel filter is currently allowed per HAProxy
-process.  This limitation comes from the OTel C wrapper, which does not yet
-support simultaneous operation with different configurations.  Once that
-capability is added to the wrapper, this restriction will be lifted.
+Note: the parser does not limit the number of OTel filters; it only requires
+each filter id to be unique.  The OTel C wrapper, however, supports a single
+active configuration, so only one filter instance is operational per HAProxy
+process.  Declaring several distinct filters is thus unsupported for now: the
+parser accepts them, but the extra instances will not work.  Once the wrapper
+supports simultaneous operation with different configurations, this limitation
+will be lifted.
 
 Example (from test/sa/haproxy.cfg):
 
@@ -124,10 +127,11 @@ file:
           ...
 
 Although several OTel scopes may coexist in a single configuration file, only
-one of them can be activated at a time, because only one instance of the OTel
-filter is currently allowed per HAProxy process.  Once the OTel C wrapper
-supports simultaneous operation with different configurations, this restriction
-will be lifted.
+one is operational at a time.  The parser does not prevent declaring multiple
+filters -- it only requires their ids to be unique -- but the OTel C wrapper
+supports a single active configuration, so just one filter instance runs per
+HAProxy process.  Once the OTel C wrapper supports simultaneous operation with
+different configurations, this restriction will be lifted.
 
 
 3.2. "otel-instrumentation" section
@@ -251,7 +255,9 @@ Supported keywords:
       its native type; multiple samples are concatenated as a string.
 
       An optional trailing 'if'/'unless' ACL condition gates the attribute: it
-      is set only when the condition is met at request time.
+      is set only when the condition is met at request time.  The keyword may be
+      repeated to set several attributes on one span, and every line whose
+      condition holds is applied.
 
       Examples:
         attribute "http.method" method
@@ -270,7 +276,9 @@ Supported keywords:
         Note that a 'time' token directly after <name> is read as this clause,
         so it cannot also serve as an attribute key in that position.
 
-      An optional trailing 'if'/'unless' ACL condition gates the event.
+      An optional trailing 'if'/'unless' ACL condition gates the event.  The
+      keyword may be repeated to add several events to one span, and every line
+      whose condition holds is applied.
 
       Examples:
         event "event_ip" "src" src str(":") src_port
@@ -282,7 +290,9 @@ Supported keywords:
       Set baggage on the currently active span.  Baggage propagates to all child
       spans.  The data type is always string.
 
-      An optional trailing 'if'/'unless' ACL condition gates the baggage.
+      An optional trailing 'if'/'unless' ACL condition gates the baggage.  The
+      keyword may be repeated to set several baggage items on one span, and
+      every line whose condition holds is applied.
 
       Examples:
         baggage "haproxy_id" var(sess.otel.uuid)
@@ -295,7 +305,13 @@ Supported keywords:
       follows the code, but the OTLP exporter keeps the status message only for
       the 'error' code, dropping it for 'ok' and 'unset'.
 
-      An optional trailing 'if'/'unless' ACL condition gates the status.
+      An optional trailing 'if'/'unless' ACL condition gates the status.  The
+      keyword may be given more than once per span; the lines are tried in
+      configuration order and the first whose condition holds sets the status,
+      the remaining lines being skipped.  A line without a condition always
+      matches, so an unconditional 'status' acts as a default when placed last.
+      This first-match rule is specific to 'status'; 'attribute', 'event' and
+      'baggage' instead apply every line whose condition holds.
 
       Examples:
         status "ok"
@@ -324,6 +340,9 @@ Supported keywords:
       The prefix names the context; the special prefix '-' generates the name
       automatically.  Default storage: use-headers.  The 'use-vars' option
       requires OTEL_USE_VARS=1 at compile time.
+
+      A span carries a single context, so 'inject' may appear at most once per
+      span; a second is a configuration error.
 
       When transferring the context via HTTP headers, if the first character of
       the context name is '-', the context name is excluded from the header.
@@ -373,6 +392,8 @@ Supported keywords:
   instrument update <name> [attr <key> <sample> ...] [{ if | unless } <condition>]
       Create or update a metric instrument.  For the create form, the 'aggr',
       'desc', 'unit', 'value' and 'bounds' keywords may be given in any order.
+      Within a scope, each name may have at most one create form and one update
+      form; a duplicate of either is a configuration error.
 
       Supported types:
         cnt_int   - counter (uint64)
@@ -551,7 +572,8 @@ Supported keywords:
   unset-var <var-name> ... [{ if | unless } <condition>]
       Remove one or more HAProxy variables when the scope's event fires.  A
       variable that is not currently set is silently ignored.  Removal runs
-      after all other directives in the scope.
+      after the scope's spans, instruments and log records, so all still read
+      the variables; only 'finish' and 'otel-stop' run afterwards.
 
       An optional trailing 'if'/'unless' ACL condition gates the whole
       directive; when it does not pass, none of the listed variables are
@@ -571,6 +593,8 @@ Supported keywords:
 
   otel-event <name> [{ if | unless } <condition>]
       Bind this scope to a filter event, optionally with an ACL-based condition.
+      A scope binds to a single event, so 'otel-event' may appear at most once;
+      a second is a configuration error.
 
       Supported events (stream lifecycle):
         on-stream-start

@@ -356,9 +356,9 @@ sections.
       loads and parses the file, then restores the original sections.
 
   flt_otel_parse
-      Main filter parser entry point, registered for the "otel" filter keyword.
-      Parses the filter ID and configuration file path from the HAProxy config
-      line.
+      Main filter parser entry point, registered for the "opentelemetry" filter
+      keyword.  Parses the filter ID and configuration file path from the
+      HAProxy config line.
 
 
 src/conf.c
@@ -478,25 +478,25 @@ HAProxy CLI command handlers for runtime filter management.
       Sets the CLI appctx response message and state.
 
   flt_otel_cli_parse_debug [D]
-      CLI handler for "otel debug [level]".  Gets or sets the debug level.
+      CLI handler for "flt-otel debug [level]".  Gets or sets the debug level.
 
   flt_otel_cli_parse_disabled
-      CLI handler for "otel enable" and "otel disable".
+      CLI handler for "flt-otel enable" and "flt-otel disable".
 
   flt_otel_cli_parse_option
-      CLI handler for "otel soft-errors" and "otel hard-errors".
+      CLI handler for "flt-otel soft-errors" and "flt-otel hard-errors".
 
   flt_otel_cli_parse_logging
-      CLI handler for "otel logging [state]".  Gets or sets the logging state
-      (off/on/dontlog-normal).
+      CLI handler for "flt-otel logging [state]".  Gets or sets the logging
+      state (off/on/dontlog-normal).
 
   flt_otel_cli_parse_rate
-      CLI handler for "otel rate [value]".  Gets or sets the rate limit
+      CLI handler for "flt-otel rate [value]".  Gets or sets the rate limit
       percentage.
 
   flt_otel_cli_parse_status
-      CLI handler for "otel status".  Displays filter configuration and runtime
-      state for all OTel filter instances.
+      CLI handler for "flt-otel status".  Displays filter configuration and
+      runtime state for all OTel filter instances.
 
   flt_otel_cli_init
       Registers the OTel CLI keywords with HAProxy.

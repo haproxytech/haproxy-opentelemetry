@@ -239,7 +239,7 @@ flag_disabled field set, which a hard error (in hard-error mode) or a fired
 single-threaded, so the field is read directly, without atomic access; when it
 is set, the callback returns immediately without processing.
 
-The global "otel disable" CLI command uses a separate instrumentation field,
+The global "flt-otel disable" CLI command uses a separate instrumentation field,
 conf->instr->flag_disabled, which flt_otel_ops_attach() checks atomically when
 the filter attaches to a stream (section 6.3), not through this per-stream test.
 
@@ -256,20 +256,21 @@ operations.
 
 The following fields are accessed atomically across threads:
 
-  conf->instr->flag_disabled  Toggled by CLI "otel enable/disable".  Checked in
-                              flt_otel_ops_attach() and flt_otel_is_disabled().
+  conf->instr->flag_disabled  Toggled by CLI "flt-otel enable/disable".
+                              Checked in flt_otel_ops_attach() and
+                              flt_otel_is_disabled().
 
-  conf->instr->flag_harderr   Toggled by CLI "otel hard-errors/soft-errors".
+  conf->instr->flag_harderr   Toggled by CLI "flt-otel hard-errors/soft-errors".
                               Copied to rt_ctx at attach time.
 
-  conf->instr->rate_limit     Set by CLI "otel rate".
+  conf->instr->rate_limit     Set by CLI "flt-otel rate".
                               Read in flt_otel_ops_attach().
 
-  conf->instr->logging        Set by CLI "otel logging".
+  conf->instr->logging        Set by CLI "flt-otel logging".
                               Copied to rt_ctx at attach time.
 
   flt_otel_drop_cnt           Incremented in flt_otel_log_handler_cb().
-                              Read by CLI "otel status".
+                              Read by CLI "flt-otel status".
 
   conf->cnt.disabled[]        Incremented in flt_otel_return_int/void().
   conf->cnt.attached[]        Incremented in flt_otel_ops_attach().
@@ -311,7 +312,7 @@ configuration skip the start sequence.
 CLI set commands (cli.c) iterate all OTel filter instances across all proxies
 using the FLT_OTEL_PROXIES_LIST_START / FLT_OTEL_PROXIES_LIST_END macros
 (util.h) and atomically update the target field on each instance.  This ensures
-that "otel disable" takes effect globally, not just on one proxy.
+that "flt-otel disable" takes effect globally, not just on one proxy.
 
 
 5  Sample Evaluation Pipeline
@@ -440,7 +441,7 @@ If the condition fails at runtime:
 
 6.3  Global Disable
 
-The filter can be disabled globally via the CLI ("otel disable") or the
+The filter can be disabled globally via the CLI ("flt-otel disable") or the
 configuration ("option disabled").  The flag_disabled field on the
 instrumentation configuration is checked atomically in flt_otel_ops_attach()
 before any per-stream allocation occurs.
@@ -458,7 +459,8 @@ The directive is evaluated after the scope's own spans, log records and metric
 instruments, so a stopping scope still emits its telemetry before tracing ends.
 A bare 'otel-stop' always fires; an optional if/unless condition, kept in the
 stop_cond field separately from the scope's own condition, makes it conditional.
-This is the per-stream counterpart to the global "otel disable" of section 6.3.
+This is the per-stream counterpart to the global "flt-otel disable" of section
+6.3.
 
 
 7  Memory Management Strategy
@@ -595,8 +597,8 @@ flags.  This enables:
 9.2  Debug Level Bitmask
 
 The debug level is a uint stored in conf->instr and controllable at runtime via
-"otel debug <level>".  The default value is FLT_OTEL_DEBUG_LEVEL (0b11101111111
-in config.h).  Each bit enables a category of debug output.
+"flt-otel debug <level>".  The default value is FLT_OTEL_DEBUG_LEVEL
+(0b11101111111 in config.h).  Each bit enables a category of debug output.
 
 9.3  Logging Integration
 
@@ -615,7 +617,7 @@ Its behavior depends on the logging flags:
     are emitted).
 
 These flags are set via the "option dontlog-normal" configuration keyword or the
-"otel logging" CLI command.
+"flt-otel logging" CLI command.
 
 9.4  Counter System
 
@@ -627,8 +629,8 @@ maintains:
   disabled[2]   Counters for hard-error disables, incremented atomically in
                 flt_otel_return_int() / flt_otel_return_void().
 
-The counters are reported by the "otel status" CLI command and dumped at deinit
-time in debug builds.
+The counters are reported by the "flt-otel status" CLI command and dumped at
+deinit time in debug builds.
 
 
 10  Idle Timeout Mechanism
@@ -719,21 +721,21 @@ This table is generated from the FLT_OTEL_GROUP_DEFINES X-macro list (group.h).
 12  CLI Runtime Control Architecture
 ----------------------------------------------------------------------
 
-cli.c registers commands under the "otel" prefix.  The command table maps
+cli.c registers commands under the "flt-otel" prefix.  The command table maps
 keyword sequences to handler functions with access level requirements.
 
 12.1  Command Table
 
-  "otel status"       No access restriction.  Read-only status report.
-  "otel enable"       ACCESS_LVL_ADMIN.  Clears flag_disabled.
-  "otel disable"      ACCESS_LVL_ADMIN.  Sets flag_disabled.
-  "otel hard-errors"  ACCESS_LVL_ADMIN.  Sets flag_harderr.
-  "otel soft-errors"  ACCESS_LVL_ADMIN.  Clears flag_harderr.
-  "otel logging"      ACCESS_LVL_ADMIN for setting; any for reading.
-  "otel rate"         ACCESS_LVL_ADMIN for setting; any for reading.
-  "otel debug"        ACCESS_LVL_ADMIN.  DEBUG_OTEL only.
+  "flt-otel status"       No access restriction.  Read-only status report.
+  "flt-otel enable"       ACCESS_LVL_ADMIN.  Clears flag_disabled.
+  "flt-otel disable"      ACCESS_LVL_ADMIN.  Sets flag_disabled.
+  "flt-otel hard-errors"  ACCESS_LVL_ADMIN.  Sets flag_harderr.
+  "flt-otel soft-errors"  ACCESS_LVL_ADMIN.  Clears flag_harderr.
+  "flt-otel logging"      ACCESS_LVL_ADMIN for setting; any for reading.
+  "flt-otel rate"         ACCESS_LVL_ADMIN for setting; any for reading.
+  "flt-otel debug"        ACCESS_LVL_ADMIN.  DEBUG_OTEL only.
 
-The "otel enable" and "otel disable" commands share the same handler
+The "flt-otel enable" and "flt-otel disable" commands share the same handler
 (flt_otel_cli_parse_disabled) with the private argument distinguishing the
 operation (1 for disable, 0 for enable).  The same pattern is used for
 hard-errors / soft-errors.
@@ -742,12 +744,13 @@ hard-errors / soft-errors.
 
 All set operations iterate every OTel filter instance across all proxies using
 FLT_OTEL_PROXIES_LIST_START / FLT_OTEL_PROXIES_LIST_END macros and atomically
-update the target field.  A single "otel disable" command disables the filter
-in every proxy that has it configured.
+update the target field.  A single "flt-otel disable" command disables the
+filter in every proxy that has it configured.
 
 12.3  Status Report
 
-The "otel status" command assembles a dynamic string via memprintf() containing:
+The "flt-otel status" command assembles a dynamic string via memprintf()
+containing:
 
   - Library versions (C++ SDK and C wrapper).
   - Debug level (DEBUG_OTEL only).

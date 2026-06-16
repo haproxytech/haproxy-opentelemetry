@@ -229,10 +229,13 @@ instrumentation sections (see section 4.1).  The YAML configuration for the
 OpenTelemetry SDK is a separate file, referenced by the 'config' keyword inside
 the "otel-instrumentation" section (see section 4.2).
 
-Note: only one instance of the OTel filter is currently allowed per HAProxy
-process.  This limitation comes from the OTel C wrapper, which does not yet
-support simultaneous operation with different configurations.  Once that
-capability is added to the wrapper, this restriction will be lifted.
+Note: the parser does not limit the number of OTel filters; it only requires
+each filter id to be unique.  The OTel C wrapper, however, supports a single
+active configuration, so only one filter instance is operational per HAProxy
+process.  Declaring several distinct filters is thus unsupported for now: the
+parser accepts them, but the extra instances will not work.  Once the wrapper
+supports simultaneous operation with different configurations, this limitation
+will be lifted.
 
 
 4.1 OTel scope
@@ -262,10 +265,11 @@ For example, this defines two OTel scopes in the same configuration file:
     ...
 
 Although several OTel scopes may coexist in a single configuration file, only
-one of them can be activated at a time, because only one instance of the OTel
-filter is currently allowed per HAProxy process.  Once the OTel C wrapper
-supports simultaneous operation with different configurations, this restriction
-will be lifted.
+one is operational at a time.  The parser does not prevent declaring multiple
+filters -- it only requires their ids to be unique -- but the OTel C wrapper
+supports a single active configuration, so just one filter instance runs per
+HAProxy process.  Once the OTel C wrapper supports simultaneous operation with
+different configurations, this restriction will be lifted.
 
 
 4.2. "otel-instrumentation" section
@@ -475,7 +479,7 @@ acl <aclname> <criterion> [flags] [operator] <value> ...
   Manual.
 
 
-attribute <key> <sample> ...
+attribute <key> <sample> ... [{ if | unless } <condition>]
   This keyword allows setting an attribute for the currently active span.  The
   first argument is the name of the attribute (key) and the rest are its value.
   A value can consist of one or more sample expressions.  If the value is only
@@ -497,13 +501,19 @@ attribute <key> <sample> ...
             BINARY          |        UNSUPPORTED
   --------------------------+----------------------------
 
+  An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
+  gates the attribute; it is set only when the condition holds at request time.
+  The keyword may be repeated to set several attributes on one span, and every
+  line whose condition holds is applied.
+
   Arguments :
-    key    - key part of a data pair (attribute name)
-    sample - sample expression (value part of a data pair), at least
-             one sample must be present
+    key       - key part of a data pair (attribute name)
+    sample    - sample expression (value part of a data pair), at least
+                one sample must be present
+    condition - an optional ACL-based 'if' or 'unless' condition
 
 
-baggage <key> <sample> ...
+baggage <key> <sample> ... [{ if | unless } <condition>]
   Baggage items allow the propagation of data between spans, ie allow the
   assignment of metadata that is propagated to future children spans.  This data
   is formatted in the style of key-value pairs and is part of the context that
@@ -515,24 +525,41 @@ baggage <key> <sample> ...
 
   See the 'attribute' keyword description for the data type conversion table.
 
+  An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
+  gates the baggage.  The keyword may be repeated to set several baggage items
+  on one span, and every line whose condition holds is applied.
+
   Arguments :
-    key    - key part of a data pair
-    sample - sample expression (value part of a data pair), at least one sample
-             must be present
+    key       - key part of a data pair
+    sample    - sample expression (value part of a data pair), at least one
+                sample must be present
+    condition - an optional ACL-based 'if' or 'unless' condition
 
 
-event <name> <key> <sample> ...
+event <name> [time [<unit>] <sample>] <key> <sample> ... [{ if | unless } <condition>]
   This keyword allows adding a span event to the currently active span.  A span
   event is a named, timestamped annotation with optional attributes.  The data
   type is always a string, ie any sample type is converted to a string.
 
   See the 'attribute' keyword description for the data type conversion table.
 
+  An optional 'time [<unit>] <sample>' clause, placed between the event name and
+  the first key, overrides the event timestamp.  The unit is 's' (default),
+  'ms', 'us' or 'ns', and the sample must evaluate to a number; without it the
+  event inherits the span timestamp.  A 'time' token directly after the name is
+  read as this clause, so it cannot also serve as an attribute key there.
+
+  An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
+  gates the event.  The keyword may be repeated to add several events to one
+  span, and every line whose condition holds is applied.
+
   Arguments :
-    name   - name of the span event
-    key    - key part of a data pair (attribute name within the event)
-    sample - sample expression (value part of a data pair), at least one sample
-             must be present
+    name      - name of the span event
+    time      - optional explicit timestamp (with optional unit selector)
+    key       - key part of a data pair (attribute name within the event)
+    sample    - sample expression (value part of a data pair), at least one
+                sample must be present
+    condition - an optional ACL-based 'if' or 'unless' condition
 
 
 extract <name-prefix> [use-vars | use-headers]
@@ -642,7 +669,7 @@ inject <name-prefix> [use-vars] [use-headers]
   'finish' keyword or when detaching the stream from the filter.
 
 
-instrument { update <name> [<attr> ...] | <type> <name> [<aggr>] [<desc>] [<unit>] <value> [<bounds>] }
+instrument { update <name> [<attr> ...] | <type> <name> [<aggr>] [<desc>] [<unit>] <value> [<bounds>] } [{ if | unless } <condition>]
   This keyword allows creating or updating metric instruments within the scope.
   Metric instruments record numerical measurements that are exported alongside
   traces.
@@ -690,6 +717,13 @@ instrument { update <name> [<attr> ...] | <type> <name> [<aggr>] [<desc>] [<unit
   Double-precision types are not supported because HAProxy sample fetches do
   not return double values.
 
+  A create form registers the instrument and supplies the value to record, but
+  emits no measurement on its own; a data point is produced only when an
+  'update' form for that instrument runs.  An optional trailing 'if'/'unless'
+  condition (same syntax as 'otel-event') gates the measurement: on a create
+  form it gates every recording of the instrument, on an update form only that
+  one.  Registration itself produces no data point and is never gated.
+
   For example:
     instrument cnt_int  "my_counter" desc "Counter" value int(1)
     instrument hist_int "my_hist" aggr exp_histogram desc "Latency" value lat_ns_tot unit "ns"
@@ -697,17 +731,18 @@ instrument { update <name> [<attr> ...] | <type> <name> [<aggr>] [<desc>] [<unit
     instrument update "my_counter" attr "key1" str("val1")
 
   Arguments :
-    type   - the instrument type (see list above)
-    name   - the name of the instrument
-    aggr   - optional aggregation type (see list above)
-    desc   - optional human-readable description of the instrument
-    unit   - optional unit string for the instrument
-    value  - sample expression providing the measurement value
-    bounds - optional histogram bucket boundaries (hist_int only)
-    attr   - attribute key and sample expression (update form only)
+    type      - the instrument type (see list above)
+    name      - the name of the instrument
+    aggr      - optional aggregation type (see list above)
+    desc      - optional human-readable description of the instrument
+    unit      - optional unit string for the instrument
+    value     - sample expression providing the measurement value
+    bounds    - optional histogram bucket boundaries (hist_int only)
+    attr      - attribute key and sample expression (update form only)
+    condition - an optional ACL-based 'if' or 'unless' condition
 
 
-log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span <ref>] [attr <key> <sample>] ... <sample> ...
+log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span <ref>] [attr <key> <sample>] ... <sample> ... [{ if | unless } <condition>]
   This keyword emits an OpenTelemetry log record within the scope.  The first
   argument is a required severity level.  Optional keywords follow in any order
   before the trailing sample expressions that form the log record body:
@@ -744,6 +779,11 @@ log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span
   severity.  If a 'span' reference is given but the named span is not found at
   runtime, the log record is emitted without span correlation.
 
+  An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
+  gates the whole record; when it does not pass at runtime, the record is
+  skipped entirely, with neither its body nor its attributes evaluated.  The
+  keyword may be repeated to emit several records from one scope.
+
   For example:
     log-record info str("heartbeat")
     log-record info id 1001 event "http-request" span "Frontend HTTP request" attr "http.method" method method url
@@ -754,32 +794,46 @@ log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span
     log-record info time ns hdr(x-event-time-ns) str("client-supplied timestamp")
 
   Arguments :
-    severity - the log severity level (see list above)
-    id       - optional numeric event identifier
-    event    - optional event name
-    time     - optional explicit timestamp (with optional unit selector)
-    span     - optional name of an open span to associate with
-    attr     - optional attribute key-value pairs (repeatable)
-    sample   - sample fetch expression(s) forming the log record body
+    severity  - the log severity level (see list above)
+    id        - optional numeric event identifier
+    event     - optional event name
+    time      - optional explicit timestamp (with optional unit selector)
+    span      - optional name of an open span to associate with
+    attr      - optional attribute key-value pairs (repeatable)
+    sample    - sample fetch expression(s) forming the log record body
+    condition - an optional ACL-based 'if' or 'unless' condition
 
 
-link <ref> ...
+link { <ref> ... | <ref> attr <key> <sample> ... }
   This keyword adds span links to the currently active span.  A span link
   represents a causal relationship to another span without establishing a
   parent-child hierarchy.  Links are useful for connecting spans across
   different traces or for associating related spans within the same trace.
 
-  Multiple span or context names can be specified in one line.  Each name is
-  resolved at runtime by searching for an active span or an extracted context
-  with that name.  If a referenced span or context cannot be found, the link
-  is silently skipped.
+  In the first form, multiple span or context names can be specified in one
+  line.  Each name is resolved at runtime by searching for an active span or
+  an extracted context with that name.  If a referenced span or context cannot
+  be found, the link is silently skipped.
+
+  In the second form, a single link reference is followed by the 'attr' keyword
+  and one or more <key> <sample> attribute pairs, which attach attributes to
+  that one link.  Each pair gives a key and a single sample expression as the
+  value; see the 'attribute' keyword description for the data type conversion
+  table.
+
+  For example:
+    link "Span A" "Span B"
+    link "inbound" attr "link.detail" str("follows-from")
 
   Arguments :
-    span - the name of a span or span context to link to
+    ref    - the name of a span or span context to link to
+    key    - attribute key attached to a single link
+    sample - sample expression giving the attribute value
 
 
 otel-event <name> [{ if | unless } <condition>]
-  Set the event that triggers the 'otel-scope' to which it is assigned.
+  Set the event that triggers the 'otel-scope' to which it is assigned.  Only
+  one 'otel-event' may be defined per scope; a second is a configuration error.
   Optionally, it can be followed by an ACL-based condition, in which case it
   will only be evaluated if the condition is true.
 
@@ -888,10 +942,11 @@ otel-event <name> [{ if | unless } <condition>]
   idle-time log records.  It fires from the check_timeouts filter callback
   using HAProxy's tick-based timer infrastructure.
 
-  Because this timer shares the request channel's analyse_exp, it can interfere
-  with an analyser that holds the request: while a request is tarpitted, for
-  example, the heartbeat is deferred until the request next wakes the stream
-  rather than firing at its interval.  The held request still completes.
+  The timer is driven by the stream task's own expiry, not the request channel's
+  analyse_exp, which analysers overwrite freely (the tarpit analyser, for one,
+  assigns its own timeout there).  It therefore keeps firing at its interval
+  even while an analyser holds the request, such as during a tarpit timeout, and
+  the held request still completes.
 
   The on-backend-set event fires from the stream_set_backend filter callback
   when a backend is assigned to the stream.  It is not called if the frontend
@@ -1011,8 +1066,8 @@ otel-stop [{ if | unless } <condition>]
   is reached, every span and span context still open on the stream is finished
   and the filter is disabled for the rest of that connection: no further scopes
   run for it, whether triggered by a later event or by an 'otel-group' action.
-  It is the per-connection counterpart to the global 'otel disable' CLI command
-  that disables the filter for every connection at once.
+  It is the per-connection counterpart to the global 'flt-otel disable' CLI
+  command that disables the filter for every connection at once.
 
   The stop is evaluated after the rest of the scope has run, so a stopping scope
   still emits the spans, log records and metrics it defines before tracing ends.
@@ -1038,7 +1093,7 @@ idle-timeout <time>
   defined per scope; a second is a configuration error.
 
   The <time> argument accepts the standard HAProxy time format: a number
-  followed by a unit suffix (ms, s, m, h, d).  A value of zero is not
+  followed by a unit suffix (us, ms, s, m, h, d).  A value of zero is not
   permitted.
 
   Arguments :
@@ -1088,7 +1143,7 @@ span <name> [parent <ref>] [link <ref>] [root] [kind <kind>]
     root   - explicitly marks the span as a root span
 
 
-status <code> [<sample> ...]
+status <code> [<sample> ...] [{ if | unless } <condition>]
   This keyword sets the status for the currently active span.  The status
   indicates the outcome of the operation represented by the span.
 
@@ -1105,13 +1160,114 @@ status <code> [<sample> ...]
   it for 'ok' and 'unset', so a description on those codes is accepted but not
   exported.
 
+  An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
+  gates the status.  The keyword may be given more than once per span; the lines
+  are evaluated at runtime in configuration order, and the first one whose
+  condition holds sets the span status, the remaining lines being skipped.  A
+  line without a condition always matches, so an unconditional 'status' acts as
+  a default and any lines placed after it are never reached.  This first-match
+  behavior is specific to 'status'; 'attribute', 'event' and 'baggage' instead
+  apply every line whose condition holds.
+
   For example:
     status "ok"
     status "error" str("http.status_code: ") status
+    status "error" str("server error") if { status ge 500 }
 
   Arguments :
-    code   - the status code (ignore, unset, ok, error)
-    sample - optional sample expression(s) for the status description
+    code      - the status code (ignore, unset, ok, error)
+    sample    - optional sample expression(s) for the status description
+    condition - an optional ACL-based 'if' or 'unless' condition
+
+
+set-var <var-name> <sample> ... [{ if | unless } <condition>]
+  Set a HAProxy variable to the string value of a sample expression or a
+  log-format, evaluated when the scope's event fires.  The value grammar matches
+  the 'attribute' keyword: bare sample fetches are concatenated and a '%[ ... ]'
+  wrapper marks a HAProxy log-format string.  The result is always stored as a
+  string.  The variable name includes its scope (proc, sess, txn, req or res)
+  and is registered at parse time.  Assignments run before the scope's spans, so
+  span attributes, instruments and log records can read the new value through
+  'var(...)'.
+
+  An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
+  gates the assignment.  The keyword may be repeated to set several variables in
+  one scope, and every line whose condition holds is applied.
+
+  For example:
+    set-var txn.otel_method method
+    set-var txn.otel_path str("path=") path
+    set-var sess.otel_tid var(sess.otel.uuid)
+    set-var txn.otel_internal str("1") if { src 127.0.0.1 }
+
+  Arguments :
+    var-name  - the HAProxy variable name (including its scope)
+    sample    - sample expression(s) or log-format for the value
+    condition - an optional ACL-based 'if' or 'unless' condition
+
+
+set-var-ctx <var-name> <ref> <field> [{ if | unless } <condition>]
+  Set a HAProxy variable from a field of a referenced span or span context,
+  evaluated when the scope's event fires.  <ref> names a span or a context
+  extracted in this scope; it is resolved against the active spans first and
+  then the extracted contexts; an unresolved reference leaves the variable
+  unchanged.  Because these assignments run after the scope's spans, a span
+  created in the same scope may be referenced.
+
+  An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
+  gates the assignment.  The keyword may be repeated within one scope, and every
+  line whose condition holds is applied.
+
+  Supported fields:
+    trace-id          - trace id, lowercase hex
+    span-id           - span id, lowercase hex
+    trace-flags       - W3C trace-flags byte, lowercase hex
+    traceparent       - full W3C "00-<trace>-<span>-<flags>" string
+    tracestate        - full tracestate header (context references only)
+    tracestate(<key>) - a single tracestate entry (context references only)
+    baggage           - the whole baggage carrier (all entries)
+    baggage(<key>)    - a single baggage entry value
+    sampled           - "1" if the sampled flag is set, else "0"
+    valid             - "1" if the context is valid, else "0"
+    remote            - "1" if the context is remote, else "0"
+
+  For 'baggage(<key>)', a span reference reads the value set on that span, while
+  a context reference reads the named entry from the inbound carrier.  Keyless
+  'baggage' returns the whole carrier instead: the inbound carrier for a context
+  reference, or the serialized outbound baggage for a span reference.  The
+  'tracestate' fields are available only when <ref> names a context.
+
+  For example:
+    extract "inbound" use-headers
+    span "HAProxy session" root
+    set-var-ctx txn.in_traceid  "inbound" trace-id
+    set-var-ctx txn.traceparent "HAProxy session" traceparent
+    set-var-ctx txn.user        "inbound" baggage(userId)
+    set-var-ctx txn.local_tid   "HAProxy session" trace-id if { src 127.0.0.1 }
+
+  Arguments :
+    var-name  - the HAProxy variable name (including its scope)
+    ref       - the referenced span or context name
+    field     - the span/context field to read (see list above)
+    condition - an optional ACL-based 'if' or 'unless' condition
+
+
+unset-var <var-name> ... [{ if | unless } <condition>]
+  Remove one or more HAProxy variables when the scope's event fires.  A variable
+  that is not currently set is silently ignored.  Removal runs after all other
+  directives in the scope.
+
+  An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
+  gates the whole directive; when it does not pass, none of the listed variables
+  are removed.  The keyword may be repeated within one scope.
+
+  For example:
+    unset-var txn.otel_scratch txn.otel_tmp
+    unset-var txn.otel_scratch if { src 127.0.0.1 }
+
+  Arguments :
+    var-name  - the HAProxy variable name(s) to remove (including scope)
+    condition - an optional ACL-based 'if' or 'unless' condition
 
 
 4.4. "otel-group" section

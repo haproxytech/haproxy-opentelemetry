@@ -60,7 +60,7 @@ static int flt_otel_cli_set_msg(struct appctx *appctx, char *err, char *msg)
  *   private - unused private data pointer
  *
  * DESCRIPTION
- *   Handles the "otel debug [level]" CLI command.  When a level argument is
+ *   Handles the "flt-otel debug [level]" CLI command.  When a level argument is
  *   provided in <args[2]>, parses it as an integer in the range
  *   [0, OTELC_DBG_LEVEL_MASK] and atomically stores it as the global debug
  *   level.  Setting a level requires admin access level.  When no argument is
@@ -115,10 +115,11 @@ static int flt_otel_cli_parse_debug(char **args, char *payload, struct appctx *a
  *   private - boolean flag cast to pointer (1 = disable, 0 = enable)
  *
  * DESCRIPTION
- *   Handles the "otel enable" and "otel disable" CLI commands.  The <private>
- *   parameter determines the action: a value of 1 disables the filter, 0
- *   enables it.  Requires admin access level.  The flag_disabled field is
- *   atomically updated for all OTel filter instances across all proxies.
+ *   Handles the "flt-otel enable" and "flt-otel disable" CLI commands.  The
+ *   <private> parameter determines the action: a value of 1 disables the
+ *   filter, 0 enables it.  Requires admin access level.  The flag_disabled
+ *   field is atomically updated for all OTel filter instances across all
+ *   proxies.
  *
  * RETURN VALUE
  *   Returns 1, or 0 if no OTel filter instances are configured or on memory
@@ -160,12 +161,12 @@ static int flt_otel_cli_parse_disabled(char **args, char *payload, struct appctx
  *   private - boolean flag cast to pointer (1 = hard-errors, 0 = soft-errors)
  *
  * DESCRIPTION
- *   Handles the "otel hard-errors" and "otel soft-errors" CLI commands.  The
- *   <private> parameter determines the error mode: a value of 1 enables
- *   hard-error mode (filter failure aborts the stream), 0 enables soft-error
- *   mode (failures are silently ignored).  Requires admin access level.  The
- *   flag_harderr field is atomically updated for all OTel filter instances
- *   across all proxies.
+ *   Handles the "flt-otel hard-errors" and "flt-otel soft-errors" CLI
+ *   commands.  The <private> parameter determines the error mode: a value of 1
+ *   enables hard-error mode (filter failure aborts the stream), 0 enables
+ *   soft-error mode (failures are silently ignored).  Requires admin access
+ *   level.  The flag_harderr field is atomically updated for all OTel filter
+ *   instances across all proxies.
  *
  * RETURN VALUE
  *   Returns 1, or 0 if no OTel filter instances are configured or on memory
@@ -207,12 +208,12 @@ static int flt_otel_cli_parse_option(char **args, char *payload, struct appctx *
  *   private - unused private data pointer
  *
  * DESCRIPTION
- *   Handles the "otel logging [state]" CLI command.  When a state argument is
- *   provided in <args[2]>, it is matched against "off", "on", or "dontlog-normal"
- *   and the logging field is atomically updated for all OTel filter instances.
- *   Setting a value requires admin access level.  When no argument is given,
- *   reports the current logging state for all instances.  Invalid values
- *   produce an error with the accepted options listed.
+ *   Handles the "flt-otel logging [state]" CLI command.  When a state argument
+ *   is provided in <args[2]>, it is matched against "off", "on", or
+ *   "dontlog-normal" and the logging field is atomically updated for all OTel
+ *   filter instances.  Setting a value requires admin access level.  When no
+ *   argument is given, reports the current logging state for all instances.
+ *   Invalid values produce an error with the accepted options listed.
  *
  * RETURN VALUE
  *   Returns 1, or 0 if no OTel filter instances are configured (and no error
@@ -281,7 +282,7 @@ static int flt_otel_cli_parse_logging(char **args, char *payload, struct appctx 
  *   private - unused private data pointer
  *
  * DESCRIPTION
- *   Handles the "otel rate [value]" CLI command.  When a value argument is
+ *   Handles the "flt-otel rate [value]" CLI command.  When a value argument is
  *   provided in <args[2]>, it is parsed as a floating-point number in the
  *   range [0.0, 100.0], converted to a fixed-point uint32_t representation,
  *   and atomically stored as the rate limit for all OTel filter instances.
@@ -339,13 +340,13 @@ static int flt_otel_cli_parse_rate(char **args, char *payload, struct appctx *ap
  *   private - unused private data pointer
  *
  * DESCRIPTION
- *   Handles the "otel status" CLI command.  Builds a formatted status report
- *   for all OTel filter instances across all proxies.  The report includes
- *   the library version, proxy name, configuration file path, group and scope
- *   counts, disable counts, instrumentation ID, tracer and meter state, rate
- *   limit, error mode, disabled state, logging state, idle timeout, and
- *   analyzer bits.  When DEBUG_OTEL is enabled, the current debug level is
- *   also included.
+ *   Handles the "flt-otel status" CLI command.  Builds a formatted status
+ *   report for all OTel filter instances across all proxies.  The report
+ *   includes the library version, proxy name, configuration file path, group
+ *   and scope counts, disable counts, instrumentation ID, tracer and meter
+ *   state, rate limit, error mode, disabled state, logging state, idle
+ *   timeout, and analyzer bits.  When DEBUG_OTEL is enabled, the current debug
+ *   level is also included.
  *
  * RETURN VALUE
  *   Returns 1, or 0 on memory allocation failure.
