@@ -52,7 +52,7 @@
 #define FLT_OTEL_PARSE_INSTR_DEFINES                                                                                                                                      \
 	FLT_OTEL_PARSE_INSTR_DEF(         ID, 0, CHAR, 2, 2, "otel-instrumentation", " <name>")                                                                           \
 	FLT_OTEL_PARSE_INSTR_DEF(        ACL, 0, CHAR, 3, 0, "acl",                  " <aclname> <criterion> [flags] [operator] <value> ...")                             \
-	FLT_OTEL_PARSE_INSTR_DEF(        LOG, 0, NONE, 2, 0, "log",                  " { global | <addr> [len <len>] [format <fmt>] <facility> [<level> [<minlevel>]] }") \
+	FLT_OTEL_PARSE_INSTR_DEF(        LOG, 0, NONE, 1, 0, "log",                  " { global | <addr> [len <len>] [format <fmt>] <facility> [<level> [<minlevel>]] }") \
 	FLT_OTEL_PARSE_INSTR_DEF(     CONFIG, 0, NONE, 2, 2, "config",               " <file>")                                                                           \
 	FLT_OTEL_PARSE_INSTR_DEF(     GROUPS, 0, NONE, 2, 0, "groups",               " <name> ...")                                                                       \
 	FLT_OTEL_PARSE_INSTR_DEF(     SCOPES, 0, NONE, 2, 0, "scopes",               " <name> ...")                                                                       \

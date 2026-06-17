@@ -662,7 +662,11 @@ static int flt_otel_parse_cfg_instr(const char *file, int line, char **args, int
 		if (parse_logger(args, &(flt_otel_current_instr->proxy_log.loggers), kw_mod == KWM_NO, file, line, &err_log) == 0) {
 			FLT_OTEL_PARSE_ERR(&err, "'%s %s ...' : %s", args[0], args[1], err_log);
 			OTELC_SFREE_CLEAR(err_log);
-		} else {
+		}
+		else if (kw_mod == KWM_NO) {
+			flt_otel_current_instr->logging &= ~FLT_OTEL_LOGGING_ON;
+		}
+		else {
 			flt_otel_current_instr->logging |= FLT_OTEL_LOGGING_ON;
 		}
 	}
