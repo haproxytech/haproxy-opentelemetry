@@ -167,6 +167,45 @@ static const char *flt_otel_parse_invalid_char(const char *name, int type)
 
 /***
  * NAME
+ *   flt_otel_parse_ctx_name_warn - span context name normalization warning
+ *
+ * SYNOPSIS
+ *   static void flt_otel_parse_ctx_name_warn(const char *file, int line, const char *keyword, const char *name)
+ *
+ * ARGUMENTS
+ *   file    - configuration file path
+ *   line    - configuration file line number
+ *   keyword - the directive that named the context
+ *   name    - the span context name
+ *
+ * DESCRIPTION
+ *   Emits a parse-time warning when <name> contains a '-' or an uppercase
+ *   letter.  A span context stored in variables generates a HAProxy variable
+ *   whose name lowercases the letters and maps '-' to 'D', so the variable
+ *   must be referenced in that form elsewhere in the configuration.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+static void flt_otel_parse_ctx_name_warn(const char *file, int line, const char *keyword, const char *name)
+{
+	const char *p;
+
+	OTELC_FUNC("\"%s\", %d, \"%s\", \"%s\"", OTELC_STR_ARG(file), line, OTELC_STR_ARG(keyword), OTELC_STR_ARG(name));
+
+	for (p = name; *p != '\0'; p++)
+		if ((*p == '-') || isupper((uint8_t)*p)) {
+			FLT_OTEL_PARSE_WARNING("%s '%s' : the generated HAProxy variable lowercases letters and maps '-' to 'D'", file, line, keyword, name);
+
+			break;
+		}
+
+	OTELC_RETURN();
+}
+
+
+/***
+ * NAME
  *   flt_otel_parse_cfg_check - configuration keyword validation
  *
  * SYNOPSIS
@@ -696,8 +735,12 @@ static int flt_otel_parse_cfg_instr(const char *file, int line, char **args, int
 	else if (pdata->keyword == FLT_OTEL_PARSE_INSTR_RATE_LIMIT) {
 		double value;
 
-		if (flt_otel_strtod(args[1], &value, 0.0, 100.0, &err))
+		if (flt_otel_strtod(args[1], &value, 0.0, 100.0, &err)) {
 			flt_otel_current_instr->rate_limit = FLT_OTEL_FLOAT_U32(value);
+
+			if (fabs(100.0 - value) > FLT_OTEL_DBL_EPSILON)
+				FLT_OTEL_PARSE_WARNING("'%s' : below 100.0 does not start a trace for each request, so a span context is not always propagated to a downstream HAProxy", file, line, args[0]);
+		}
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_INSTR_OPTION) {
 		if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_PARSE_OPTION_DISABLED)) {
@@ -1753,7 +1796,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 #undef FLT_OTEL_PARSE_SCOPE_DEF
 	const struct flt_otel_parse_data        *pdata = NULL;
 	char                                    *err = NULL;
-	int                                      i, retval = ERR_NONE;
+	int                                      i, link_count = 0, retval = ERR_NONE;
 	bool                                     flag_kind = false;
 
 	OTELC_FUNC("\"%s\", %d, %p, 0x%08x", OTELC_STR_ARG(file), line, args, kw_mod);
@@ -1814,6 +1857,9 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 						retval |= flt_otel_parse_strdup(&(flt_otel_current_span->ref_id), &(flt_otel_current_span->ref_id_len), args[++i], &err, args[1]);
 				}
 				else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_SPAN_LINK)) {
+					if (++link_count == 2)
+						FLT_OTEL_PARSE_WARNING("'%s' : only one inline 'link' fits the span argument limit; use the standalone 'link' keyword for more", file, line, pdata->name);
+
 					if (FLT_OTEL_ARG_ISVALID(i + 1)) {
 						if (flt_otel_conf_link_init(args[++i], line, &(flt_otel_current_span->links), &err) == NULL)
 							retval |= ERR_ABORT | ERR_ALERT;
@@ -2055,6 +2101,9 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			} else {
 				flt_otel_current_span->ctx_flags = FLT_OTEL_CTX_USE_HEADERS;
 			}
+
+			if (flt_otel_current_span->ctx_flags & FLT_OTEL_CTX_USE_VARS)
+				flt_otel_parse_ctx_name_warn(file, line, args[0], flt_otel_current_span->ctx_id);
 		}
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_EXTRACT) {
@@ -2077,6 +2126,9 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 #endif
 		else
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid context storage type", args[2]);
+
+		if ((conf_ctx != NULL) && (conf_ctx->flags & FLT_OTEL_CTX_USE_VARS))
+			flt_otel_parse_ctx_name_warn(file, line, args[0], args[1]);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_FINISH) {
 		retval = flt_otel_parse_cfg_str(file, line, args, &(flt_otel_current_scope->spans_to_finish), &err);

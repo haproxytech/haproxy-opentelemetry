@@ -267,6 +267,10 @@ sections.
       Validates characters in a name according to the specified type
       (identifier, domain, context prefix, variable).
 
+  flt_otel_parse_ctx_name_warn
+      Warns when a variable-stored span context name has '-' or an uppercase
+      letter, which the generated HAProxy variable normalizes.
+
   flt_otel_parse_cfg_check
       Common validation for config keywords: looks up the keyword, checks
       argument count and character validity, verifies that the parent section ID
