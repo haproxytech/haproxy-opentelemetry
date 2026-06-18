@@ -852,8 +852,18 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 				retval = FLT_OTEL_RET_ERROR;
 
 			otelc_text_map_destroy(&text_map);
-		} else {
+		}
+		else if ((err != NULL) && (*err != NULL)) {
 			retval = FLT_OTEL_RET_ERROR;
+		}
+		else {
+			/*
+			 * No matching carrier data and no error message: the
+			 * request simply carries no context to extract, which
+			 * is not an error.  A span naming this context as its
+			 * parent will then fail to resolve it.
+			 */
+			OTELC_DBG(NOTICE, "no context found for '%s'", conf_ctx->id);
 		}
 	}
 

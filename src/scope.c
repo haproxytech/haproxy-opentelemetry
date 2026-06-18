@@ -146,7 +146,8 @@ void flt_otel_runtime_context_free(struct filter *f)
  * DESCRIPTION
  *   Finds an existing scope span by <id> in the runtime context or creates a
  *   new one.  If <ref_id> is set, it resolves the parent reference by searching
- *   the span list first, then the extracted context list.
+ *   the span list first, then the extracted context list.  An unresolved
+ *   reference is an error and no span is created.
  *
  * RETURN VALUE
  *   Returns the existing or new scope span, or NULL on failure.
@@ -193,6 +194,12 @@ struct flt_otel_scope_span *flt_otel_scope_span_init(struct flt_otel_runtime_con
 			if (ref_ctx != NULL) {
 				OTELC_DBG(DEBUG, "found referenced context '%s' %p", ref_id, ctx);
 			} else {
+				/*
+				 * A parent reference resolving to neither a span
+				 * nor a context is an error: creating the span
+				 * regardless would silently turn it into a trace
+				 * root, which is meaningless.
+				 */
 				FLT_OTEL_ERR("cannot find referenced span/context '%s'", ref_id);
 
 				OTELC_RETURN_PTR(retptr);
