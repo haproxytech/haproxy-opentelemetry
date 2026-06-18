@@ -445,6 +445,26 @@ Supported keywords:
       form only that one.  Registration produces no data point and is never
       gated.
 
+      Observable (pull) instruments are unsupported, but the create/update split
+      covers the same need when the update form runs periodically.  Bind a scope
+      to the 'on-idle-timeout' event, whose timer fires on a HAProxy thread at
+      the set interval, and run the gauge's update form there.  Each tick then
+      records a data point from a sample fetch, evaluated on-thread, which an
+      observable callback cannot do.  The example below records the frontend
+      connection count every ten seconds:
+
+        otel-scope active_connections
+            idle-timeout 10s
+            instrument gauge_int frontend_connections value fe_conn(otel-fe)
+            instrument update frontend_connections
+            otel-event on-idle-timeout
+
+      List the scope under the instrumentation's 'scopes' directive to activate
+      it.  The cadence comes from the idle streams, so at least one long-lived
+      idle stream (a keep-alive or long-poll connection) must be present for the
+      gauge to keep updating; under last-value aggregation, concurrent idle
+      streams overwrite it with the most recent reading.
+
       Examples:
         instrument cnt_int  "name_cnt_int" desc "Integer Counter" value int(1),add(2) unit "unit"
         instrument hist_int "name_hist" aggr exp_histogram desc "Latency" value lat_ns_tot unit "ns"
@@ -653,7 +673,8 @@ Supported keywords:
       interval.  Scopes bound to this event can create heartbeat spans, record
       idle-time metrics, and emit idle-time log records.  The idle timer is
       driven by the stream task itself, so it keeps firing while an analyser
-      holds the stream, such as during a tarpit timeout.
+      holds the stream, such as during a tarpit timeout.  See the 'instrument'
+      keyword for driving a periodic gauge from it.
 
       The on-backend-set event fires when a backend is assigned to the stream.
       It is not called if the frontend and backend are the same.
