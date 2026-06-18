@@ -242,9 +242,13 @@ static int flt_otel_parse_cfg_check(const char *file, int line, char **args, con
 			FLT_OTEL_PARSE_ERR(err, "%s '%s' : invalid character '%c'", args[0], args[1], *ic);
 	}
 
-	/* Checking that the data group name is defined. */
+	/*
+	 * The keywords that set flag_check_id attach to a span, so name the
+	 * 'span' keyword when none is open.  flag_check_id is used only by
+	 * the scope table, which makes this branch scope-specific.
+	 */
 	if (!(retval & ERR_CODE) && (*pdata)->flag_check_id && (id == NULL))
-		FLT_OTEL_PARSE_ERR(err, "'%s' : %s ID not set (use '%s%s')", args[0], parse_data[1].name, parse_data[1].name, parse_data[1].usage);
+		FLT_OTEL_PARSE_ERR(err, "'%s' : %s ID not set (use '%s%s')", args[0], parse_data[FLT_OTEL_PARSE_SCOPE_SPAN].name, parse_data[FLT_OTEL_PARSE_SCOPE_SPAN].name, parse_data[FLT_OTEL_PARSE_SCOPE_SPAN].usage);
 
 	OTELC_RETURN_INT(retval);
 }
