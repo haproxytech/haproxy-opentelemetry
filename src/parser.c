@@ -194,7 +194,7 @@ static const char *flt_otel_parse_invalid_char(const char *name, int type)
  */
 static int flt_otel_parse_cfg_check(const char *file, int line, char **args, const void *id, const struct flt_otel_parse_data *parse_data, size_t parse_data_size, const struct flt_otel_parse_data **pdata, char **err)
 {
-	int i, argc, retval = ERR_NONE;
+	int i, argc = 0, retval = ERR_NONE;
 
 	OTELC_FUNC("\"%s\", %d, %p, %p, %p, %zu, %p:%p, %p:%p", OTELC_STR_ARG(file), line, args, id, parse_data, parse_data_size, OTELC_DPTR_ARGS(pdata), OTELC_DPTR_ARGS(err));
 
