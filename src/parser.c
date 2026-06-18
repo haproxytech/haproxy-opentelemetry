@@ -154,8 +154,8 @@ static const char *flt_otel_parse_invalid_char(const char *name, int type)
 		 * Allowed characters are letters, numbers and '_', the first
 		 * character in the string must not be a number.
 		 */
-		if (!isdigit(*retptr))
-			for (++retptr; (*retptr == '_') || isalnum(*retptr); retptr++);
+		if (!isdigit((uint8_t)*retptr))
+			for (++retptr; (*retptr == '_') || isalnum((uint8_t)*retptr); retptr++);
 
 		if (*retptr == '\0')
 			retptr = NULL;
