@@ -12,6 +12,7 @@
 #endif
 
 #include <haproxy/api.h>
+#include <haproxy/arg.h>
 #include <haproxy/cfgparse.h>
 #include <haproxy/acl.h>
 #include <haproxy/cli.h>
@@ -41,6 +42,7 @@
 #include "otelc.h"
 #include "parser.h"
 #include "pool.h"
+#include "sample.h"
 #include "scope.h"
 #include "util.h"
 #include "vars.h"

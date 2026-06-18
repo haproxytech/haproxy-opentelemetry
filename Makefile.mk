@@ -67,6 +67,7 @@ OPTIONS_OBJS += \
 	$(OTEL_DIR)/src/otelc.o  \
 	$(OTEL_DIR)/src/parser.o \
 	$(OTEL_DIR)/src/pool.o   \
+	$(OTEL_DIR)/src/sample.o \
 	$(OTEL_DIR)/src/scope.o  \
 	$(OTEL_DIR)/src/util.o   \
 	$(OTEL_DIR)/src/vars.o

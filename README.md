@@ -31,7 +31,8 @@ observability framework.
 - **CLI management** -- runtime enable/disable, rate adjustment, error mode
   switching and status inspection.
 - **Context propagation** -- inject/extract span contexts between cascaded
-  HAProxy instances or external services.
+  HAProxy instances or external services, with an `otel.context()` sample fetch
+  to test in ACLs whether a valid context was propagated.
 
 ### Dependencies
 

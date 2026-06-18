@@ -1318,6 +1318,21 @@ scopes <name> ...
     name - the name of the 'otel-scope' section
 
 
+In addition to the 'otel-group' action, the filter registers a sample fetch
+usable in these rules and in any ACL:
+
+  otel.context(<name>) : boolean
+
+It returns true when the span context named <name> was extracted on the current
+stream with the 'extract' keyword and is valid.  When none was extracted, the
+fetch produces no sample, so an ACL using '-m found' reads as false, letting a
+configuration act on whether an upstream context was propagated without the
+'set-var-ctx' variable hop or the OTEL_USE_VARS build option.
+
+  Arguments :
+    name - the name of the span context to check
+
+
 5. Examples
 ------------
 

@@ -631,6 +631,16 @@ when USE_OTEL_VARS is defined.
       "extract" keyword with variable storage.
 
 
+src/sample.c
+----------------------------------------------------------------------
+
+HAProxy sample fetches exposing OTel runtime state to ACLs and rules.
+
+  flt_otel_fetch_context
+      Reports whether the named span context was extracted on the stream and
+      is valid.  Backs the "otel.context" sample fetch.
+
+
 src/pool.c
 ----------------------------------------------------------------------
 

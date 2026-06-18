@@ -48,6 +48,7 @@ with runner scripts.
   |   |-- http.c         HTTP header get/set/remove
   |   |-- otelc.c        C wrapper inject/extract bridge
   |   |-- vars.c         HAProxy variable read/write
+  |   |-- sample.c       Sample fetch for span-context ACL checks
   |   |-- pool.c         Pool alloc/free, trash buffers
   |   |-- util.c         Argument handling, sample conversion
   |   |-- group.c        Group action parsing and execution

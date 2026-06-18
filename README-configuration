@@ -984,6 +984,25 @@ Example (from test/sa/haproxy.cfg):
   # Run after-response scopes for error responses
   http-after-response otel-group otel-test-sa http_after_response_group if !acl-http-status-ok
 
+The filter also registers a sample fetch, usable in any HAProxy ACL or rule,
+that reports whether a usable span context was extracted on the current stream
+by the 'extract' keyword:
+
+  otel.context(<name>) : boolean
+
+It returns true when the context named <name> was extracted and is valid.  When
+no such context was extracted the fetch produces no sample, so a '-m found'
+match reads as false; this tells "a context arrived" apart from "none arrived".
+Unlike 'set-var-ctx', the fetch needs no special build option.
+
+Example:
+
+  acl otel-ctx-valid otel.context(otel-ctx)
+  acl otel-ctx-seen  otel.context(otel-ctx) -m found
+
+  # honour the upstream trace decision rather than re-deriving it
+  http-request set-header X-Trace-Continued 1 if otel-ctx-valid
+
 
 6. Complete examples
 ---------------------
