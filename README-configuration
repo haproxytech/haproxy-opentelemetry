@@ -89,6 +89,18 @@ Example (from test/sa/haproxy.cfg):
   backend servers-backend
       server server-1 127.0.0.1:8000
 
+The filter attaches to both HTTP-mode and TCP-mode proxies.  On an HTTP proxy it
+runs HTX-level analysis, so all events and HTTP sample fetches are available.  A
+TCP proxy carries no HTTP message, so only the connection-level events fire: the
+client and server session start events at connect and the matching session end
+events at close, plus any tcp-request and tcp-response content events.  The HTTP
+events and HTTP sample fetches do not fire in TCP mode; instead the forwarded
+payload is counted and exposed through the 'otel.bytes_in' and 'otel.bytes_out'
+sample fetches (see section 5), so a span opened at connect and finished at
+close records both the connection lifetime and the byte volume transferred.  A
+scope bound to an HTTP-only event on a non-HTTP proxy is reported as a warning
+at config load.
+
 
 3. OTel configuration file structure
 --------------------------------------
@@ -1023,6 +1035,27 @@ Example:
 
   # honour the upstream trace decision rather than re-deriving it
   http-request set-header X-Trace-Continued 1 if otel-ctx-valid
+
+The filter also exposes the raw payload byte counts accumulated on the stream:
+
+  otel.bytes_in  : integer
+  otel.bytes_out : integer
+
+'otel.bytes_in' counts the payload forwarded on the request channel (client to
+HAProxy) and 'otel.bytes_out' the payload on the response channel (HAProxy to
+client).  Both grow as data is forwarded, so they are best read from a close
+scope -- on-client-session-end or on-server-session-end -- where they hold the
+final connection totals.  They are populated in TCP mode; on an HTTP proxy they
+read 0 because an HTX buffer carries protocol framing rather than raw payload.
+
+Example (record the transferred volume on a TCP connection span):
+
+  otel-scope client_session_end
+      span "TCP session"
+          attribute "tcp.bytes_in"  otel.bytes_in
+          attribute "tcp.bytes_out" otel.bytes_out
+      finish *
+      otel-event on-client-session-end
 
 
 6. Complete examples

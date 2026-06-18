@@ -302,10 +302,17 @@ UNSET, the measurement is silently skipped.
 
 4.3  Per-Thread Initialization Guard
 
-flt_otel_ops_init_per_thread() uses the FLT_CFG_FL_HTX flag on fconf as a
-one-shot guard: the tracer, meter and logger background threads are started only
-on the first call.  Subsequent calls from other proxies sharing the same filter
-configuration skip the start sequence.
+flt_otel_ops_init_per_thread() starts the tracer, meter and logger background
+threads on the first call only.  An atomic claim on conf->instr->flag_started
+(HA_ATOMIC_BTS) guarantees this: the thread that wins the claim runs the start
+sequence, while the others -- including later calls from other proxies sharing
+the same instrumentation -- return success without repeating it.
+
+The separate FLT_CFG_FL_HTX flag is unrelated to this guard.  It is set once in
+flt_otel_ops_init(), and only for an HTTP-mode proxy, to declare HTX filtering;
+HAProxy then binds the filter to the proxy's HTX streams.  A TCP-mode proxy
+leaves the flag unset, so the filter runs on the raw stream, which is what lets
+the OTel filter trace TCP-mode proxies.
 
 4.4  CLI Update Propagation
 

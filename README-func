@@ -547,7 +547,8 @@ src/http.c
 HTTP header manipulation for context propagation.
 
   flt_otel_http_headers_dump [D]
-      Dumps all HTTP headers from the channel's HTX buffer.
+      Dumps all HTTP headers from the channel's HTX buffer.  Channels that do
+      not belong to an HTX stream are skipped.
 
   flt_otel_http_headers_get
       Extracts HTTP headers matching a prefix into a text map.  Used by the
@@ -643,6 +644,10 @@ HAProxy sample fetches exposing OTel runtime state to ACLs and rules.
   flt_otel_fetch_context
       Reports whether the named span context was extracted on the stream and
       is valid.  Backs the "otel.context" sample fetch.
+
+  smp_fetch_otel_bytes
+      Reports the raw payload byte count accounted on the stream.  Backs the
+      "otel.bytes_in" and "otel.bytes_out" sample fetches.
 
 
 src/pool.c

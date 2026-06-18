@@ -254,6 +254,9 @@ and the keyword parser via INITCALL1 (parser.c).
       configuration file, calls otelc_init() to set up exporters, creates the
       tracer, meter and logger objects, and registers custom memory allocation
       and thread-id callbacks with the wrapper via otelc_ext_init().
+    - Sets the FLT_CFG_FL_HTX capability flag only for an HTTP-mode proxy, so
+      HAProxy attaches the filter to HTX streams; a TCP-mode proxy leaves it
+      unset and the filter runs on the raw stream.
 
   flt_otel_ops_check():
     - Validates that filter IDs are unique across all proxies.
