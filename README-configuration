@@ -228,10 +228,7 @@ Supported keywords:
 
       - 'root' marks this span as the trace root (only one per trace).
       - 'parent <ref>' sets the parent to an existing span or extracted context
-        name.  When the reference cannot be resolved at runtime -- typically
-        because the stream initiates the trace and carried no context to
-        extract -- the span is created without a parent and starts a new
-        trace.
+        name.
       - 'link <ref>' adds an inline link to another span or context.  Multiple
         inline links can be specified within the argument limit.
       - 'kind <kind>' sets the span kind to one of the following: 'internal',
@@ -369,10 +366,7 @@ Supported keywords:
       Extract a previously injected span context from an HTTP header or HAProxy
       variables.  The extracted context can then be used as a parent reference
       in 'span ... parent <name-prefix>'.  Default storage: use-headers.  The
-      'use-vars' option requires OTEL_USE_VARS=1 at compile time.  A stream
-      that carries no matching context data is not an error -- the extraction
-      is simply skipped, so trace-initiating requests pass unaffected even
-      with 'option hard-errors'.
+      'use-vars' option requires OTEL_USE_VARS=1 at compile time.
 
       When extracting context from HTTP headers, if the first character of the
       context name is '-', the context name is excluded from the header.  This

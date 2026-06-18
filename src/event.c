@@ -852,16 +852,8 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 				retval = FLT_OTEL_RET_ERROR;
 
 			otelc_text_map_destroy(&text_map);
-		}
-		else if ((err != NULL) && (*err != NULL))
+		} else {
 			retval = FLT_OTEL_RET_ERROR;
-		else {
-			/*
-			 * No matching carrier data and no error message: a
-			 * stream that initiates a trace simply carries no
-			 * context, which is not an error.
-			 */
-			OTELC_DBG(NOTICE, "no context found for '%s'", conf_ctx->id);
 		}
 	}
 
