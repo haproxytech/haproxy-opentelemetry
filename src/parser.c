@@ -1850,11 +1850,34 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			}
 		}
 		else {
+			struct flt_otel_conf_scope *conf_scope;
+			struct flt_otel_conf_span  *conf_span;
+			bool                        flag_ref = false;
+
 			/*
-			 * This is not a faulty configuration, only such a case
-			 * will be logged.
+			 * A bare span declaration carries neither root nor
+			 * parent.  When a span of the same name was already
+			 * declared, this re-opens it to attach further
+			 * attributes, links or a finish, which is not a faulty
+			 * configuration.  Only a first declaration that anchors
+			 * nothing is reported as referenceless.
 			 */
-			OTELC_DBG(DEBUG, "new span '%s' without reference", flt_otel_current_span->id);
+			list_for_each_entry(conf_scope, &(flt_otel_current_config->scopes), list) {
+				list_for_each_entry(conf_span, &(conf_scope->spans), list)
+					if ((conf_span != flt_otel_current_span) && FLT_OTEL_CONF_STR_CMP(conf_span->id, flt_otel_current_span->id)) {
+						flag_ref = true;
+
+						break;
+					}
+
+				if (flag_ref)
+					break;
+			}
+
+			if (flag_ref)
+				OTELC_DBG(DEBUG, "span '%s' (reference)", flt_otel_current_span->id);
+			else
+				OTELC_DBG(DEBUG, "new span '%s' without reference", flt_otel_current_span->id);
 		}
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_LINK) {
