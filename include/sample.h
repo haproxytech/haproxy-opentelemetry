@@ -3,7 +3,9 @@
 #ifndef _OTEL_SAMPLE_H_
 #define _OTEL_SAMPLE_H_
 
-#define FLT_OTEL_FETCH_CONTEXT   "otel.context"
+#define FLT_OTEL_FETCH_CONTEXT     "otel.context"
+#define FLT_OTEL_FETCH_BYTES_IN    "otel.bytes_in"
+#define FLT_OTEL_FETCH_BYTES_OUT   "otel.bytes_out"
 
 #endif /* _OTEL_SAMPLE_H_ */
 

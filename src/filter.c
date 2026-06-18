@@ -407,11 +407,12 @@ static int flt_otel_ops_init(struct proxy *p, struct flt_conf *fconf)
 		OTELC_RETURN_INT(retval);
 
 	/*
-	 * Declare support for filtering HTX streams.  As in the other filters
-	 * this static capability is set at configuration time; the stream
-	 * attachment path checks it before attaching to an HTX stream.
+	 * Declare HTX filtering for HTTP proxies only; the attachment path
+	 * checks this flag before binding to an HTX stream.  A TCP proxy has no
+	 * HTX, so the flag stays unset and the filter runs on the raw stream.
 	 */
-	fconf->flags |= FLT_CFG_FL_HTX;
+	if (p->mode == PR_MODE_HTTP)
+		fconf->flags |= FLT_CFG_FL_HTX;
 
 	flt_otel_cli_init();
 
@@ -766,6 +767,16 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 				conf->instr->flag_data_req = 1;
 			else if (conf_scope->event == FLT_OTEL_EVENT_RES_HTTP_END)
 				conf->instr->flag_data_res = 1;
+
+			/*
+			 * An HTTP-phase event never fires on a non-HTTP proxy,
+			 * which performs no HTTP analysis, so a scope bound to
+			 * one is silently inert there.  Warn rather than fail:
+			 * the same OTel configuration may be shared with HTTP
+			 * proxies.
+			 */
+			if ((p->mode != PR_MODE_HTTP) && flt_otel_event_data[conf_scope->event].flag_http_only)
+				FLT_OTEL_WARNING("''%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' uses HTTP event '%s' that does not fire on non-HTTP proxy '%s''", conf->id, conf_scope->id, flt_otel_event_data[conf_scope->event].name, p->id);
 		} else {
 			FLT_OTEL_ALERT("''%s' : unused " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s''", conf->id, conf_scope->id);
 
@@ -1441,8 +1452,13 @@ static int flt_otel_ops_channel_start_analyze(struct stream *s, struct filter *f
 	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s)", flt_otel_chn_label(chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s));
 
 	if (chn->flags & CF_ISRESP) {
-		/* The response channel. */
-		chn->analysers |= f->pre_analyzers & AN_RES_ALL;
+		/*
+		 * The response channel.  Forcing analysers applies to HTX
+		 * streams only; on a raw stream it would strand an analyser bit
+		 * that nothing retires, stalling the connection.
+		 */
+		if (s->flags & SF_HTX)
+			chn->analysers |= f->pre_analyzers & AN_RES_ALL;
 
 		/* The event 'on-server-session-start'. */
 		retval = flt_otel_event_run(s, f, chn, FLT_OTEL_EVENT_RES_SERVER_SESS_START, &err);
@@ -1463,19 +1479,22 @@ static int flt_otel_ops_channel_start_analyze(struct stream *s, struct filter *f
 		 * The tarpit scope is still hooked in .channel_pre_analyze and
 		 * fires only when a tarpit rule actually schedules the analyzer.
 		 */
-		chn->analysers |= f->pre_analyzers & AN_REQ_ALL & ~AN_REQ_HTTP_TARPIT;
+		if (s->flags & SF_HTX)
+			chn->analysers |= f->pre_analyzers & AN_REQ_ALL & ~AN_REQ_HTTP_TARPIT;
 
 		/* The event 'on-client-session-start'. */
 		retval = flt_otel_event_run(s, f, chn, FLT_OTEL_EVENT_REQ_CLIENT_SESS_START, &err);
 	}
 
 	/*
-	 * Register as a data filter only where an on-http-end-* scope is
-	 * configured for this direction.  HAProxy delivers the http_end
-	 * callback to data filters alone, and data filtering disables body
-	 * fast-forwarding, so it is enabled only where actually required.
+	 * Register as a data filter to observe the forwarded payload: on a raw
+	 * (TCP) stream so tcp_payload can count the transferred bytes, and on an
+	 * HTX stream where an on-http-end-* scope needs the http_end callback
+	 * (delivered to data filters alone).  Data filtering disables body
+	 * fast-forwarding, so for HTX it is enabled only where actually required.
 	 */
-	if ((chn->flags & CF_ISRESP) ? FLT_OTEL_CONF(f)->instr->flag_data_res : FLT_OTEL_CONF(f)->instr->flag_data_req)
+	if (!(s->flags & SF_HTX) ||
+	    ((chn->flags & CF_ISRESP) ? FLT_OTEL_CONF(f)->instr->flag_data_res : FLT_OTEL_CONF(f)->instr->flag_data_req))
 		register_data_filter(s, chn, f);
 
 	OTELC_RETURN_INT(flt_otel_return_int(f, &err, retval));
@@ -1861,6 +1880,8 @@ static void flt_otel_ops_http_reset(struct stream *s, struct filter *f, struct h
 	OTELC_RETURN();
 }
 
+#endif /* DEBUG_OTEL */
+
 
 /***
  * NAME
@@ -1877,37 +1898,42 @@ static void flt_otel_ops_http_reset(struct stream *s, struct filter *f, struct h
  *   len    - the maximum number of bytes to forward
  *
  * DESCRIPTION
- *   Debug-only TCP payload callback.  It logs the channel direction, proxy
- *   mode, offset and data length.  No actual data processing is performed.
+ *   TCP payload callback.  It accounts the raw payload forwarded on a channel
+ *   into the runtime context -- request-channel bytes into <bytes_in>,
+ *   response-channel bytes into <bytes_out> -- and forwards every presented
+ *   byte unchanged.  Because all bytes are forwarded, the per-call <len> sums
+ *   to the channel total without re-counting.  An HTX buffer carries protocol
+ *   framing rather than raw payload, so HTX streams are left uncounted.  The
+ *   'otel.bytes_in' and 'otel.bytes_out' sample fetches expose the totals.
  *
  * RETURN VALUE
- *   Returns the number of bytes to forward, or a negative value on error.
+ *   Returns the number of bytes to forward, which is always <len>.
  */
 static int flt_otel_ops_tcp_payload(struct stream *s, struct filter *f, struct channel *chn, uint offset, uint len)
 {
-	char *err = NULL;
-	int   retval = len;
+	struct flt_otel_runtime_context *rt_ctx = FLT_OTEL_RT_CTX(f->ctx);
 
 	OTELC_FUNC("%p, %p, %p, %u, %u", s, f, chn, offset, len);
 
 	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, -1)))
 		OTELC_RETURN_INT(len);
 
-	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s), offset: %u, len: %u, forward: %d", flt_otel_chn_label(chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s), offset, len, retval);
+	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s), offset: %u, len: %u", flt_otel_chn_label(chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s), offset, len);
 
-	/* Debug stub -- no data processing implemented yet. */
-	if (s->flags & SF_HTX) {
-	} else {
-	}
+	/*
+	 * Count raw payload only; an HTX buffer carries protocol framing
+	 * rather than the transferred payload.
+	 */
+	if (s->flags & SF_HTX)
+		OTELC_RETURN_INT(len);
 
-	/* Debug stub -- retval is always len, wakeup is never reached. */
-	if (retval != len)
-		task_wakeup(s->task, TASK_WOKEN_MSG);
+	if (chn->flags & CF_ISRESP)
+		rt_ctx->bytes_out += len;
+	else
+		rt_ctx->bytes_in += len;
 
-	OTELC_RETURN_INT(flt_otel_return_int(f, &err, retval));
+	OTELC_RETURN_INT(len);
 }
-
-#endif /* DEBUG_OTEL */
 
 
 struct flt_ops flt_otel_ops = {
@@ -1940,7 +1966,7 @@ struct flt_ops flt_otel_ops = {
 	.http_reply            = flt_otel_ops_http_reply,
 
 	/* TCP callbacks. */
-	.tcp_payload           = OTELC_DBG_IFDEF(flt_otel_ops_tcp_payload, NULL)
+	.tcp_payload           = flt_otel_ops_tcp_payload
 };
 
 

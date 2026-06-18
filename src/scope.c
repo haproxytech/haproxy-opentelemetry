@@ -44,6 +44,8 @@ struct flt_otel_runtime_context *flt_otel_runtime_context_init(struct stream *s,
 	retptr->logging       = _HA_ATOMIC_LOAD(&(conf->instr->logging));
 	retptr->idle_timeout  = 0;
 	retptr->idle_exp      = TICK_ETERNITY;
+	retptr->bytes_in      = 0;
+	retptr->bytes_out     = 0;
 	LIST_INIT(&(retptr->spans));
 	LIST_INIT(&(retptr->contexts));
 

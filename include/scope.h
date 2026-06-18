@@ -123,6 +123,8 @@ struct flt_otel_runtime_context {
 	uint           analyzers;     /* Executed channel analyzers. */
 	uint           idle_timeout;  /* Idle timeout interval in milliseconds (0 = off). */
 	int            idle_exp;      /* Tick at which the next idle timeout fires. */
+	uint64_t       bytes_in;      /* Raw payload bytes seen on the request channel. */
+	uint64_t       bytes_out;     /* Raw payload bytes seen on the response channel. */
 	struct list    spans;         /* The scope spans. */
 	struct list    contexts;      /* The scope contexts. */
 };

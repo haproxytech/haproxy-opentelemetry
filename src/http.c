@@ -33,6 +33,13 @@ void flt_otel_http_headers_dump(const struct channel *chn)
 	if (chn == NULL)
 		OTELC_RETURN();
 
+	/*
+	 * The buffer only holds HTX on an HTTP stream; a raw TCP channel has
+	 * no headers to dump and reading it as HTX would walk garbage.
+	 */
+	if (IS_HTX_STRM(chn_strm(chn)) == 0)
+		OTELC_RETURN();
+
 	htx = htxbuf(&(chn->buf));
 
 	if (htx_is_empty(htx))
