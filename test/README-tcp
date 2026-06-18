@@ -1,0 +1,88 @@
+TCP-mode test configuration (tcp/)
+==================================
+
+The 'tcp' test runs the OpenTelemetry filter on a 'mode tcp' proxy.  With no HTX
+to inspect, the filter traces the raw stream: it opens one span for the whole
+TCP session and counts the forwarded payload through the tcp_payload hook,
+exposed as the 'otel.bytes_in' and 'otel.bytes_out' sample fetches.
+
+The configuration exercises every event that fires on a TCP-mode proxy.  The
+HTTP-phase events (on-http-*) are deliberately omitted: a scope bound to one on
+a non-HTTP proxy never fires and is reported as a warning at config load.
+
+A frontend on port 10080 ('mode tcp') proxies to a backend that forwards to an
+origin server on 127.0.0.1:8000.  The backend's tcp-request and tcp-response
+content rules, stick-table and use-server rule engage the inspection, sticking,
+store-rules and server-rules analysers, so the matching events fire on a plain
+connection.
+
+Files
+-----
+
+  tcp/otel.cfg    OTel filter configuration (one scope per TCP-mode event)
+  tcp/haproxy.cfg HAProxy configuration for the TCP frontend and backend
+  tcp/otel.yml    OpenTelemetry SDK configuration (exporters, reader, ...)
+  run-tcp.sh      Convenience script to launch the instance
+
+Events
+------
+
+  T = Trace (span / span event)
+
+  The test produces traces only -- no metrics or log-records.  Every scope
+  records onto the single "TCP session" span: stream_start opens it, each other
+  scope adds one timestamped event, and stream_stop finishes it.
+
+    Event                              Scope                T
+    -----------------------------------------------------------
+    on-stream-start                    stream_start         x
+    on-client-session-start            client_session_start x
+    on-frontend-tcp-request            frontend_tcp_request x
+    on-switching-rules-request         switching_rules      x
+    on-backend-set                     backend_set          x
+    on-backend-tcp-request             backend_tcp_request  x
+    on-process-server-rules-request    server_rules         x
+    on-tcp-rdp-cookie-request          rdp_cookie           x
+    on-process-sticking-rules-request  sticking_rules       x
+    on-server-session-start            server_session_start x
+    on-tcp-response                    tcp_response         x
+    on-process-store-rules-response    store_rules          x
+    on-server-unavailable              server_unavailable   x
+    on-server-session-end              server_session_end   x
+    on-client-session-end              client_session_end   x
+    on-idle-timeout                    idle_timeout         x
+    on-stream-stop                     stream_stop          x
+
+  Three scopes are configured but fire only under a specific condition that a
+  plain connection through this config does not create:
+
+    on-tcp-rdp-cookie-request    requires RDP cookie persistence
+    on-server-unavailable        requires no available server
+    on-idle-timeout              requires a connection idle >= 2 s
+
+Span
+----
+
+  A single root span "TCP session" covers the whole stream, opened at
+  on-stream-start and finished at on-stream-stop.  It carries:
+
+    - one timestamped event per TCP event listed above;
+    - client.addr and frontend.addr attributes (src and dst), at the start;
+    - tcp.bytes_in and tcp.bytes_out, from the otel.bytes_in / otel.bytes_out
+      fetches, recorded at on-client-session-end.
+
+  Its lifetime, from stream start to stream stop, is the connection duration.
+
+Running the test
+----------------
+
+From the test/ directory:
+
+  % ./run-tcp.sh [/path/to/haproxy] [pidfile]
+
+If no argument is given, the script uses ../../haproxy/haproxy relative to
+test/.  An origin server must be listening on 127.0.0.1:8000, and traces are
+exported over OTLP/HTTP as configured in tcp/otel.yml.  Drive the proxy with any
+TCP client, for example:
+
+  % printf 'ping' | nc 127.0.0.1 10080

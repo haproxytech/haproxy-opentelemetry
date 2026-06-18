@@ -1,7 +1,7 @@
                    -----------------------------------------
                      HAProxy OTEL filter speed test guide
                                 Version 1.0
-                          ( Last update: 2026-04-09 )
+                          ( Last update: 2026-06-20 )
                    -----------------------------------------
                          Author : Miroslav Zagorac
                    Contact : mzagorac at haproxy dot com
@@ -99,6 +99,26 @@ pause separates consecutive runs.
 The backend origin server (thttpd) serves a small static HTML page (index.html,
 approximately 50 bytes) on port 8000.  HAProxy listens on port 10080 and proxies
 requests to the origin.
+
+The connection concurrency (-c8) suits the HTTP configurations (sa, cmp, ctx
+and fe-be), which reuse persistent client connections: a handful of connections
+is enough for the per-request filter work to dominate, and the overhead tracks
+the rate-limit cleanly.  It does not transfer to a connection-churn workload.
+A 'mode tcp' proxy cannot manage HTTP keep-alive, so every request opens and
+closes a fresh connection on both sides; with only a few connections in flight
+a many-core host never saturates, and throughput becomes bound by per-request
+latency and scheduling rather than by the filter.  In that regime the result
+is not a reliable measure of filter cost -- the 'off' baseline can even report
+lower throughput than a traced run, an artifact of the under-saturated load
+rather than a real effect.
+
+To benchmark such a configuration, use a realistic connection concurrency --
+for example -c200 rather than the -c8 default.  With many connections in flight
+the throughput becomes governed by per-request service time, and the expected
+ordering returns: the 'off' baseline is the ceiling and the filter measures as
+a genuine cost below it.  Tested this way the 'mode tcp' configuration showed
+about an 11% throughput reduction at full tracing, where the -c8 run had instead
+reported the traced run as faster than the baseline.
 
 
 5. Rate-limit levels
