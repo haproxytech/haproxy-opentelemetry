@@ -707,11 +707,28 @@ instrument { update <name> [<attr> ...] | <type> <name> [<aggr>] [<desc>] [<unit
   added using the 'attr' keyword followed by a key and a sample expression
   evaluated at runtime.
 
-  Supported instrument types:
-    - cnt_int   : counter (uint64)
-    - hist_int  : histogram (uint64)
-    - udcnt_int : up-down counter (int64)
-    - gauge_int : gauge (int64)
+  Supported instrument types.  The recorded <value> is applied differently by
+  each one, so choose the type that matches how the measurement behaves:
+
+    cnt_int (counter, uint64) -- adds <value> to a monotonically rising total.
+    Use it for cumulative counts such as requests served or bytes forwarded;
+    <value> is the non-negative amount to add, not the running total.  The
+    default aggregation is a sum.
+
+    udcnt_int (up-down counter, int64) -- adds a signed <value> to a total that
+    may rise and fall.  Use it for levels tracked as deltas, such as in-flight
+    requests or queue depth.  The default aggregation is a non-monotonic sum.
+
+    hist_int (histogram, uint64) -- files each <value> as one observation in a
+    bucketed distribution.  Use it for value spreads such as request latencies
+    or payload sizes, when percentiles matter.  Bucket boundaries follow the SDK
+    default unless set with 'bounds', or switched to a base-2 exponential layout
+    with 'aggr exp_histogram'.
+
+    gauge_int (gauge, int64) -- replaces the reported value with the latest
+    <value>, a snapshot of a level that rises and falls where only the most
+    recent reading matters, such as a current queue length.  The default
+    aggregation is the last value.
 
   Supported aggregation types:
     - drop          : measurements are discarded
