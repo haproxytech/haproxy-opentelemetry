@@ -24,6 +24,9 @@ observability framework.
   configurable aggregation and bucket boundaries.
 - **Logging** -- log records with severity levels, optional span correlation and
   runtime-evaluated attributes.
+- **HTTP and TCP proxies** -- runs on both HTTP-mode and TCP-mode proxies; on a
+  TCP proxy it traces the connection lifecycle and counts the forwarded payload
+  through the `otel.bytes_in` and `otel.bytes_out` sample fetches.
 - **Rate limiting** -- percentage-based sampling (0.0--100.0) for controlling
   overhead.
 - **ACL integration** -- fine-grained conditional execution at instrumentation,
@@ -259,6 +262,9 @@ The `test/` directory contains ready-to-run example configurations:
   HTTP header-based context propagation.
 - **ctx** -- context propagation via HAProxy variables using the inject/extract
   mechanism.
+- **tcp** -- TCP-mode proxy; traces the raw connection and counts the forwarded
+  bytes via the `otel.bytes_in` and `otel.bytes_out` sample fetches, exercising
+  every event that fires on a non-HTTP proxy.
 - **cmp** -- minimal configuration for benchmarking comparison.
 - **empty** -- filter initialized with no active telemetry.
 

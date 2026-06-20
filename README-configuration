@@ -29,8 +29,9 @@ SUMMARY
   6.1.    Standalone example (sa)
   6.2.    Frontend / backend example (fe/be)
   6.3.    Context propagation example (ctx)
-  6.4.    Comparison example (cmp)
-  6.5.    Empty / minimal example (empty)
+  6.4.    TCP-mode example (tcp)
+  6.5.    Comparison example (cmp)
+  6.6.    Empty / minimal example (empty)
 
 
 1. Overview
@@ -91,15 +92,14 @@ Example (from test/sa/haproxy.cfg):
 
 The filter attaches to both HTTP-mode and TCP-mode proxies.  On an HTTP proxy it
 runs HTX-level analysis, so all events and HTTP sample fetches are available.  A
-TCP proxy carries no HTTP message, so only the connection-level events fire: the
-client and server session start events at connect and the matching session end
-events at close, plus any tcp-request and tcp-response content events.  The HTTP
-events and HTTP sample fetches do not fire in TCP mode; instead the forwarded
-payload is counted and exposed through the 'otel.bytes_in' and 'otel.bytes_out'
-sample fetches (see section 5), so a span opened at connect and finished at
-close records both the connection lifetime and the byte volume transferred.  A
-scope bound to an HTTP-only event on a non-HTTP proxy is reported as a warning
-at config load.
+TCP proxy carries no HTTP message, so the HTTP-phase events and HTTP sample
+fetches do not fire; the connection-lifecycle and tcp-request / tcp-response
+content events still do, and section 3.3 lists the full set that fires in TCP
+mode.  In place of the HTTP fetches, the forwarded payload is counted and
+exposed through the 'otel.bytes_in' and 'otel.bytes_out' sample fetches (see
+section 5), so a span opened at connect and finished at close records both the
+connection lifetime and the byte volume transferred.  A scope bound to an
+HTTP-only event on a non-HTTP proxy is reported as a warning at config load.
 
 
 3. OTel configuration file structure
@@ -638,6 +638,12 @@ Supported keywords:
       A scope binds to a single event, so 'otel-event' may appear at most once;
       a second is a configuration error.
 
+      The filter attaches to both HTTP-mode and TCP-mode proxies.  A TCP proxy
+      carries no HTTP message and runs no HTTP analysis, so the events tagged
+      '(HTTP only)' below never fire on one: a scope bound to such an event on a
+      non-HTTP proxy is inert and reported as a warning at config load.  Every
+      unmarked event fires on both proxy modes.
+
       Supported events (stream lifecycle):
         on-stream-start
         on-stream-stop
@@ -647,31 +653,31 @@ Supported keywords:
       Supported events (request channel):
         on-client-session-start
         on-frontend-tcp-request
-        on-http-wait-request
-        on-http-body-request
-        on-frontend-http-request
+        on-http-wait-request               (HTTP only)
+        on-http-body-request               (HTTP only)
+        on-frontend-http-request           (HTTP only)
         on-switching-rules-request
         on-backend-tcp-request
-        on-backend-http-request
-        on-http-tarpit-request
+        on-backend-http-request            (HTTP only)
+        on-http-tarpit-request             (HTTP only)
         on-process-server-rules-request
-        on-http-process-request
+        on-http-process-request            (HTTP only)
         on-tcp-rdp-cookie-request
         on-process-sticking-rules-request
-        on-http-headers-request
-        on-http-end-request
+        on-http-headers-request            (HTTP only)
+        on-http-end-request                (HTTP only)
         on-client-session-end
         on-server-unavailable
 
       Supported events (response channel):
         on-server-session-start
         on-tcp-response
-        on-http-wait-response
+        on-http-wait-response              (HTTP only)
         on-process-store-rules-response
-        on-http-response
-        on-http-headers-response
-        on-http-end-response
-        on-http-reply
+        on-http-response                   (HTTP only)
+        on-http-headers-response           (HTTP only)
+        on-http-end-response               (HTTP only)
+        on-http-reply                      (HTTP only)
         on-server-session-end
 
       The on-stream-start event fires from the stream_start filter callback,
@@ -1210,7 +1216,42 @@ mechanism using HAProxy variables.
 ---------------------------------------------------------------------
 
 
-6.4. Comparison example (cmp)
+6.4. TCP-mode example (tcp)
+-----------------------------
+
+Runs the filter on a 'mode tcp' proxy.  With no HTTP message to inspect, it
+traces the raw stream: a single "TCP session" span covers the whole connection,
+each TCP-phase event records a timestamped span event onto it, and the forwarded
+payload is counted through the 'otel.bytes_in' and 'otel.bytes_out' fetches.
+The configuration exercises every event that fires on a TCP-mode proxy; the
+HTTP-only events are left out, since they never fire there.
+
+--- test/tcp/otel.cfg (excerpt) ----------------------------------------
+
+    otel-scope stream_start
+        span "TCP session" root
+            attribute "client.addr"   src str(":") src_port
+            attribute "frontend.addr" dst str(":") dst_port
+            event "stream-start" "fired" int(1)
+        otel-event on-stream-start
+
+    otel-scope client_session_end
+        span "TCP session"
+            attribute "tcp.bytes_in"  otel.bytes_in
+            attribute "tcp.bytes_out" otel.bytes_out
+            event "client-session-end" "fired" int(1)
+        otel-event on-client-session-end
+
+    otel-scope stream_stop
+        span "TCP session"
+            event "stream-stop" "fired" int(1)
+        finish *
+        otel-event on-stream-stop
+
+---------------------------------------------------------------------
+
+
+6.5. Comparison example (cmp)
 -------------------------------
 
 A configuration made for comparison purposes with other tracing implementations.
@@ -1240,7 +1281,7 @@ It uses a simplified span hierarchy without context propagation.
 ---------------------------------------------------------------------
 
 
-6.5. Empty / minimal example (empty)
+6.6. Empty / minimal example (empty)
 --------------------------------------
 
 The minimal valid OTel configuration.  The filter is initialized but no events

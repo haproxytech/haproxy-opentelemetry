@@ -956,6 +956,58 @@ otel-event <name> [{ if | unless } <condition>]
       on-server-session-end              |  channel_end_analyze
     -------------------------------------|------------------------------
 
+  --- Proxy mode (HTTP and TCP) ---
+
+  The filter attaches to both HTTP-mode and TCP-mode proxies.  On an HTTP proxy
+  it runs HTX-level analysis, so every event above is reachable.  A TCP proxy
+  carries no HTTP message and runs no HTTP analysis, so the HTTP-phase events
+  never fire on one: a scope bound to such an event on a non-HTTP proxy is inert
+  and is reported as a warning at config load.  These events fire on a TCP-mode
+  proxy:
+
+    stream lifecycle:
+      on-stream-start
+      on-stream-stop
+      on-idle-timeout
+      on-backend-set
+
+    request channel:
+      on-client-session-start
+      on-frontend-tcp-request
+      on-switching-rules-request
+      on-backend-tcp-request
+      on-process-server-rules-request
+      on-tcp-rdp-cookie-request
+      on-process-sticking-rules-request
+      on-client-session-end
+      on-server-unavailable
+
+    response channel:
+      on-server-session-start
+      on-tcp-response
+      on-process-store-rules-response
+      on-server-session-end
+
+  The remaining events carry HTTP message data and fire only on an HTTP-mode
+  proxy:
+
+    request channel:
+      on-http-wait-request
+      on-http-body-request
+      on-frontend-http-request
+      on-backend-http-request
+      on-http-tarpit-request
+      on-http-process-request
+      on-http-headers-request
+      on-http-end-request
+
+    response channel:
+      on-http-wait-response
+      on-http-response
+      on-http-headers-response
+      on-http-end-response
+      on-http-reply
+
   --- Stream lifecycle events (not tied to a channel analyzer) ---
 
   The on-stream-start and on-stream-stop events fire from the stream_start and
@@ -1373,6 +1425,11 @@ fe be - a more complex example of the OTel filter configuration that uses two
         between HAProxy processes is transmitted via the HTTP header using
         inject/extract.
 
+tcp   - a TCP-mode (non-HTTP) configuration that traces the raw connection with
+        a single session span, recording one event per TCP hook and counting the
+        forwarded payload via the 'otel.bytes_in' and 'otel.bytes_out' sample
+        fetches.  It exercises every event that fires on a TCP-mode proxy.
+
 empty - an empty configuration in which the OTel filter is initialized but no
         event is triggered.  It is not very usable, except to check the behavior
         of the OTel filter in the case of a similar configuration.
@@ -1440,6 +1497,7 @@ one of the pre-configured scripts:
   % ./run-ctx.sh
   % ./run-cmp.sh
   % ./run-fe-be.sh
+  % ./run-tcp.sh
 
 
 5.1. Benchmarking results
