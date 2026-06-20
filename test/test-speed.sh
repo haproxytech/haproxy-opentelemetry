@@ -123,9 +123,23 @@ sh_haproxy_stop ()
 sh_wrk_run ()
 {
 	_arg_ratio="${1}"
+	_var_cpulog="${SH_LOG_DIR}/_cpu-${_arg_ratio}.log"
+	_var_cpupid=
 
 	echo "--- rate-limit ${_arg_ratio} --------------------------------------------------"
+
+	command -v mpstat >/dev/null 2>&1 && {
+		mpstat -P ALL 1 "${SH_ARG_DURATION}" > "${_var_cpulog}" 2>/dev/null &
+		_var_cpupid=${!}
+	}
+
 	wrk -c8 -d${SH_ARG_DURATION} -t8 --latency http://localhost:10080/index.html
+
+	test -n "${_var_cpupid}" && {
+		wait "${_var_cpupid}"
+		awk '/^Average:/ && $2 == "all" { printf "  system cpu: %.1f%% busy, %.1f%% idle (all cores)\n", 100 - $NF, $NF }' "${_var_cpulog}"
+	}
+
 	echo "----------------------------------------------------------------------"
 	echo
 
