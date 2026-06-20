@@ -222,12 +222,15 @@ Available via the HAProxy CLI socket (prefix: `flt-otel`):
 | Command                    | Description                        |
 |----------------------------|------------------------------------|
 | `flt-otel status`          | Show filter status                 |
+| `flt-otel instruments`     | Show configured metric instruments |
+| `flt-otel scopes`          | Show configured scopes and groups  |
 | `flt-otel enable`          | Enable the filter                  |
 | `flt-otel disable`         | Disable the filter                 |
 | `flt-otel hard-errors`     | Enable hard-errors mode            |
 | `flt-otel soft-errors`     | Disable hard-errors mode           |
 | `flt-otel logging [state]` | Set logging state                  |
 | `flt-otel rate [value]`    | Set or show the rate limit         |
+| `flt-otel flush`           | Force-export buffered telemetry    |
 | `flt-otel debug [level]`   | Set debug level (debug build only) |
 
 When invoked without arguments, `rate`, `logging` and `debug` display the

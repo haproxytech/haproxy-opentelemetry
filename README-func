@@ -502,6 +502,18 @@ HAProxy CLI command handlers for runtime filter management.
       CLI handler for "flt-otel status".  Displays filter configuration and
       runtime state for all OTel filter instances.
 
+  flt_otel_cli_parse_flush
+      CLI handler for "flt-otel flush".  Force-exports the buffered telemetry
+      for all OTel filter instances.
+
+  flt_otel_cli_parse_instruments
+      CLI handler for "flt-otel instruments".  Lists the configured metric
+      instruments in each scope for all OTel filter instances.
+
+  flt_otel_cli_parse_scopes
+      CLI handler for "flt-otel scopes".  Lists the configured scopes and groups
+      for all OTel filter instances.
+
   flt_otel_cli_init
       Registers the OTel CLI keywords with HAProxy.
 
