@@ -1,0 +1,6 @@
+core
+vgcore.*
+*.pid
+*.i
+*.o
+_*
