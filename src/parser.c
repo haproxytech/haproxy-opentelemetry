@@ -1600,6 +1600,98 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
 
 /***
  * NAME
+ *   flt_otel_parse_cfg_exception - exception keyword parser
+ *
+ * SYNOPSIS
+ *   static int flt_otel_parse_cfg_exception(const char *file, int line, char **args, const struct flt_otel_parse_data *pdata, char **err)
+ *
+ * ARGUMENTS
+ *   file  - configuration file path
+ *   line  - configuration file line number
+ *   args  - the whole configuration line split into arguments
+ *   pdata - keyword metadata (name, usage, argument limits)
+ *   err   - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Parses the "exception" keyword inside an otel-scope span.  The first
+ *   argument is the required exception type.  An optional "message" keyword
+ *   introduces the sample expressions for the exception message, and
+ *   repeatable "attr <key> <sample>" clauses add further attributes.  A
+ *   trailing 'if'/'unless' condition gates the record.  At runtime the span's
+ *   record_exception() operation is invoked with these values.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE (== 0) in case of success,
+ *   or a combination of ERR_* flags if an error is encountered.
+ */
+static int flt_otel_parse_cfg_exception(const char *file, int line, char **args, const struct flt_otel_parse_data *pdata, char **err)
+{
+	struct flt_otel_conf_exception *exc;
+	int                             i, cond_pos = 0, retval = ERR_NONE;
+
+	OTELC_FUNC("\"%s\", %d, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, pdata, OTELC_DPTR_ARGS(err));
+
+	exc = flt_otel_conf_exception_init(FLT_OTEL_CONF_HDR_SPECIAL "exception", line, &(flt_otel_current_span->exceptions), err);
+	if (exc == NULL) {
+		retval |= ERR_ABORT | ERR_ALERT;
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	/* The first argument is the required exception type. */
+	retval = flt_otel_parse_strdup(&(exc->type), NULL, args[1], err, args[0]);
+
+	/* Parse optional 'message'/'attr' clauses and a trailing condition. */
+	for (i = 2; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++) {
+		if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_EXCEPTION_MESSAGE)) {
+			int j;
+
+			if (!LIST_ISEMPTY(&(exc->message))) {
+				FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+
+				break;
+			}
+
+			/* The message samples run until the next clause or condition. */
+			for (j = i + 1; FLT_OTEL_ARG_ISVALID(j); j++)
+				if (FLT_OTEL_PARSE_KEYWORD(j, FLT_OTEL_PARSE_LOG_RECORD_ATTR) || FLT_OTEL_ARG_ISCOND(j))
+					break;
+
+			if (j == (i + 1))
+				FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+			else
+				retval = flt_otel_parse_cfg_sample(file, line, args, i + 1, j - (i + 1), NULL, &(exc->message), err);
+
+			i = j - 1;
+		}
+		else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_ATTR)) {
+			if (!FLT_OTEL_ARG_ISVALID(i + 1) || !FLT_OTEL_ARG_ISVALID(i + 2))
+				FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+			else {
+				retval = flt_otel_parse_cfg_sample(file, line, args, i + 2, 1, NULL, &(exc->attributes), err);
+				if (!(retval & ERR_CODE))
+					i += 2;
+			}
+		}
+		else {
+			/* The remaining argument must be a trailing condition. */
+			cond_pos = flt_otel_find_cond_pos(args, i);
+
+			if (cond_pos == i)
+				retval = flt_otel_parse_attach_cond(file, line, args, cond_pos, &(exc->cond), err);
+			else
+				FLT_OTEL_PARSE_ERR(err, "'%s' : unexpected argument (use '%s%s')", args[i], pdata->name, pdata->usage);
+
+			break;
+		}
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_parse_cfg_set_var_ctx - set-var-ctx reference and field parser
  *
  * SYNOPSIS
@@ -2056,6 +2148,9 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		/* On error, release a parsed status that was not attached. */
 		if (retval & ERR_CODE)
 			FLT_OTEL_LIST_DESTROY(sample, &status_list);
+	}
+	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_EXCEPTION) {
+		retval = flt_otel_parse_cfg_exception(file, line, args, pdata, &err);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_INJECT) {
 		/*

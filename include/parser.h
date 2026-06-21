@@ -37,6 +37,7 @@
 #define FLT_OTEL_PARSE_LOG_RECORD_TIME_NS     "ns"
 #define FLT_OTEL_PARSE_LOG_RECORD_SPAN        "span"
 #define FLT_OTEL_PARSE_LOG_RECORD_ATTR        "attr"
+#define FLT_OTEL_PARSE_EXCEPTION_MESSAGE      "message"
 #define FLT_OTEL_PARSE_CTX_AUTONAME           "-"
 #define FLT_OTEL_PARSE_CTX_IGNORE_NAME        '-'
 #define FLT_OTEL_PARSE_CTX_USE_HEADERS        "use-headers"
@@ -137,6 +138,7 @@
 	FLT_OTEL_PARSE_SCOPE_DEF(      INJECT, 1,  CTX, 2, 4,   "inject",     FLT_OTEL_PARSE_SCOPE_INJECT_HELP)                                                                                              \
 	FLT_OTEL_PARSE_SCOPE_DEF(     EXTRACT, 0,  CTX, 2, 3,   "extract",    FLT_OTEL_PARSE_SCOPE_EXTRACT_HELP)                                                                                             \
 	FLT_OTEL_PARSE_SCOPE_DEF(      STATUS, 1, NONE, 2, 0,   "status",     " <code> [<sample> ...] [{ if | unless } <condition>]")                                                                        \
+	FLT_OTEL_PARSE_SCOPE_DEF(   EXCEPTION, 1, NONE, 2, 0,   "exception",  " <type> [message <sample> ...] [attr <key> <sample> ...] [{ if | unless } <condition>]")                                      \
 	FLT_OTEL_PARSE_SCOPE_DEF(      FINISH, 0, NONE, 2, 0,   "finish",     " <name> ...")                                                                                                                 \
 	FLT_OTEL_PARSE_SCOPE_DEF(        STOP, 0, NONE, 1, 0, "otel-stop",    " [{ if | unless } <condition>]")                                                                                              \
 	FLT_OTEL_PARSE_SCOPE_DEF(  INSTRUMENT, 0, NONE, 3, 0, "instrument",   " { update <name> [<attr> ...] | <type> <name> [<aggr>] [<desc>] [<unit>] <value> [<bounds>] } [{ if | unless } <condition>]") \

@@ -488,7 +488,7 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
  *   flt_otel_scope_run_span - single span execution
  *
  * SYNOPSIS
- *   static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct channel *chn, uint dir, struct flt_otel_scope_span *span, struct flt_otel_scope_data *data, const struct flt_otel_conf_span *conf_span, const struct timespec *ts_steady, const struct timespec *ts_system, char **err)
+ *   static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct channel *chn, uint dir, struct flt_otel_scope_span *span, struct flt_otel_scope_data *data, struct flt_otel_conf_span *conf_span, const struct timespec *ts_steady, const struct timespec *ts_system, char **err)
  *
  * ARGUMENTS
  *   s         - the stream being processed
@@ -511,7 +511,7 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
  */
-static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct channel *chn, uint dir, struct flt_otel_scope_span *span, struct flt_otel_scope_data *data, const struct flt_otel_conf_span *conf_span, const struct timespec *ts_steady, const struct timespec *ts_system, char **err)
+static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct channel *chn, uint dir, struct flt_otel_scope_span *span, struct flt_otel_scope_data *data, struct flt_otel_conf_span *conf_span, const struct timespec *ts_steady, const struct timespec *ts_system, char **err)
 {
 	struct flt_otel_conf *conf = FLT_OTEL_CONF(f);
 	int                   retval = FLT_OTEL_RET_OK;
@@ -563,6 +563,62 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 	if ((data->status.description != NULL) && (data->status.code != OTELC_SPAN_STATUS_IGNORE))
 		if (OTELC_OPS(span->span, set_status, data->status.code, data->status.description) == -1)
 			retval = FLT_OTEL_RET_ERROR;
+
+	/* Record exceptions on the span via the wrapper's record_exception(). */
+	if (!LIST_ISEMPTY(&(conf_span->exceptions))) {
+		struct flt_otel_conf_exception *conf_exc;
+
+		list_for_each_entry(conf_exc, &(conf_span->exceptions), list) {
+			struct flt_otel_conf_sample   *exc_sample;
+			struct flt_otel_scope_data_kv  exc_attr;
+			struct otelc_value             msg_value;
+			const char                    *message = NULL;
+
+			if (flt_otel_cond_pass(conf_exc->cond, s, dir) == 0)
+				continue;
+
+			(void)memset(&exc_attr, 0, sizeof(exc_attr));
+			(void)memset(&msg_value, 0, sizeof(msg_value));
+
+			/* Evaluate the optional message as a single concatenated value. */
+			if (!LIST_ISEMPTY(&(conf_exc->message))) {
+				exc_sample = LIST_NEXT(&(conf_exc->message), typeof(exc_sample), list);
+
+				if (flt_otel_sample_eval(s, dir, exc_sample, false, &msg_value, err) == FLT_OTEL_RET_ERROR)
+					retval = FLT_OTEL_RET_ERROR;
+				else
+					message = OTELC_VALUE_STR(&msg_value);
+			}
+
+			/* Evaluate the additional attributes into a key-value array. */
+			list_for_each_entry(exc_sample, &(conf_exc->attributes), list) {
+				struct otelc_value attr_value;
+
+				if (flt_otel_sample_eval(s, dir, exc_sample, true, &attr_value, err) == FLT_OTEL_RET_ERROR) {
+					retval = FLT_OTEL_RET_ERROR;
+
+					continue;
+				}
+
+				if (flt_otel_sample_add_kv(&exc_attr, exc_sample->key, &attr_value) == FLT_OTEL_RET_ERROR) {
+					if (attr_value.u_type == OTELC_VALUE_DATA)
+						OTELC_SFREE(attr_value.u.value_data);
+
+					retval = FLT_OTEL_RET_ERROR;
+				}
+			}
+
+			OTELC_DBG(DEBUG, "recording exception '%s' -> '%s'", conf_exc->type, OTELC_STR_ARG(message));
+
+			if (OTELC_OPS(span->span, record_exception, conf_exc->type, message, NULL, ts_system, exc_attr.attr, exc_attr.cnt) == -1)
+				retval = FLT_OTEL_RET_ERROR;
+
+			if (msg_value.u_type == OTELC_VALUE_DATA)
+				OTELC_SFREE(msg_value.u.value_data);
+
+			otelc_kv_destroy(&(exc_attr.attr), exc_attr.cnt);
+		}
+	}
 
 	/* Inject span context into HTTP headers and variables. */
 	if (conf_span->ctx_id != NULL) {

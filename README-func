@@ -344,9 +344,9 @@ sections.
 
   flt_otel_parse_cfg_scope
       Section parser for the otel-scope block.  Handles keywords: otel-scope ID,
-      span, link, attribute, event, baggage, status, inject, extract, finish,
-      otel-stop, instrument, log-record, idle-timeout, acl, otel-event, set-var,
-      set-var-ctx, unset-var.
+      span, link, attribute, event, baggage, status, exception, inject, extract,
+      finish, otel-stop, instrument, log-record, idle-timeout, acl, otel-event,
+      set-var, set-var-ctx, unset-var.
 
   flt_otel_post_parse_cfg_scope
       Post-parse callback for otel-scope.  Checks that HTTP header injection is

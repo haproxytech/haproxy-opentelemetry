@@ -1261,6 +1261,34 @@ status <code> [<sample> ...] [{ if | unless } <condition>]
     condition - an optional ACL-based 'if' or 'unless' condition
 
 
+exception <type> [message <sample> ...] [attr <key> <sample> ...] [{ if | unless } <condition>]
+  This keyword records an exception on the currently active span.  It is emitted
+  via the OpenTelemetry record_exception() operation as a span event named
+  'exception' that follows the semantic conventions.  HAProxy has no call stack,
+  so 'exception.stacktrace' is never set.
+
+  The first argument is the exception type, a literal string stored as the
+  'exception.type' attribute.  The optional 'message' keyword introduces sample
+  expressions whose values are concatenated into 'exception.message'.  The
+  repeatable 'attr <key> <sample>' clause adds further attributes to the event.
+
+  Recording an exception does not change the span status, so pair it with a
+  'status error' line when the exception marks the span as failed.  An optional
+  trailing 'if'/'unless' condition (same syntax as 'otel-event') gates the
+  record.  The keyword may be repeated to record several exceptions on one span.
+
+  For example:
+    exception upstream_error message str("HTTP ") status
+    exception bad_gateway attr "http.route" path if { status ge 500 }
+
+  Arguments :
+    type      - the exception type, stored as 'exception.type'
+    message   - sample expression(s) concatenated into 'exception.message'
+    key       - the attribute key for an 'attr' clause
+    sample    - sample expression(s) for the message or an attribute value
+    condition - an optional ACL-based 'if' or 'unless' condition
+
+
 set-var <var-name> <sample> ... [{ if | unless } <condition>]
   Set a HAProxy variable to the string value of a sample expression or a
   log-format, evaluated when the scope's event fires.  The value grammar matches

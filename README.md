@@ -201,6 +201,7 @@ signals:
 | `event`        | Add timestamped span events                             |
 | `baggage`      | Set context propagation data                            |
 | `status`       | Set span status (ok/error/ignore/unset)                 |
+| `exception`    | Record an exception as a span event                     |
 | `link`         | Add span links to related spans                         |
 | `inject`       | Inject context into headers or variables                |
 | `extract`      | Extract context from headers or variables               |

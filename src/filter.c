@@ -648,6 +648,7 @@ void flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt
 	const struct flt_otel_conf_instrument  *conf_instrument;
 	const struct flt_otel_conf_log_record  *conf_log_record;
 	const struct flt_otel_conf_link        *conf_link;
+	const struct flt_otel_conf_exception   *conf_exception;
 	const struct flt_otel_conf_set_var_ctx *conf_set_var_ctx;
 	const struct flt_otel_conf_unset_var   *conf_unset_var;
 
@@ -666,6 +667,11 @@ void flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt
 		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->statuses), "status", trigger);
 		list_for_each_entry(conf_link, &(conf_span->links), list)
 			flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_link->attributes), "link attribute", trigger);
+		list_for_each_entry(conf_exception, &(conf_span->exceptions), list) {
+			flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_exception->message), "exception message", trigger);
+			flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_exception->attributes), "exception attribute", trigger);
+			flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_exception->cond, "exception", trigger);
+		}
 	}
 	list_for_each_entry(conf_instrument, &(conf_scope->instruments), list) {
 		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_instrument->samples), "instrument value", trigger);

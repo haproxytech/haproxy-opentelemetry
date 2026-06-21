@@ -330,6 +330,27 @@ Supported keywords:
         status "error" str("server error") if { status ge 500 }
 
 
+  exception <type> [message <sample> ...] [attr <key> <sample> ...] [{ if | unless } <condition>]
+      Record an exception on the currently active span via the OpenTelemetry
+      record_exception() operation, which emits a span event named 'exception'
+      following the semantic conventions.  <type> is a literal string stored as
+      the 'exception.type' attribute.
+
+      The optional 'message' keyword introduces sample expressions whose values
+      are concatenated into 'exception.message'.  Repeatable 'attr <key>
+      <sample>' clauses add further attributes to the event.  HAProxy has no
+      call stack, so 'exception.stacktrace' is never emitted.
+
+      Recording an exception does not change the span status, so pair it with a
+      'status error' line when the exception marks the span as failed.  An
+      optional 'if'/'unless' ACL condition gates the record, and the keyword may
+      be repeated to record several exceptions on one span.
+
+      Examples:
+        exception upstream_error message str("HTTP ") status
+        exception bad_gateway attr "http.route" path if { status ge 500 }
+
+
   link { <ref> ... | <ref> attr <key> <sample> ... }
       Add non-hierarchical links to the currently active span.  Multiple span
       or context names can be specified.  Use this keyword when a link must
