@@ -505,6 +505,131 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 
 /***
  * NAME
+ *   flt_otel_check_sample_list - per-scope sample-fetch location check
+ *
+ * SYNOPSIS
+ *   static void flt_otel_check_sample_list(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const struct list *head, const char *kind, const char *trigger)
+ *
+ * ARGUMENTS
+ *   conf       - the OTel filter configuration
+ *   conf_scope - the scope that owns the samples
+ *   p          - the proxy to which the filter is attached
+ *   where      - the location bits where the scope runs (SMP_VAL_*)
+ *   head       - the list of flt_otel_conf_sample to check
+ *   kind       - the directive label shown in the warning
+ *   trigger    - the event or group that runs the scope, named in the warning
+ *
+ * DESCRIPTION
+ *   Warns when a bare sample fetch cannot be evaluated at the processing point
+ *   where the scope runs.  Each sample in <head> that is not a log-format
+ *   expression is examined, and every fetch whose own validity shares no bit
+ *   with <where> is reported, as it would silently yield no value at runtime.
+ *   Fetches that declare no location (val == 0, such as backend or server
+ *   fetches) and log-format expressions (parsed at SMP_VAL_FE_LOG_END) are left
+ *   unchecked.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+static void flt_otel_check_sample_list(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const struct list *head, const char *kind, const char *trigger)
+{
+	const struct flt_otel_conf_sample      *sample;
+	const struct flt_otel_conf_sample_expr *conf_expr;
+
+	OTELC_FUNC("%p, %p, %p, 0x%08x, %p, \"%s\", \"%s\"", conf, conf_scope, p, where, head, OTELC_STR_ARG(kind), OTELC_STR_ARG(trigger));
+
+	list_for_each_entry(sample, head, list) {
+		/*
+		 * Log-format expressions are parsed at SMP_VAL_FE_LOG_END,
+		 * where nearly every fetch is valid; only bare expressions
+		 * carry a meaningful per-event location.
+		 */
+		if (sample->lf_used)
+			continue;
+
+		list_for_each_entry(conf_expr, &(sample->exprs), list) {
+			if ((conf_expr->expr == NULL) || (conf_expr->expr->fetch == NULL))
+				continue;
+
+			/*
+			 * A fetch with no validity bits (val == 0, as many
+			 * backend and server fetches declare) names no
+			 * processing point, so there is no basis to flag it.
+			 */
+			if (conf_expr->expr->fetch->val == 0)
+				continue;
+			else if ((conf_expr->expr->fetch->val & where) != 0)
+				continue;
+
+			FLT_OTEL_WARNING("''%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' %s fetch '%s' extracts from '%s', not usable at %s on proxy '%s''", conf->id, conf_scope->id, kind, conf_expr->expr->fetch->kw, sample_src_names(conf_expr->expr->fetch->use), trigger, p->id);
+		}
+	}
+
+	OTELC_RETURN();
+}
+
+
+/***
+ * NAME
+ *   flt_otel_check_scope_loc - validate a scope's fetches at a processing point
+ *
+ * SYNOPSIS
+ *   void flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const char *trigger)
+ *
+ * ARGUMENTS
+ *   conf       - the OTel filter configuration
+ *   conf_scope - the scope to validate
+ *   p          - the proxy to which the filter is attached
+ *   where      - the location bits where the scope runs (SMP_VAL_*)
+ *   trigger    - the event or group that runs the scope, named in the warning
+ *
+ * DESCRIPTION
+ *   Walks every sample-bearing directive of <conf_scope> -- span attributes,
+ *   events, baggage, status and link attributes, instrument values and
+ *   attributes, log-record body, attributes and time, and set-var -- and warns
+ *   about any fetch that cannot be evaluated at <where>.  A <where> of zero (an
+ *   event with no fetch location) is a no-op.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+void flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const char *trigger)
+{
+	const struct flt_otel_conf_span        *conf_span;
+	const struct flt_otel_conf_instrument  *conf_instrument;
+	const struct flt_otel_conf_log_record  *conf_log_record;
+	const struct flt_otel_conf_link        *conf_link;
+
+	OTELC_FUNC("%p, %p, %p, 0x%08x, \"%s\"", conf, conf_scope, p, where, OTELC_STR_ARG(trigger));
+
+	if (where == 0)
+		OTELC_RETURN();
+
+	list_for_each_entry(conf_span, &(conf_scope->spans), list) {
+		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->attributes), "attribute", trigger);
+		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->events), "event", trigger);
+		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->baggages), "baggage", trigger);
+		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->statuses), "status", trigger);
+		list_for_each_entry(conf_link, &(conf_span->links), list)
+			flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_link->attributes), "link attribute", trigger);
+	}
+	list_for_each_entry(conf_instrument, &(conf_scope->instruments), list) {
+		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_instrument->samples), "instrument value", trigger);
+		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_instrument->attributes), "instrument attribute", trigger);
+	}
+	list_for_each_entry(conf_log_record, &(conf_scope->log_records), list) {
+		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_log_record->time), "log-record time", trigger);
+		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_log_record->attributes), "log-record attribute", trigger);
+		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_log_record->samples), "log-record body", trigger);
+	}
+	flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_scope->set_vars), "set-var", trigger);
+
+	OTELC_RETURN();
+}
+
+
+/***
+ * NAME
  *   flt_otel_ops_check - filter check callback (flt_ops.check)
  *
  * SYNOPSIS
@@ -735,6 +860,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	list_for_each_entry(conf_scope, &(conf->scopes), list) {
 		if (conf_scope->flag_used) {
 			struct flt_otel_conf_span *conf_span;
+			uint                       where;
 
 			/*
 			 * In principle, only one span should be labeled
@@ -769,14 +895,35 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 				conf->instr->flag_data_res = 1;
 
 			/*
+			 * The event's fetch-validity location, the union of its
+			 * FE and BE checkpoints.  The filter observes the whole
+			 * stream, so a backend-phase event still fires at its BE
+			 * checkpoint even on a frontend proxy; masking by the
+			 * proxy's own capabilities would wrongly reject backend
+			 * fetches there.  Stream-lifecycle pseudo-events carry no
+			 * location and leave it zero.
+			 */
+			where = flt_otel_event_data[conf_scope->event].smp_val_fe | flt_otel_event_data[conf_scope->event].smp_val_be;
+
+			/*
 			 * An HTTP-phase event never fires on a non-HTTP proxy,
 			 * which performs no HTTP analysis, so a scope bound to
 			 * one is silently inert there.  Warn rather than fail:
 			 * the same OTel configuration may be shared with HTTP
-			 * proxies.
+			 * proxies.  Otherwise the event fires here; where its
+			 * processing point has a known location, warn about any
+			 * bare fetch that cannot be evaluated there, since it
+			 * would silently yield nothing at runtime.
 			 */
 			if ((p->mode != PR_MODE_HTTP) && flt_otel_event_data[conf_scope->event].flag_http_only)
 				FLT_OTEL_WARNING("''%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' uses HTTP event '%s' that does not fire on non-HTTP proxy '%s''", conf->id, conf_scope->id, flt_otel_event_data[conf_scope->event].name, p->id);
+			else if (where != 0) {
+				char trigger[160];
+
+				(void)snprintf(trigger, sizeof(trigger), "event '%s'", flt_otel_event_data[conf_scope->event].name);
+
+				flt_otel_check_scope_loc(conf, conf_scope, p, where, trigger);
+			}
 		} else {
 			FLT_OTEL_ALERT("''%s' : unused " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s''", conf->id, conf_scope->id);
 
