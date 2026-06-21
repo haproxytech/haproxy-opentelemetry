@@ -637,7 +637,7 @@ static void flt_otel_check_sample_list(const struct flt_otel_conf *conf, const s
  *   and time, set-var, and the scope, instrument, log-record, set-var-ctx and
  *   unset-var conditions -- and warns about any fetch or condition that cannot
  *   be evaluated at <where>.  A <where> of zero (an event with no fetch
- *   location) is a no-op.
+ *   location) is a no-op.  Shared by the event-bound and group action checks.
  *
  * RETURN VALUE
  *   This function does not return a value.

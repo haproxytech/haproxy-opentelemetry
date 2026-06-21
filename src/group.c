@@ -122,6 +122,58 @@ static enum act_return flt_otel_group_action(struct act_rule *rule, struct proxy
 
 /***
  * NAME
+ *   flt_otel_group_check_loc - validate a group's scopes at the action's point
+ *
+ * SYNOPSIS
+ *   static void flt_otel_group_check_loc(const struct flt_otel_conf *conf, const char *group_id, const struct proxy *px, uint where)
+ *
+ * ARGUMENTS
+ *   conf     - the OTel filter configuration
+ *   group_id - the name of the group whose scopes are checked
+ *   px       - the proxy carrying the otel-group action
+ *   where    - the action's fetch-validity location bits (SMP_VAL_*)
+ *
+ * DESCRIPTION
+ *   Validates every scope of group <group_id> against the processing point of
+ *   the otel-group action.  The group's scopes are parsed but not yet linked to
+ *   it (that happens in flt_otel_ops_check), so they are resolved here by name
+ *   and passed to flt_otel_check_scope_loc().
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+static void flt_otel_group_check_loc(const struct flt_otel_conf *conf, const char *group_id, const struct proxy *px, uint where)
+{
+	const struct flt_otel_conf_group *conf_group;
+	const struct flt_otel_conf_ph    *ph_scope;
+	const struct flt_otel_conf_scope *conf_scope;
+	char                              trigger[160];
+
+	OTELC_FUNC("%p, \"%s\", %p, 0x%08x", conf, OTELC_STR_ARG(group_id), px, where);
+
+	(void)snprintf(trigger, sizeof(trigger), "group '%s'", group_id);
+
+	list_for_each_entry(conf_group, &(conf->groups), list) {
+		if (strcmp(conf_group->id, group_id) != 0)
+			continue;
+
+		list_for_each_entry(ph_scope, &(conf_group->ph_scopes), list)
+			list_for_each_entry(conf_scope, &(conf->scopes), list)
+				if (strcmp(conf_scope->id, ph_scope->id) == 0) {
+					flt_otel_check_scope_loc(conf, conf_scope, px, where, trigger);
+
+					break;
+				}
+
+		break;
+	}
+
+	OTELC_RETURN();
+}
+
+
+/***
+ * NAME
  *   flt_otel_group_check - group action post-parse check callback
  *
  * SYNOPSIS
@@ -227,6 +279,9 @@ static int flt_otel_group_check(struct act_rule *rule, struct proxy *px, char **
 
 		OTELC_RETURN_INT(0);
 	}
+
+	/* Warn about scopes whose fetches cannot be evaluated at this action. */
+	flt_otel_group_check_loc(conf, group_id, px, flt_otel_group_data[i].smp_val);
 
 	OTELC_SFREE_CLEAR(rule->arg.act.p[FLT_OTEL_ARG_FILTER_ID]);
 	OTELC_SFREE_CLEAR(rule->arg.act.p[FLT_OTEL_ARG_GROUP_ID]);
