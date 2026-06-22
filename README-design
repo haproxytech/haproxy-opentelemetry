@@ -37,11 +37,11 @@ Adding a new event requires a single line in the X-macro list.
 
 1.2  Parser Keyword Definitions
 
-Three X-macro lists drive the configuration parser:
+The configuration parser is driven by these X-macro lists:
 
-  FLT_OTEL_PARSE_INSTR_DEFINES   (parser.h, 9 keywords)
-  FLT_OTEL_PARSE_GROUP_DEFINES   (parser.h, 2 keywords)
-  FLT_OTEL_PARSE_SCOPE_DEFINES   (parser.h, 19 keywords)
+  FLT_OTEL_PARSE_INSTR_DEFINES   (parser.h)
+  FLT_OTEL_PARSE_GROUP_DEFINES   (parser.h)
+  FLT_OTEL_PARSE_SCOPE_DEFINES   (parser.h)
 
 Each entry has the form:
 
@@ -94,11 +94,11 @@ The generated free function:
   3. Removes the node from its list.
   4. Frees the structure with OTELC_SFREE_CLEAR.
 
-conf.c instantiates these macros for all 15 configuration types: hdr, str, ph,
-sample_expr, sample, link, context, span, scope, instrument, log_record,
-set_var_ctx, unset_var, group, instr.  The more complex types (span, scope,
-instr) carry non-trivial _func_ bodies that initialize sub-lists or set default
-values.
+conf.c instantiates these macros for every configuration type: hdr, str, ph,
+sample_expr, sample, link, context, span, exception, scope, instrument,
+log_record, set_var_ctx, unset_var, group, instr.  The more complex types (span,
+scope, instr) carry non-trivial _func_ bodies that initialize sub-lists or set
+default values.
 
 
 2  Type-Safe Generic Macros
@@ -589,8 +589,8 @@ a 'name' member.
 When OTEL_DEBUG=1 is set at build time, -DDEBUG_OTEL is added to the compiler
 flags.  This enables:
 
-  - Additional flt_ops callbacks: deinit_per_thread, http_payload, http_reset,
-    tcp_payload.  In non-debug builds these are NULL.
+  - Additional flt_ops callbacks: deinit_per_thread, http_payload and
+    http_reset.  In non-debug builds these are NULL.
 
   - FLT_OTEL_USE_COUNTERS (config.h), which activates the per-event counters in
     flt_otel_counters (attached[], disabled[] arrays).
@@ -719,8 +719,9 @@ The flt_otel_group_data[] table (group.c) maps each HAProxy action context
 (ACT_F_*) to:
 
   act_from     The action context enum value.
-  smp_val      Reserved SMP_VAL_* fetch location (FE or BE) for a future
-               fetch-validity check; not read yet.
+  smp_val      SMP_VAL_* fetch-validity bit for the action's processing
+               point; flt_otel_group_check() matches it against each fetch
+               and condition of the group's scopes.
   smp_opt_dir  The sample fetch direction (REQ or RES).
 
 This table is generated from the FLT_OTEL_GROUP_DEFINES X-macro list (group.h).

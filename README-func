@@ -137,8 +137,9 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
       when HAProxy generates an internal reply.  HAProxy has not invoked this
       callback since 2.2-dev8 (2020), so the event never fires in practice.
 
-  flt_otel_ops_tcp_payload [D]
-      TCP payload callback (flt_ops.tcp_payload).
+  flt_otel_ops_tcp_payload
+      TCP payload callback (flt_ops.tcp_payload).  Counts the bytes forwarded
+      on a TCP-mode stream for the otel.bytes_in and otel.bytes_out fetches.
 
 
 src/event.c

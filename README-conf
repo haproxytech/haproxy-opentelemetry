@@ -506,7 +506,8 @@ header.
   conf_sample      key        macro   exprs, lf_expr, time, cond
   conf_sample (ex) key        manual  extra, fmt_string, exprs
   conf_context     id         macro   (none)
-  conf_span        id         macro   5 sub-lists
+  conf_span        id         macro   sub-lists
+  conf_exception   id         macro   message, attributes
   conf_instrument  id         macro   idx, type, samples
   conf_log_record  id         macro   time, attributes, samples
   conf_set_var_ctx name       macro   (none)
