@@ -273,9 +273,9 @@ sections.
       letter, which the generated HAProxy variable normalizes.
 
   flt_otel_parse_cfg_check
-      Common validation for config keywords: looks up the keyword, checks
-      argument count and character validity, verifies that the parent section ID
-      is set.
+      Common validation for config keywords: looks up the keyword, checks the
+      argument count and character validity, and requires the instrumentation to
+      be defined when the section calls for it.
 
   flt_otel_parse_cfg_sample_expr
       Parses a single HAProxy sample expression within a sample definition.
@@ -305,6 +305,10 @@ sections.
       Checks whether the current config parsing is within the correct HAProxy
       configuration scope (cfg_scope filtering).
 
+  flt_otel_parse_cfg_acl
+      Parses the 'acl' keyword shared by the otel-instrumentation and otel-scope
+      sections, rejecting 'or' as a name before calling parse_acl().
+
   flt_otel_parse_cfg_instr
       Section parser for the otel-instrumentation block.  Handles keywords:
       otel-instrumentation ID, log, config, groups, scopes, acl, rate-limit,
@@ -322,13 +326,21 @@ sections.
       Post-parse callback for otel-group.  Checks that at least one scope is
       defined.
 
+  flt_otel_parse_ctx_flag
+      Recognizes a context storage type token ("use-headers" or "use-vars") and
+      returns the matching flag; shared by the inject and extract keywords.
+
   flt_otel_parse_cfg_scope_ctx
       Parses the context storage type argument ("use-headers" or "use-vars") for
-      inject/extract keywords.
+      the inject keyword, recording it on the current span.
 
   flt_otel_parse_acl
       Builds an ACL condition by trying multiple ACL lists in order
       (scope-local, instrumentation, proxy).
+
+  flt_otel_parse_trailing_cond
+      Builds a mandatory trailing 'if'/'unless' condition; used by exception,
+      set-var-ctx, otel-stop and otel-event.
 
   flt_otel_parse_bounds
       Parses a space-separated string of numbers into a dynamically allocated

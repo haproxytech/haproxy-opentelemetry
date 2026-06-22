@@ -193,7 +193,7 @@ enum FLT_OTEL_LOGGING_enum {
 /* Keyword metadata used by the configuration section parsers. */
 struct flt_otel_parse_data {
 	int         keyword;       /* Keyword index. */
-	bool        flag_check_id; /* Whether the group ID must be defined for the keyword. */
+	bool        flag_check_id; /* Whether a span must be open for the keyword. */
 	int         check_name;    /* Checking allowed characters in the name. */
 	int         args_min;      /* The minimum number of arguments required. */
 	int         args_max;      /* The maximum number of arguments allowed. */
