@@ -371,9 +371,10 @@ flt_otel_sample_to_str() handles the string conversion for non-trivial types:
   SMP_T_METH     lookup from static HTTP method table, or raw string for
                  HTTP_METH_OTHER
 
-For metric instruments, string values are rejected -- the meter requires
-OTELC_VALUE_INT64.  If the sample evaluates to a string, otelc_value_strtonum()
-attempts numeric conversion as a last resort.
+For metric instruments the value is always int64.  A string value -- for example
+a value read from a variable, which the filter stores as a string -- is coerced
+with otelc_value_strtonum(); only a value that is not a valid integer is
+rejected.
 
 5.3  Dispatch to Data Structures
 

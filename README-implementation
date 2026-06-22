@@ -1213,13 +1213,13 @@ The recording function flt_otel_scope_run_instrument_record()
   buffer of global.tune.bufsize, calls build_logline() to evaluate the
   log-format expression, and presents the result as an SMP_T_STR sample.
 
-Both paths converge on flt_otel_sample_to_value(), which converts the
-HAProxy sample data to an otelc_value.  Metric instruments require
-numeric values (INT64); if the conversion produces OTELC_VALUE_DATA
-(string), a warning is logged and the value is then run through
-otelc_value_strtonum() with OTELC_VALUE_INT64.  A numeric string is
-coerced and recorded; the measurement is rejected only when that
-conversion fails.
+Both paths converge on flt_otel_sample_to_value(), which converts the HAProxy
+sample data to an otelc_value.  A metric instrument value is always int64, so
+a string result (for example a value read from a variable, which the filter
+stores as a string) is coerced through otelc_value_strtonum() with
+OTELC_VALUE_INT64.  A numeric string is coerced and recorded; the measurement
+is rejected, with a warning that names the value, only when that conversion
+fails.
 
 
 18.5.6  Instrument Lifecycle Summary

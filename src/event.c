@@ -66,7 +66,9 @@ static int flt_otel_cond_pass(struct acl_cond *cond, struct stream *s, uint dir)
  *   the resulting value via the <meter> API.  Each expression is evaluated
  *   with sample_process(), converted to an otelc_value via
  *   flt_otel_sample_to_value(), and recorded via
- *   <meter>->update_instrument_kv_n().
+ *   <meter>->update_instrument_kv_n().  An instrument value is always
+ *   integer-typed, so a string value is coerced to int64 and rejected only
+ *   when it is not a valid integer.
  *
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
@@ -151,18 +153,16 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
 		OTELC_DBG_VALUE(DEBUG, "value ", &value);
 
 		/*
-		 * Metric instruments expect numeric values (INT64 or DOUBLE).
-		 * Reject OTELC_VALUE_DATA since the meter cannot interpret
-		 * arbitrary string data as a numeric measurement.
+		 * A metric instrument value is always integer-typed.  A
+		 * string value (such as a var() fetch) is coerced to int64;
+		 * a value that is not a valid integer is rejected.
 		 */
-		if (value.u_type == OTELC_VALUE_DATA) {
-			OTELC_DBG(WARNING, "WARNING: non-numeric value type for instrument '%s'", instr_ref->id);
+		if ((value.u_type == OTELC_VALUE_DATA) && (otelc_value_strtonum(&value, OTELC_VALUE_INT64) == OTELC_RET_ERROR)) {
+			OTELC_DBG(WARNING, "WARNING: non-numeric value '%s' for instrument '%s'", (const char *)(value.u.value_data), instr_ref->id);
 
-			if (otelc_value_strtonum(&value, OTELC_VALUE_INT64) == OTELC_RET_ERROR) {
-				OTELC_SFREE(value.u.value_data);
+			OTELC_SFREE(value.u.value_data);
 
-				retval = FLT_OTEL_RET_ERROR;
-			}
+			retval = FLT_OTEL_RET_ERROR;
 		}
 
 		if (retval != FLT_OTEL_RET_ERROR)
