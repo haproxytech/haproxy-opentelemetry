@@ -37,9 +37,11 @@ REGISTER_POOL(&pool_head_otel_span_context, "otel_span_context", MAX(sizeof(stru
  *
  * DESCRIPTION
  *   Allocates <size> bytes of memory from the HAProxy memory <pool>.  If <pool>
- *   is NULL, the allocation falls back to the heap via OTELC_MALLOC().  When
- *   <flag_clear> is set, the allocated memory is zero-filled.  On allocation
- *   failure, an error message is stored via <err>.
+ *   is NULL, the allocation falls back to the heap via OTELC_MALLOC().  A
+ *   non-NULL <pool> returns a fixed-size element freed through the same pool,
+ *   so a request larger than <pool>->size is rejected rather than overrunning
+ *   the element.  When <flag_clear> is set, the allocated memory is
+ *   zero-filled.  On allocation failure, an error message is stored via <err>.
  *
  * RETURN VALUE
  *   Returns a pointer to the allocated memory, or NULL on failure.
@@ -51,6 +53,18 @@ void *flt_otel_pool_alloc(struct pool_head *pool, size_t size, bool flag_clear, 
 	OTELC_FUNC("%p, %zu, %hhu, %p:%p", pool, size, flag_clear, OTELC_DPTR_ARGS(err));
 
 	if (pool != NULL) {
+		/*
+		 * The pool hands back a fixed-size element freed through the
+		 * same pool; it cannot fall back to the heap for an oversize
+		 * request without losing that provenance, so reject it rather
+		 * than overrun the block.
+		 */
+		if (size > pool->size) {
+			FLT_OTEL_ERR("pool '%s' element size %u too small for %zu bytes", pool->name, pool->size, size);
+
+			OTELC_RETURN_PTR(NULL);
+		}
+
 		retptr = pool_alloc(pool);
 		if (retptr != NULL)
 			OTELC_DBG(MEM, "POOL_ALLOC: %s:%d(%p %zu)", __func__, __LINE__, retptr, FLT_OTEL_DEREF(pool, size, size));
