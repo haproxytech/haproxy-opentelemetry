@@ -432,14 +432,14 @@ uniform sampling without floating-point arithmetic on the hot path.
 6.2  ACL-Based Filtering
 
 Each scope may carry an ACL condition (if/unless) evaluated at scope
-execution time via acl_exec_cond().  ACL references are resolved through
-a priority chain in flt_otel_parse_acl() (parser.c):
+execution time via acl_exec_cond().  flt_otel_parse_acl() (parser.c) resolves
+an ACL reference by trying the lists its callers supply, in order, until
+build_acl_cond() succeeds.  The callers pass the lists in this priority order:
 
   1. Scope-local ACLs (declared within the otel-scope section).
   2. Instrumentation ACLs (declared in the otel-instrumentation section).
   3. Proxy ACLs (declared in the HAProxy frontend/backend section).
 
-The first list that produces a successful build_acl_cond() result is used.
 If the condition fails at runtime:
 
   - If the scope contains a root span, the entire stream is disabled
@@ -485,9 +485,8 @@ HAProxy memory pools are registered for frequently allocated structures
                                   callback).
 
 Pool registration is conditional on compile-time flags (USE_POOL_OTEL_* in
-config.h).  flt_otel_pool_alloc() attempts pool allocation first and falls back
-to heap allocation (OTELC_MALLOC) when the pool is NULL or the requested size
-exceeds the pool's element size.
+config.h).  flt_otel_pool_alloc() allocates from the pool when one is present,
+and from the heap (OTELC_MALLOC) when the pool is NULL.
 
 The C wrapper library's memory allocations are redirected through
 flt_otel_mem_malloc() / flt_otel_mem_free() (filter.c), which use the

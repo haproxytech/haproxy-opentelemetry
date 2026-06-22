@@ -708,8 +708,7 @@ http-after-response rules:
   pool.c provides wrappers around HAProxy memory pools and standard
   allocation:
 
-  flt_otel_pool_alloc()   Allocates from a pool (if non-NULL and the requested
-                          size fits) or via calloc.
+  flt_otel_pool_alloc()   Allocates from a pool (when non-NULL) or the heap.
   flt_otel_pool_free()    Returns memory to the pool or frees it.
   flt_otel_pool_strndup() Duplicates a string via pool allocation.
   flt_otel_trash_alloc()  Acquires a trash buffer chunk.
