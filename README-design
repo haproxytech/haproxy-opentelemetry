@@ -68,8 +68,8 @@ Additional X-macro lists generate:
 
 1.3  Configuration Init/Free Generation
 
-Two macros in conf_funcs.h generate init and free functions for all
-configuration structure types:
+Macros in conf_funcs.h generate init and free functions for all configuration
+structure types:
 
   FLT_OTEL_CONF_FUNC_INIT(_type_, _id_, _func_)
   FLT_OTEL_CONF_FUNC_FREE(_type_, _id_, _func_)
@@ -168,7 +168,7 @@ pointer types through typeof().
 
 3.1  Error Accumulation Macros
 
-Three macros in define.h manage error messages:
+Macros in define.h manage error messages:
 
   FLT_OTEL_ERR(f, ...)
     Formats an error message via memprintf() into the caller's char **err
@@ -210,7 +210,7 @@ Configuration parsing (parser.c) uses additional macros:
 
 3.3  Runtime Error Modes
 
-Two helper functions in filter.c implement the runtime error policy:
+Helper functions in filter.c implement the runtime error policy:
 
   flt_otel_return_int(f, err, retval)
   flt_otel_return_void(f, err)
@@ -475,7 +475,7 @@ This is the per-stream counterpart to the global "flt-otel disable" of section
 
 7.1  Pool-Based Allocation
 
-Four HAProxy memory pools are registered for frequently allocated structures
+HAProxy memory pools are registered for frequently allocated structures
 (pool.c):
 
   pool_head_otel_scope_span       Per-stream span entries.
@@ -690,9 +690,8 @@ The "otel-group" action integrates OTel scopes with HAProxy's rule system
 
 11.1  Registration
 
-group.c registers action keywords via INITCALL1 macros for all five action
-contexts.  Each registration points to flt_otel_group_parse() as the parse
-function.
+group.c registers action keywords via INITCALL1 macros for all action contexts.
+Each registration points to flt_otel_group_parse() as the parse function.
 
 11.2  Parse-Check-Execute Cycle
 

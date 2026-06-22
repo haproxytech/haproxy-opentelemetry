@@ -106,8 +106,8 @@ HTTP-only event on a non-HTTP proxy is reported as a warning at config load.
 --------------------------------------
 
 The OTel configuration file uses a simple section-based format.  It contains
-three types of sections: one "otel-instrumentation" section (mandatory), zero
-or more "otel-scope" sections, and zero or more "otel-group" sections.
+a mandatory "otel-instrumentation" section, zero or more "otel-scope" sections,
+and zero or more "otel-group" sections.
 
 
 3.1. OTel scope (top-level)

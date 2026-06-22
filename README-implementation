@@ -114,7 +114,7 @@ HAProxy configuration with:
 The flt_otel_parse() function (parser.c) handles the "filter" line, creates an
 flt_otel_conf structure, and delegates to parse_cfg() which loads the referenced
 YAML/CFG file.  That file is parsed using temporary section registrations for
-three section types:
+the section types:
 
   otel-instrumentation   ->  flt_otel_parse_cfg_instr()
   otel-group             ->  flt_otel_parse_cfg_group()
@@ -307,7 +307,7 @@ and the keyword parser via INITCALL1 (parser.c).
 
 5.3  Error Handling
 
-Two helper functions manage errors:
+Helper functions manage errors:
 
   flt_otel_return_int() / flt_otel_return_void():
     - If the result indicates an error or an error string is set: in hard-error
@@ -339,17 +339,17 @@ Each event entry carries:
   - name:             configuration event name (e.g. "on-frontend-http-request")
 
 Events with an_bit == 0 are pseudo-events not tied to any channel
-analyzer.  Two of them fire from stream lifecycle callbacks:
+analyzer.  The stream lifecycle callbacks fire:
   - on-stream-start  (flt_otel_ops_stream_start, before channel processing)
   - on-stream-stop   (flt_otel_ops_stream_stop, after channel processing)
 
-One fires periodically from the check_timeouts callback:
+The check_timeouts callback fires periodically:
   - on-idle-timeout  (flt_otel_ops_check_timeouts, when stream is idle)
 
-One fires from the stream_set_backend callback:
+The stream_set_backend callback fires:
   - on-backend-set   (flt_otel_ops_stream_set_backend, when backend is assigned)
 
-Four fire from HTTP lifecycle callbacks:
+The HTTP lifecycle callbacks fire:
   - on-http-headers-request / on-http-headers-response (flt_otel_ops_http_headers)
   - on-http-end-request / on-http-end-response         (flt_otel_ops_http_end)
   - on-http-reply                                      (flt_otel_ops_http_reply)
@@ -646,7 +646,7 @@ be used simultaneously.
 10  HTTP Header Manipulation
 ----------------------------------------------------------------------
 
-  http.c provides three operations:
+  http.c provides these operations:
 
   flt_otel_http_headers_get(chn, prefix, prefix_len, err):
     Iterates the HTX message headers.  Headers whose name starts with the given
@@ -715,7 +715,7 @@ http-after-response rules:
   flt_otel_trash_alloc()  Acquires a trash buffer chunk.
   flt_otel_trash_free()   Releases a trash buffer chunk.
 
-Four pool heads are registered for hot-path structures:
+Pool heads are registered for hot-path structures:
   - otel_scope_span       (scope.c)
   - otel_scope_context    (scope.c)
   - otel_runtime_context  (scope.c)
@@ -810,7 +810,7 @@ binary path and log to test/_logs/.
 
 16.3  Exporter Configuration
 
-Each test directory contains an otel.yml file configuring three exporter types:
+Each test directory contains an otel.yml file configuring exporter types:
   - OTLP file exporter (writes traces to local files).
   - OTLP gRPC exporter (sends to localhost:4317).
   - OTLP HTTP exporter (sends to localhost:4318 in JSON format).
@@ -913,8 +913,8 @@ The initialization sequence is as follows:
   8. Log handler: otelc_log_set_handler() installs a callback that
      counts SDK diagnostic messages via the flt_otel_drop_cnt counter.
 
-All three handles are stored in the flt_otel_conf_instr structure
-(conf.h):
+The tracer, meter and logger handles are stored in the flt_otel_conf_instr
+structure (conf.h):
 
   struct flt_otel_conf_instr {
       ...

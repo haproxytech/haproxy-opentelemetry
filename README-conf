@@ -22,8 +22,7 @@ Source files:
 2  Common Macros
 ------------------------------------------------------------------------------
 
-Two macros provide the building blocks embedded in every configuration
-structure.
+Macros provide the building blocks embedded in every configuration structure.
 
 2.1  FLT_OTEL_CONF_STR(p)
 
@@ -105,7 +104,7 @@ The flt_otel_conf_ph structure serves as an indirection node.  During parsing,
 placeholder entries record names of groups and scopes.  At check time
 (flt_otel_ops_check), these names are resolved to pointers to the actual
 flt_otel_conf_group or flt_otel_conf_scope structures via the ptr field.
-Two type aliases exist for clarity:
+Type aliases exist for clarity:
 
   #define flt_otel_conf_ph_group  flt_otel_conf_ph
   #define flt_otel_conf_ph_scope  flt_otel_conf_ph

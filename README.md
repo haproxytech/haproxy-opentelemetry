@@ -141,7 +141,7 @@ If no filter id is specified, `otel-filter` is used as default.
 
 #### OTel configuration file structure
 
-The OTel configuration file contains three section types:
+The OTel configuration file contains the following section types:
 
 - `otel-instrumentation` -- mandatory; references the YAML file, sets rate
   limits, error modes, logging and declares groups and scopes.
