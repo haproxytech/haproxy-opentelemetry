@@ -243,8 +243,9 @@ Supported keywords:
         name.  A reference that resolves to no span or extracted context --
         for instance a 'parent' on a context whose extraction found nothing --
         is an error, and the span is not created.
-      - 'link <ref>' adds an inline link to another span or context.  Multiple
-        inline links can be specified within the argument limit.
+      - 'link <ref>' adds an inline link to another span or context.  Only one
+        inline link fits the span's argument limit; use the standalone 'link'
+        keyword to add more.
       - 'kind <kind>' sets the span kind to one of the following: 'internal',
         'server' (default), 'client', 'producer' or 'consumer'.
       - If no reference is given, the span becomes a root span.
