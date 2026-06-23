@@ -296,9 +296,10 @@ The three states are:
   PENDING (-2)  Creation in progress by another thread.
   >= 0          Valid meter index.  Ready for recording.
 
-Threads that lose the CAS skip creation.  Update-form instruments check that the
-referenced create-form's idx is >= 0 before recording; if it is still PENDING or
-UNSET, the measurement is silently skipped.
+Threads that lose the CAS skip creation.  Update-form instruments check the
+referenced create-form's idx before recording: an idx that is still PENDING is
+waited for until the creating thread resolves it, then recorded; an idx of UNSET
+(never created, or a creation that failed) is skipped.
 
 4.3  Per-Thread Initialization Guard
 

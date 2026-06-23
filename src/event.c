@@ -199,11 +199,13 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
  *   on first use, using HA_ATOMIC_CAS on the instrument index to guarantee
  *   thread-safe one-time initialization.  The second pass iterates over
  *   update-form instruments and records measurements via
- *   flt_otel_scope_run_instrument_record().  Instruments whose index is still
- *   negative (UNUSED or PENDING) are skipped, so that a concurrent creation by
- *   another thread does not cause an invalid <meter> access.  A measurement
- *   is recorded only when both the create-form and update-form 'if'/'unless'
- *   conditions pass; creation itself produces no data point and is never gated.
+ *   flt_otel_scope_run_instrument_record().  An instrument another thread is
+ *   creating right now (PENDING index) is waited for until that creation
+ *   completes rather than skipped, so a concurrent first use does not lose
+ *   its measurement; one not created at all (UNSET index) is skipped.  A
+ *   measurement is recorded only when both the create-form and update-form
+ *   'if'/'unless' conditions pass; creation itself produces no data point and
+ *   is never gated.
  *
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
@@ -264,6 +266,17 @@ static int flt_otel_scope_run_instrument(struct stream *s, uint dir, struct flt_
 
 			OTELC_DBG(INFO, "update instrument '%s' -> '%s'", scope->id, conf_instr->id);
 			FLT_OTEL_DBG_CONF_INSTRUMENT("", conf_instr);
+
+			/*
+			 * If another thread is creating this instrument
+			 * (PENDING index), yield until it finishes rather than
+			 * dropping the measurement.  The creating thread always
+			 * resolves PENDING (stores the index, or UNSET on
+			 * failure), so this ends as soon as creation does.
+			 */
+			if (instr != NULL)
+				while (HA_ATOMIC_LOAD(&(instr->idx)) == OTELC_METRIC_INSTRUMENT_PENDING)
+					ha_thread_relax();
 
 			/*
 			 * Update form: record a measurement using an existing

@@ -163,10 +163,13 @@ Event dispatching, metrics recording and scope/span execution engine.
       first lazily creates create-form instruments via the meter, using
       HA_ATOMIC_CAS to guarantee thread-safe one-time initialization; the second
       iterates update-form instruments and records measurements via
-      flt_otel_scope_run_instrument_record().  Instruments whose index is still
-      negative (UNUSED or PENDING) are skipped.  A measurement is recorded only
-      when the create-form and update-form if/unless conditions pass; instrument
-      creation produces no data point and is never gated.
+      flt_otel_scope_run_instrument_record().  An instrument another thread is
+      creating right now (PENDING index) is waited for until that creation
+      completes rather than skipped, so a concurrent first use does not lose its
+      measurement; one not created at all (UNSET index) is skipped.  A
+      measurement is recorded only when the create-form and update-form
+      if/unless conditions pass; instrument creation produces no data point and
+      is never gated.
 
   flt_otel_scope_run_log_record
       Emits log records for a scope.  Iterates over the configured log-record

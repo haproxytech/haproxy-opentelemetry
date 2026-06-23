@@ -461,8 +461,8 @@ and response fetches.
     6. Processes metric instruments via flt_otel_scope_run_instrument(), which
        runs two passes: the first lazily creates create-form instruments using
        HA_ATOMIC_CAS for thread-safe one-time initialization; the second records
-       measurements for update-form instruments, skipping any whose index is
-       still negative (creation pending or not yet attempted).
+       measurements for update-form instruments, waiting for any still being
+       created (PENDING) and skipping any never created (UNSET).
     7. Emits log records via flt_otel_scope_run_log_record(), which iterates
        the scope's log-record list, skips entries below the logger's severity
        threshold, evaluates sample expressions into a body string, resolves
@@ -1193,8 +1193,10 @@ passes during scope execution.
     a. Reference validation: the ref pointer must be non-NULL (resolved
        at check time to the create-form instrument).
 
-    b. Index check: if the create-form instrument's idx is still
-       negative (UNUSED or PENDING), the measurement is skipped.
+    b. Index check: if the create-form instrument's idx is PENDING, the
+       thread waits with ha_thread_relax() until the creating thread
+       resolves it; an idx that is (or becomes) UNSET means creation
+       never happened or failed, and the measurement is skipped.
 
     c. Recording: flt_otel_scope_run_instrument_record() evaluates the
        sample expression, converts it to an otelc_value, and calls
