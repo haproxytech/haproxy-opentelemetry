@@ -725,7 +725,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	struct flt_otel_conf_group *conf_group;
 	struct flt_otel_conf_scope *conf_scope;
 	struct flt_otel_conf_ph    *ph_group, *ph_scope;
-	int                         retval = 0, scope_unused_cnt = 0, span_root_cnt = 0;
+	int                         retval = 0, scope_unused_cnt = 0, span_root_cnt = 0, span_cnt = 0;
 
 	OTELC_FUNC("%p, %p", p, fconf);
 
@@ -935,6 +935,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 			list_for_each_entry(conf_span, &(conf_scope->spans), list) {
 				FLT_OTEL_DBG_CONF_SPAN("   ", conf_span);
 
+				span_cnt++;
 				span_root_cnt += conf_span->flag_root ? 1 : 0;
 			}
 
@@ -991,7 +992,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 				flt_otel_check_scope_loc(conf, conf_scope, p, where, trigger);
 			}
 		} else {
-			FLT_OTEL_ALERT("''%s' : unused " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s''", conf->id, conf_scope->id);
+			FLT_OTEL_WARNING("''%s' : unused " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s''", conf->id, conf_scope->id);
 
 			scope_unused_cnt++;
 		}
@@ -1003,14 +1004,14 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	 * starting HAProxy.
 	 */
 	if (scope_unused_cnt > 0)
-		FLT_OTEL_ALERT("''%s' : %d scope(s) not in use'", conf->id, scope_unused_cnt);
+		FLT_OTEL_WARNING("''%s' : %d scope(s) not in use'", conf->id, scope_unused_cnt);
 
-	if (LIST_ISEMPTY(&(conf->scopes)))
-		/* Do nothing. */;
+	if (span_cnt == 0)
+		/* No defined spans, so the root-span check does not apply. */;
 	else if (span_root_cnt == 0)
-		FLT_OTEL_ALERT("''%s' : no span is marked as the root span'", conf->id);
+		FLT_OTEL_WARNING("''%s' : no span is marked as the root span'", conf->id);
 	else if (span_root_cnt > 1)
-		FLT_OTEL_ALERT("''%s' : multiple spans are marked as the root span'", conf->id);
+		FLT_OTEL_WARNING("''%s' : multiple spans are marked as the root span'", conf->id);
 
 	OTELC_DBG(DEBUG, "- defined instruments ----------");
 
