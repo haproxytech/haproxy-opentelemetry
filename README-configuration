@@ -478,6 +478,21 @@ Supported keywords:
       form only that one.  Registration produces no data point and is never
       gated.
 
+      The update form itself supplies no value, only attributes and an optional
+      condition; to record a different quantity, define a separate instrument.
+      To feed a computed or externally-set measurement into one instrument, set
+      the create form's 'value' to a 'var(...)' fetch and assign that variable
+      with 'set-var'; the instrument then records whatever the variable holds.
+
+      For example, a request size read from a header is stored in a variable
+      with 'set-var', then recorded through it:
+
+        otel-scope request_size
+            set-var txn.otel_size req.hdr(content-length)
+            instrument hist_int req_bytes value var(txn.otel_size) unit "By"
+            instrument update req_bytes
+            otel-event on-frontend-http-request
+
       Observable (pull) instruments are unsupported, but the create/update split
       covers the same need when the update form runs periodically.  Bind a scope
       to the 'on-idle-timeout' event, whose timer fires on a HAProxy thread at

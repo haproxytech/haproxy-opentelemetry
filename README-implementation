@@ -1108,6 +1108,32 @@ types through a two-form configuration model: "create" form instruments
 define the instrument, and "update" form instruments record measurements
 against it.
 
+The OpenTelemetry data model itself works this way: an instrument is created
+once with a fixed identity, and measurements are recorded against it repeatedly.
+The create form is that one-time creation; the update form is the recording.
+What the create form pins is not only the identity -- name, description, unit,
+kind, aggregation and any histogram bounds -- but also the sample expression
+that produces the value.  The update form has no value expression of its own; it
+contributes only the recording attributes, an optional if/unless condition and,
+through the scope that it lives in, the event that drives the recording.
+
+The expression is fixed, the recorded number is not.  Each update re-evaluates
+the create form's value expression against the current stream, so a live fetch
+such as fe_conn or lat_ns_tot yields a fresh reading on every run, whereas a
+constant such as int(1) yields a steady increment.  That value is then applied
+through the instrument's native operation: an additive delta for counters and
+up-down counters, a distribution sample for histograms, and a last-value reading
+for gauges.  A fixed expression is therefore a valid source for the model's
+recording side.
+
+A create form emits no data point on its own; a measurement appears only when an
+update form for that instrument runs.  Within a scope a name may carry at most
+one create form and one update form, but update forms in other scopes may target
+the same create form, so one instrument can be recorded from several sites, each
+with its own attributes, condition and driving event.  Across those sites the
+one thing that cannot vary is the value expression; to record another quantity,
+declare a separate instrument instead.
+
 18.5.1  Instrument Types
 
 The following instrument types are available (parser.h):
