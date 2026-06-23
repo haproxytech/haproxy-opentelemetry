@@ -373,7 +373,8 @@ debug-level <value>
 
 groups <name> ...
   A list of "otel-group" groups used for the currently defined instrumentation
-  is declared.  Several groups can be specified in one line.
+  is declared.  Several groups can be specified in one line, and the keyword may
+  be repeated on multiple lines.
 
   Arguments :
     name - the name of the OTel group
@@ -426,9 +427,9 @@ rate-limit <value>
 
 
 scopes <name> ...
-  This keyword declares a list of "otel-scope" definitions used for the
-  currently defined instrumentation.  Multiple scopes can be specified in the
-  same line.
+  This keyword lists the "otel-scope" definitions used by the currently defined
+  instrumentation.  Multiple scopes may be given on one line, and the keyword
+  may be repeated on multiple lines.
 
   Arguments :
     name - the name of the OTel scope
@@ -456,6 +457,7 @@ otel-scope <name>
     - attribute
     - baggage
     - event
+    - exception
     - extract
     - finish
     - idle-timeout
@@ -625,6 +627,11 @@ inject <name-prefix> [use-vars] [use-headers]
   transfer via HTTP header can be used to transfer data to another process (ie
   microservice).  All data is organized in the form of key-value data pairs.
 
+  When neither 'use-vars' nor 'use-headers' is given, injection defaults to
+  'use-headers'.  A span carries a single context, so 'inject' may appear at
+  most once per span; a second 'inject' on the same span is a configuration
+  error.
+
   Header injection (use-headers) is only available on events that provide a
   writable HTTP header carrier when they fire.  Using it on any other event is
   a configuration error, reported at startup.  It is rejected for these events:
@@ -681,26 +688,26 @@ inject <name-prefix> [use-vars] [use-headers]
   'finish' keyword or when detaching the stream from the filter.
 
 
-instrument { update <name> [<attr> ...] | <type> <name> [<aggr>] [<desc>] [<unit>] <value> [<bounds>] } [{ if | unless } <condition>]
+instrument <type> <name> [aggr <aggregation>] [desc <description>] [unit <unit>] value <sample> [bounds <bounds>] [{ if | unless } <condition>]
+instrument update <name> [attr <key> <sample> ...] [{ if | unless } <condition>]
   This keyword allows creating or updating metric instruments within the scope.
   Metric instruments record numerical measurements that are exported alongside
   traces.
 
-  To create a new instrument, specify the instrument type, a name, and a sample
-  expression providing the measurement value (preceded by the 'value' keyword).
-  Optionally, a human-readable description (preceded by 'desc') and a unit
-  string (preceded by 'unit') can be added.
+  To create a new instrument, give the instrument type, a name, and a sample
+  expression for the measurement value, preceded by the 'value' keyword.  An
+  optional description ('desc') and unit string ('unit') may also be given.  The
+  'aggr', 'desc', 'unit', 'value' and 'bounds' keywords may appear in any order.
 
   An aggregation type can be specified using the 'aggr' keyword followed by one
   of the supported aggregation types listed below.  When specified, a metrics
   view is registered with the given aggregation strategy.  If no aggregation
   type is specified, the SDK default is used.
 
-  For histogram instruments (hist_int), optional bucket boundaries can be
-  specified using the 'bounds' keyword followed by a double-quoted string of
-  space-separated integers in strictly ascending order.  When bounds are
-  specified without an explicit aggregation type, histogram aggregation is
-  used automatically.
+  For histogram instruments (hist_int), optional bucket boundaries follow the
+  'bounds' keyword as a double-quoted string of space-separated numbers, which
+  are sorted internally; any duplicate boundaries are then rejected.  With no
+  explicit aggregation type set, histogram aggregation is applied automatically.
 
   To update an existing instrument (previously created in another scope), use
   'update' followed by the name of the instrument.  Optional attributes can be
@@ -753,10 +760,16 @@ instrument { update <name> [<attr> ...] | <type> <name> [<aggr>] [<desc>] [<unit
   form it gates every recording of the instrument, on an update form only that
   one.  Registration itself produces no data point and is never gated.
 
+  The update form supplies no value of its own, only attributes and an optional
+  condition; to record a different quantity, define a separate instrument.  To
+  feed a computed or externally-set value, set the create form's 'value' to a
+  'var(...)' fetch and assign that variable with 'set-var'.
+
   For example:
     instrument cnt_int  "my_counter" desc "Counter" value int(1)
     instrument hist_int "my_hist" aggr exp_histogram desc "Latency" value lat_ns_tot unit "ns"
     instrument hist_int "my_hist2" desc "Latency" value lat_ns_tot unit "ns" bounds "100 1000 10000 100000"
+    instrument hist_int "req_bytes" value var(txn.otel_size) unit "By"
     instrument update "my_counter" attr "key1" str("val1")
 
   Arguments :
@@ -805,8 +818,9 @@ log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span
     error, error2, error3, error4, fatal, fatal2, fatal3, fatal4
 
   The log record is only emitted when the logger is enabled for the configured
-  severity.  If a 'span' reference is given but the named span is not found at
-  runtime, the log record is emitted without span correlation.
+  severity (controlled by the 'min_severity' option in the YAML logs signal
+  configuration).  If a 'span' reference is given but the named span is not
+  found at runtime, the log record is emitted without span correlation.
 
   An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
   gates the whole record; when it does not pass at runtime, the record is
@@ -849,6 +863,9 @@ link { <ref> ... | <ref> attr <key> <sample> ... }
   that one link.  Each pair gives a key and a single sample expression as the
   value; see the 'attribute' keyword description for the data type conversion
   table.
+
+  Because the 'attr' keyword directly after the first name selects the attribute
+  form, a link target in that position cannot itself be the literal word 'attr'.
 
   For example:
     link "Span A" "Span B"
@@ -1206,6 +1223,11 @@ span <name> [parent <ref>] [link <ref>] [root] [kind <kind>]
   marks the span as a root span.  The 'kind' keyword sets the OTel span kind,
   one of internal, server (the default), client, producer or consumer.
 
+  Each 'span' opens a sub-context within the scope: the 'attribute', 'event',
+  'baggage', 'status', 'link' and 'inject' keywords that follow it apply to that
+  span -- the 'currently active span' -- until the next 'span' or the end of the
+  scope.
+
   For example:
     span "HAProxy session" root
     span "Client session" parent "HAProxy session"
@@ -1382,11 +1404,10 @@ unset-var <var-name> ... [{ if | unless } <condition>]
 4.4. "otel-group" section
 --------------------------
 
-This section allows us to define a group of OTel scopes, that is not activated
-via an event but is triggered from TCP or HTTP rules.  More precisely, these are
-the following rules: 'tcp-request', 'tcp-response', 'http-request',
-'http-response' and 'http-after-response'.  These rules can be defined in the
-HAProxy configuration file.
+This section defines a group of OTel scopes that is not triggered by an event
+but by HAProxy rules in the configuration file -- specifically 'http-request',
+'http-response', 'http-after-response', 'tcp-request content' and 'tcp-response
+content'.
 
 The action keyword used in these rules is 'otel-group', and it takes the filter
 id and the group name as arguments:
@@ -1428,6 +1449,18 @@ configuration act on whether an upstream context was propagated without the
 
   Arguments :
     name - the name of the span context to check
+
+  The filter also exposes the raw payload byte counts accumulated on the stream:
+
+  otel.bytes_in  : integer
+  otel.bytes_out : integer
+
+  'otel.bytes_in' counts the payload on the request channel (client to HAProxy)
+  and 'otel.bytes_out' the payload on the response channel (HAProxy to client).
+  Both grow as data is forwarded, so they are best read from a close scope --
+  on-client-session-end or on-server-session-end -- where they hold the final
+  connection totals.  They are populated in TCP mode; on an HTTP proxy they read
+  0, because an HTX buffer carries protocol framing rather than raw payload.
 
 
 5. Examples
