@@ -1,0 +1,80 @@
+Up-down counter test configuration (updown/)
+===========================================
+
+The 'updown' test demonstrates an up-down counter (udcnt_int) instrument that
+rises on one event and falls on another.  A single instrument named
+'haproxy.sessions.active' tracks how many client sessions are currently open:
+it is incremented by one when a client session starts and decremented by one
+when that session ends, so its value equals the live session concurrency.
+
+An up-down counter records a signed delta.  The create form of an instrument
+supplies one value expression that every 'update' form re-evaluates in the
+firing event's context, so the per-event sign is carried through a session
+variable: 'set-var' stores +1 in the session_start scope and -1 in the
+session_end scope, and the instrument value reads that variable back.  The
+filter runs 'set-var' before the instrument within a scope, so the variable
+holds the right delta when the measurement is recorded.  A metric value is
+always an integer, so the filter coerces the string-typed variable back to
+int64 before recording it.
+
+
+Files
+-----
+
+  updown/otel.cfg    OTel filter configuration (instrumentation and two scopes)
+  updown/haproxy.cfg HAProxy frontend/backend configuration
+  updown/otel.yml    Exporter, reader, processor and provider definitions
+
+
+Events
+------
+
+  on-client-session-start  Stores +1 in the delta variable and adds it to the
+                           haproxy.sessions.active counter.
+  on-client-session-end    Stores -1 in the delta variable and adds it to the
+                           counter.
+
+
+Instrument
+----------
+
+  A create form on session_start registers the instrument; an 'update' form in
+  each scope records the signed measurement:
+
+    instrument udcnt_int "haproxy.sessions.active" \
+        value var(sess.otel_updown_delta)
+
+  With three concurrent client sessions the counter reads 3, returning to 0
+  once they all close.
+
+
+YAML pipeline
+-------------
+
+  Only the metrics signal carries data; traces and logs are wired to /dev/null
+  because this test emits neither.
+
+    Signal     Exporter                  Processor / Reader
+    --------------------------------------------------------------
+    traces     exporter_traces_dev_null  processor_traces_single
+    metrics    exporter_metrics_ostream  reader_metrics
+    logs       exporter_logs_dev_null    processor_logs_single
+
+  The metrics exporter writes the counter to the __updown_metrics file.  The
+  ostream exporter flushes on shutdown, so the recorded value is read there
+  after haproxy stops (for example with a 'soft-stop' signal).
+
+
+Running the test
+----------------
+
+The run-updown.sh script (a symlink to run-test-config.sh) runs this
+configuration.  It invokes haproxy with -f haproxy-common.cfg -f
+updown/haproxy.cfg, the same as the manual command shown below.  From the
+test/ directory:
+
+  % ./run-updown.sh
+
+Or run it manually:
+
+  % /path/to/haproxy -f haproxy-common.cfg -f updown/haproxy.cfg

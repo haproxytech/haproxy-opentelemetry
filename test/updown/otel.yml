@@ -1,0 +1,72 @@
+exporters:
+  exporter_traces_dev_null:
+    type:     ostream
+    filename: /dev/null
+
+  exporter_metrics_ostream:
+    type:     ostream
+    filename: __updown_metrics
+
+  exporter_logs_dev_null:
+    type:     ostream
+    filename: /dev/null
+
+readers:
+  reader_metrics:
+    thread_name:     "reader metr"
+    export_interval: 1000
+    export_timeout:  500
+
+samplers:
+  sampler_traces:
+    type:     parent_based
+    delegate: always_on
+
+processors:
+  processor_traces_single:
+    type: single
+
+  processor_logs_single:
+    type: single
+
+providers:
+  provider_traces:
+    resources:
+      - service.version:     "1.0.0"
+      - service.instance.id: "id-updown"
+      - service.name:        "updown"
+      - service.namespace:   "HAProxy traces test"
+
+  provider_metrics:
+    resources:
+      - service.version:     "1.0.0"
+      - service.instance.id: "id-updown"
+      - service.name:        "updown"
+      - service.namespace:   "HAProxy metrics test"
+
+  provider_logs:
+    resources:
+      - service.version:     "1.0.0"
+      - service.instance.id: "id-updown"
+      - service.name:        "updown"
+      - service.namespace:   "HAProxy logs test"
+
+signals:
+  traces:
+    scope_name: "HAProxy OTEL - traces"
+    exporters:  exporter_traces_dev_null
+    samplers:   sampler_traces
+    processors: processor_traces_single
+    providers:  provider_traces
+
+  metrics:
+    scope_name: "HAProxy OTEL - metrics"
+    exporters:  exporter_metrics_ostream
+    readers:    reader_metrics
+    providers:  provider_metrics
+
+  logs:
+    scope_name: "HAProxy OTEL - logs"
+    exporters:  exporter_logs_dev_null
+    processors: processor_logs_single
+    providers:  provider_logs

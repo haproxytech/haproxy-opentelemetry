@@ -276,6 +276,8 @@ The `test/` directory contains ready-to-run example configurations:
   bytes via the `otel.bytes_in` and `otel.bytes_out` sample fetches, exercising
   every event that fires on a non-HTTP proxy.
 - **cmp** -- minimal configuration for benchmarking comparison.
+- **updown** -- up-down counter tracking the active client sessions through a
+  signed per-session variable delta: +1 on session start, -1 on session end.
 - **empty** -- filter initialized with no active telemetry.
 
 #### Quick start with Jaeger

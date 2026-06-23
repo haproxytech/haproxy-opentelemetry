@@ -31,7 +31,8 @@ SUMMARY
   6.3.    Context propagation example (ctx)
   6.4.    TCP-mode example (tcp)
   6.5.    Comparison example (cmp)
-  6.6.    Empty / minimal example (empty)
+  6.6.    Up-down counter example (updown)
+  6.7.    Empty / minimal example (empty)
 
 
 1. Overview
@@ -1372,7 +1373,38 @@ It uses a simplified span hierarchy without context propagation.
 ---------------------------------------------------------------------
 
 
-6.6. Empty / minimal example (empty)
+6.6. Up-down counter example (updown)
+---------------------------------------
+
+An up-down counter (udcnt_int) that rises on one event and falls on another:
+the 'haproxy.sessions.active' instrument tracks how many client sessions are
+currently open, +1 when a session starts and -1 when it ends.  The create form
+supplies a single value expression, so the per-event sign is carried through a
+session variable: 'set-var' stores +1 in the session_start scope and -1 in the
+session_end scope, and the instrument reads the variable back when each 'update'
+form records the measurement.  A second counter tallies the total number of
+sessions started.  The metrics are written by an ostream exporter and read from
+its output file after a clean shutdown.
+
+--- test/updown/otel.cfg (excerpt) -------------------------------------
+
+    otel-scope session_start
+        instrument udcnt_int "haproxy.sessions.total" desc "Total client sessions" value int(1) unit "{session}"
+        instrument update "haproxy.sessions.total"
+        set-var sess.otel_updown_delta int(1)
+        instrument udcnt_int "haproxy.sessions.active" desc "Active client sessions" value var(sess.otel_updown_delta) unit "{session}"
+        instrument update "haproxy.sessions.active"
+        otel-event on-client-session-start
+
+    otel-scope session_end
+        set-var sess.otel_updown_delta int(-1)
+        instrument update "haproxy.sessions.active"
+        otel-event on-client-session-end
+
+---------------------------------------------------------------------
+
+
+6.7. Empty / minimal example (empty)
 --------------------------------------
 
 The minimal valid OTel configuration.  The filter is initialized but no events

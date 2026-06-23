@@ -1514,6 +1514,13 @@ tcp   - a TCP-mode (non-HTTP) configuration that traces the raw connection with
         forwarded payload via the 'otel.bytes_in' and 'otel.bytes_out' sample
         fetches.  It exercises every event that fires on a TCP-mode proxy.
 
+updown - an up-down counter configuration in which a 'udcnt_int' instrument
+         tracks the number of active client sessions: a signed delta carried
+         through a session variable raises the counter by one when a client
+         session starts and lowers it by one when the session ends.  A second
+         counter tallies the total sessions started, and the metrics are read
+         from an ostream exporter file after a clean shutdown.
+
 empty - an empty configuration in which the OTel filter is initialized but no
         event is triggered.  It is not very usable, except to check the behavior
         of the OTel filter in the case of a similar configuration.
@@ -1584,6 +1591,7 @@ resolve the HAProxy binary and their configuration files relative to it):
   % ./run-cmp.sh
   % ./run-fe-be.sh
   % ./run-tcp.sh
+  % ./run-updown.sh
   % ./run-empty.sh
 
 
