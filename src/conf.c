@@ -872,7 +872,7 @@ FLT_OTEL_CONF_FUNC_FREE(scope, id,
 	FLT_OTEL_DBG_CONF_SCOPE("- conf_scope free ", *ptr);
 
 	list_for_each_entry_safe(acl, aclback, &((*ptr)->acls), list) {
-		prune_acl(acl);
+		(void)prune_acl(acl);
 		FLT_OTEL_LIST_DEL(&(acl->list));
 		OTELC_SFREE(acl);
 	}
@@ -1000,7 +1000,7 @@ FLT_OTEL_CONF_FUNC_FREE(instr, id,
 	OTELC_SFREE((*ptr)->config);
 	OTELC_DBG(DEBUG, "- deleting acls list %s", flt_otel_list_dump(&((*ptr)->acls)));
 	list_for_each_entry_safe(acl, aclback, &((*ptr)->acls), list) {
-		prune_acl(acl);
+		(void)prune_acl(acl);
 		FLT_OTEL_LIST_DEL(&(acl->list));
 		OTELC_SFREE(acl);
 	}

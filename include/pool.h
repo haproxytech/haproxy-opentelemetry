@@ -19,7 +19,7 @@
 		if ((p) != NULL) {                                     \
 			OTELC_DBG(DEBUG, #p " %p %u", (p), (p)->size); \
 			                                               \
-			pool_destroy(p);                               \
+			(void)pool_destroy(p);                         \
 			(p) = NULL;                                    \
 		}                                                      \
 	} while (0)
