@@ -45,7 +45,7 @@ extern struct flt_ops  flt_otel_ops;
 bool flt_otel_is_disabled(const struct filter *f FLT_OTEL_DBG_ARGS(, int event));
 
 /* Validate a scope's fetches and conditions against a processing point. */
-void flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const char *trigger);
+int  flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const char *trigger);
 
 #endif /* _OTEL_FILTER_H_ */
 

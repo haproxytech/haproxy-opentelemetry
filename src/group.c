@@ -125,7 +125,7 @@ static enum act_return flt_otel_group_action(struct act_rule *rule, struct proxy
  *   flt_otel_group_check_loc - validate a group's scopes at the action's point
  *
  * SYNOPSIS
- *   static void flt_otel_group_check_loc(const struct flt_otel_conf *conf, const char *group_id, const struct proxy *px, uint where)
+ *   static int flt_otel_group_check_loc(const struct flt_otel_conf *conf, const char *group_id, const struct proxy *px, uint where)
  *
  * ARGUMENTS
  *   conf     - the OTel filter configuration
@@ -140,14 +140,16 @@ static enum act_return flt_otel_group_action(struct act_rule *rule, struct proxy
  *   and passed to flt_otel_check_scope_loc().
  *
  * RETURN VALUE
- *   This function does not return a value.
+ *   Returns ERR_WARN if any of the group's scopes has a condition or fetch
+ *   that cannot be evaluated at <where>, otherwise 0.
  */
-static void flt_otel_group_check_loc(const struct flt_otel_conf *conf, const char *group_id, const struct proxy *px, uint where)
+static int flt_otel_group_check_loc(const struct flt_otel_conf *conf, const char *group_id, const struct proxy *px, uint where)
 {
 	const struct flt_otel_conf_group *conf_group;
 	const struct flt_otel_conf_ph    *ph_scope;
 	const struct flt_otel_conf_scope *conf_scope;
 	char                              trigger[160];
+	int                               retval = 0;
 
 	OTELC_FUNC("%p, \"%s\", %p, 0x%08x", conf, OTELC_STR_ARG(group_id), px, where);
 
@@ -160,7 +162,7 @@ static void flt_otel_group_check_loc(const struct flt_otel_conf *conf, const cha
 		list_for_each_entry(ph_scope, &(conf_group->ph_scopes), list)
 			list_for_each_entry(conf_scope, &(conf->scopes), list)
 				if (strcmp(conf_scope->id, ph_scope->id) == 0) {
-					flt_otel_check_scope_loc(conf, conf_scope, px, where, trigger);
+					retval |= flt_otel_check_scope_loc(conf, conf_scope, px, where, trigger);
 
 					break;
 				}
@@ -168,7 +170,7 @@ static void flt_otel_group_check_loc(const struct flt_otel_conf *conf, const cha
 		break;
 	}
 
-	OTELC_RETURN();
+	OTELC_RETURN_INT(retval);
 }
 
 
@@ -281,7 +283,7 @@ static int flt_otel_group_check(struct act_rule *rule, struct proxy *px, char **
 	}
 
 	/* Warn about scopes whose fetches cannot be evaluated at this action. */
-	flt_otel_group_check_loc(conf, group_id, px, flt_otel_group_data[i].smp_val);
+	(void)flt_otel_group_check_loc(conf, group_id, px, flt_otel_group_data[i].smp_val);
 
 	OTELC_SFREE_CLEAR(rule->arg.act.p[FLT_OTEL_ARG_FILTER_ID]);
 	OTELC_SFREE_CLEAR(rule->arg.act.p[FLT_OTEL_ARG_GROUP_ID]);

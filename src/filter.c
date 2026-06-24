@@ -508,7 +508,7 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
  *   flt_otel_check_cond_loc - per-scope ACL condition location check
  *
  * SYNOPSIS
- *   static void flt_otel_check_cond_loc(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const struct acl_cond *cond, const char *kind, const char *trigger)
+ *   static int flt_otel_check_cond_loc(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const struct acl_cond *cond, const char *kind, const char *trigger)
  *
  * ARGUMENTS
  *   conf       - the OTel filter configuration
@@ -526,24 +526,25 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
  *   forwarded as a filter warning.  A NULL condition is ignored.
  *
  * RETURN VALUE
- *   This function does not return a value.
+ *   Returns ERR_WARN if the condition can never match at <where>, otherwise 0.
  */
-static void flt_otel_check_cond_loc(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const struct acl_cond *cond, const char *kind, const char *trigger)
+static int flt_otel_check_cond_loc(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const struct acl_cond *cond, const char *kind, const char *trigger)
 {
 	char *err = NULL;
+	int   retval = 0;
 
 	OTELC_FUNC("%p, %p, %p, 0x%08x, %p, \"%s\", \"%s\"", conf, conf_scope, p, where, cond, OTELC_STR_ARG(kind), OTELC_STR_ARG(trigger));
 
 	if (cond == NULL)
-		OTELC_RETURN();
+		OTELC_RETURN_INT(retval);
 
-	(void)warnif_cond_conflicts(cond, where, &err);
+	retval = warnif_cond_conflicts(cond, where, &err);
 	if (err != NULL)
 		FLT_OTEL_WARNING("''%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' %s condition at %s on proxy '%s': %s'", conf->id, conf_scope->id, kind, trigger, p->id, err);
 
 	ha_free(&err);
 
-	OTELC_RETURN();
+	OTELC_RETURN_INT(retval);
 }
 
 
@@ -552,7 +553,7 @@ static void flt_otel_check_cond_loc(const struct flt_otel_conf *conf, const stru
  *   flt_otel_check_sample_list - per-scope sample-fetch location check
  *
  * SYNOPSIS
- *   static void flt_otel_check_sample_list(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const struct list *head, const char *kind, const char *trigger)
+ *   static int flt_otel_check_sample_list(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const struct list *head, const char *kind, const char *trigger)
  *
  * ARGUMENTS
  *   conf       - the OTel filter configuration
@@ -573,18 +574,20 @@ static void flt_otel_check_cond_loc(const struct flt_otel_conf *conf, const stru
  *   log-format expressions (parsed at SMP_VAL_FE_LOG_END) are left unchecked.
  *
  * RETURN VALUE
- *   This function does not return a value.
+ *   Returns ERR_WARN if a sample's condition or fetch cannot be evaluated at
+ *   <where>, otherwise 0.
  */
-static void flt_otel_check_sample_list(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const struct list *head, const char *kind, const char *trigger)
+static int flt_otel_check_sample_list(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const struct list *head, const char *kind, const char *trigger)
 {
 	const struct flt_otel_conf_sample      *sample;
 	const struct flt_otel_conf_sample_expr *conf_expr;
+	int                                     retval = 0;
 
 	OTELC_FUNC("%p, %p, %p, 0x%08x, %p, \"%s\", \"%s\"", conf, conf_scope, p, where, head, OTELC_STR_ARG(kind), OTELC_STR_ARG(trigger));
 
 	list_for_each_entry(sample, head, list) {
 		/* The optional 'if'/'unless' condition on this directive. */
-		flt_otel_check_cond_loc(conf, conf_scope, p, where, sample->cond, kind, trigger);
+		retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, sample->cond, kind, trigger);
 
 		/*
 		 * Log-format expressions are parsed at SMP_VAL_FE_LOG_END,
@@ -609,10 +612,12 @@ static void flt_otel_check_sample_list(const struct flt_otel_conf *conf, const s
 				continue;
 
 			FLT_OTEL_WARNING("''%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' %s fetch '%s' extracts from '%s', not usable at %s on proxy '%s''", conf->id, conf_scope->id, kind, conf_expr->expr->fetch->kw, sample_src_names(conf_expr->expr->fetch->use), trigger, p->id);
+
+			retval |= ERR_WARN;
 		}
 	}
 
-	OTELC_RETURN();
+	OTELC_RETURN_INT(retval);
 }
 
 
@@ -621,7 +626,7 @@ static void flt_otel_check_sample_list(const struct flt_otel_conf *conf, const s
  *   flt_otel_check_scope_loc - validate a scope's fetches at a processing point
  *
  * SYNOPSIS
- *   void flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const char *trigger)
+ *   int flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const char *trigger)
  *
  * ARGUMENTS
  *   conf       - the OTel filter configuration
@@ -640,9 +645,10 @@ static void flt_otel_check_sample_list(const struct flt_otel_conf *conf, const s
  *   location) is a no-op.  Shared by the event-bound and group action checks.
  *
  * RETURN VALUE
- *   This function does not return a value.
+ *   Returns ERR_WARN if any of the scope's conditions or fetches cannot be
+ *   evaluated at <where>, otherwise 0.
  */
-void flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const char *trigger)
+int flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const char *trigger)
 {
 	const struct flt_otel_conf_span        *conf_span;
 	const struct flt_otel_conf_instrument  *conf_instrument;
@@ -651,46 +657,47 @@ void flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt
 	const struct flt_otel_conf_exception   *conf_exception;
 	const struct flt_otel_conf_set_var_ctx *conf_set_var_ctx;
 	const struct flt_otel_conf_unset_var   *conf_unset_var;
+	int                                     retval = 0;
 
 	OTELC_FUNC("%p, %p, %p, 0x%08x, \"%s\"", conf, conf_scope, p, where, OTELC_STR_ARG(trigger));
 
 	if (where == 0)
-		OTELC_RETURN();
+		OTELC_RETURN_INT(retval);
 
-	flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_scope->cond, "otel-event", trigger);
-	flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_scope->stop_cond, "otel-stop", trigger);
+	retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_scope->cond, "otel-event", trigger);
+	retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_scope->stop_cond, "otel-stop", trigger);
 
 	list_for_each_entry(conf_span, &(conf_scope->spans), list) {
-		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->attributes), "attribute", trigger);
-		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->events), "event", trigger);
-		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->baggages), "baggage", trigger);
-		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->statuses), "status", trigger);
+		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->attributes), "attribute", trigger);
+		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->events), "event", trigger);
+		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->baggages), "baggage", trigger);
+		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->statuses), "status", trigger);
 		list_for_each_entry(conf_link, &(conf_span->links), list)
-			flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_link->attributes), "link attribute", trigger);
+			retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_link->attributes), "link attribute", trigger);
 		list_for_each_entry(conf_exception, &(conf_span->exceptions), list) {
-			flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_exception->message), "exception message", trigger);
-			flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_exception->attributes), "exception attribute", trigger);
-			flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_exception->cond, "exception", trigger);
+			retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_exception->message), "exception message", trigger);
+			retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_exception->attributes), "exception attribute", trigger);
+			retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_exception->cond, "exception", trigger);
 		}
 	}
 	list_for_each_entry(conf_instrument, &(conf_scope->instruments), list) {
-		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_instrument->samples), "instrument value", trigger);
-		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_instrument->attributes), "instrument attribute", trigger);
-		flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_instrument->cond, "instrument", trigger);
+		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_instrument->samples), "instrument value", trigger);
+		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_instrument->attributes), "instrument attribute", trigger);
+		retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_instrument->cond, "instrument", trigger);
 	}
 	list_for_each_entry(conf_log_record, &(conf_scope->log_records), list) {
-		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_log_record->time), "log-record time", trigger);
-		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_log_record->attributes), "log-record attribute", trigger);
-		flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_log_record->samples), "log-record body", trigger);
-		flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_log_record->cond, "log-record", trigger);
+		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_log_record->time), "log-record time", trigger);
+		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_log_record->attributes), "log-record attribute", trigger);
+		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_log_record->samples), "log-record body", trigger);
+		retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_log_record->cond, "log-record", trigger);
 	}
-	flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_scope->set_vars), "set-var", trigger);
+	retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_scope->set_vars), "set-var", trigger);
 	list_for_each_entry(conf_set_var_ctx, &(conf_scope->set_var_ctxs), list)
-		flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_set_var_ctx->cond, "set-var-ctx", trigger);
+		retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_set_var_ctx->cond, "set-var-ctx", trigger);
 	list_for_each_entry(conf_unset_var, &(conf_scope->unset_vars), list)
-		flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_unset_var->cond, "unset-var", trigger);
+		retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_unset_var->cond, "unset-var", trigger);
 
-	OTELC_RETURN();
+	OTELC_RETURN_INT(retval);
 }
 
 
@@ -989,7 +996,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 
 				(void)snprintf(trigger, sizeof(trigger), "event '%s'", flt_otel_event_data[conf_scope->event].name);
 
-				flt_otel_check_scope_loc(conf, conf_scope, p, where, trigger);
+				(void)flt_otel_check_scope_loc(conf, conf_scope, p, where, trigger);
 			}
 		} else {
 			FLT_OTEL_WARNING("''%s' : unused " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s''", conf->id, conf_scope->id);
