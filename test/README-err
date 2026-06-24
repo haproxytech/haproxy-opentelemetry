@@ -1,0 +1,92 @@
+Error-logging test configuration (err/)
+=======================================
+
+The 'err' test exercises the OTel filter's runtime error-reporting path: the
+rate-limited, edge-triggered logging of errors and warnings, the per-instance
+counters, and the admin CLI commands that report and reset them.  The scopes
+deliberately fail at span creation on every response, so the error handler runs
+on ordinary traffic without any fault injection.
+
+A response scope parents its span under 'orphan span', a span that only the
+on-server-unavailable scope creates.  That event never fires while the backend
+is alive, so the parent is absent from the runtime context and span creation
+fails with "cannot find referenced span/context".  Every response therefore
+raises one runtime error.
+
+In the soft-errors mode used here the error is swallowed at warning level and
+the request still completes.  Switching the running instance to hard-errors
+mode logs at error level instead and disables the filter for the stream that
+raised the error.
+
+
+Files
+-----
+
+  err/otel.cfg    OTel filter configuration (error-triggering scopes)
+  err/haproxy.cfg HAProxy frontend/backend configuration
+  err/otel.yml    Exporter, processor, reader and provider definitions
+
+
+Events
+------
+
+  on-client-session-start  creates the 'HAProxy session' root span
+  on-server-unavailable    creates 'orphan span', but does not fire while
+                           the backend is alive
+  on-http-response         parents 'HTTP response' under the absent
+                           'orphan span', which fails
+
+  The session-start scope succeeds and the server-unavailable scope never runs,
+  so the response scope is the one that fails and each request raises at most
+  one error episode.
+
+
+Error reporting
+---------------
+
+  The error and warning logs are edge-triggered per instance and rate limited
+  per sliding window; lines held back are counted and reported as a "(N more
+  suppressed)" suffix on the next emitted line.  A clean callback re-arms the
+  edge trigger, so steady traffic keeps reporting fresh episodes rather than
+  collapsing them into one.
+
+  The otel.cfg log directive forwards the lines to the configured syslog server,
+  at warning level in soft-errors mode and at error level in hard-errors mode.
+  The configuration, however, also sets 'option dontlog-normal', dropping the
+  warning-level lines: in the default soft-errors mode only the counters move;
+  the lines appear once the instance is switched to hard-errors mode, or once
+  the option is removed.
+
+  The admin CLI on the stats socket reports and controls them:
+
+    flt-otel status         show the hard, soft and suppressed counts
+    flt-otel hard-errors    switch to hard-errors mode (log and disable)
+    flt-otel soft-errors    switch back to soft-errors mode
+    flt-otel reset-errors   zero the counters and re-arm the edge trigger
+
+
+Running the test
+----------------
+
+The run-err.sh script (a symlink to run-test-config.sh) runs this
+configuration.  It invokes haproxy with -f haproxy-common.cfg -f
+err/haproxy.cfg, the same as the manual command shown below.  From the
+test/ directory:
+
+  % ./run-err.sh
+
+Or run it manually:
+
+  % /path/to/haproxy -f haproxy-common.cfg -f err/haproxy.cfg
+
+Then drive a few requests and inspect the counters:
+
+  % curl -sS http://127.0.0.1:10080/ >/dev/null
+  % echo "flt-otel status" | socat - UNIX-CONNECT:/tmp/haproxy.sock
+
+In the default soft-errors mode the requests only move the counters.  To read
+the log lines themselves, switch the instance to hard-errors mode first, and
+mind the rate limiter, which holds the output to a few lines per window:
+
+  % echo "flt-otel hard-errors" | socat - UNIX-CONNECT:/tmp/haproxy.sock
+  % curl -sS http://127.0.0.1:10080/ >/dev/null

@@ -278,6 +278,8 @@ The `test/` directory contains ready-to-run example configurations:
 - **cmp** -- minimal configuration for benchmarking comparison.
 - **updown** -- up-down counter tracking the active client sessions through a
   signed per-session variable delta: +1 on session start, -1 on session end.
+- **err** -- runtime error logging; span creation deliberately fails on every
+  response to drive the rate-limited error/warning logs and CLI counters.
 - **empty** -- filter initialized with no active telemetry.
 
 #### Quick start with Jaeger

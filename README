@@ -1521,6 +1521,12 @@ updown - an up-down counter configuration in which a 'udcnt_int' instrument
          counter tallies the total sessions started, and the metrics are read
          from an ostream exporter file after a clean shutdown.
 
+err   - a configuration that exercises the runtime error-reporting path: its
+        response scope parents a span under an 'orphan span' created only by the
+        on-server-unavailable scope, so span creation fails on every response
+        and the rate-limited error and warning logging runs on ordinary traffic.
+        The counters are read with 'flt-otel status'.
+
 empty - an empty configuration in which the OTel filter is initialized but no
         event is triggered.  It is not very usable, except to check the behavior
         of the OTel filter in the case of a similar configuration.
@@ -1592,6 +1598,7 @@ resolve the HAProxy binary and their configuration files relative to it):
   % ./run-fe-be.sh
   % ./run-tcp.sh
   % ./run-updown.sh
+  % ./run-err.sh
   % ./run-empty.sh
 
 

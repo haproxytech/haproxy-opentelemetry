@@ -65,6 +65,7 @@ with runner scripts.
       |-- run-cmp.sh     Comparison test runner (symlink)
       |-- run-tcp.sh     TCP-mode test runner (symlink)
       |-- run-updown.sh  Up-down counter test runner (symlink)
+      |-- run-err.sh     Error-logging test runner (symlink)
       |-- run-empty.sh   Empty configuration test runner (symlink)
       |-- otlp_http-recorder.py  OTLP/HTTP traffic recorder
       |-- otlp_http-replay.py    OTLP/HTTP traffic replayer
@@ -78,6 +79,7 @@ with runner scripts.
       |-- cmp/           Comparison test configs
       |-- tcp/           TCP-mode test configs
       |-- updown/        Up-down counter test configs
+      |-- err/           Error-logging test configs
       `-- empty/         Minimal/empty configuration test
 
 
@@ -830,6 +832,11 @@ The debug level is a bitmask that can be adjusted at runtime via the CLI.
          per-session delta, +1 on client session start and -1 on session end,
          so its value tracks the number of active client sessions.
 
+  err   Error logging: the response scope parents its span under an 'orphan
+        span' created only by on-server-unavailable, so span creation fails
+        on every response and drives the rate-limited error/warning logging
+        and the CLI-reported counters.
+
   empty Minimal: validates that an empty configuration (only the
         instrumentation block, no scopes) does not crash.
 
@@ -849,6 +856,7 @@ configuration name instead.
   run-ctx.sh    Runs a single HAProxy instance with ctx/ config.
   run-tcp.sh    Runs a single HAProxy instance with tcp/ config.
   run-updown.sh Runs a single HAProxy instance with updown/ config.
+  run-err.sh    Runs a single HAProxy instance with err/ config.
   run-empty.sh  Runs a single HAProxy instance with empty/ config.
   run-fe-be.sh  Launches two HAProxy instances (frontend on port 10080, backend
                 on port 11080) forming a trace propagation chain.  Handles

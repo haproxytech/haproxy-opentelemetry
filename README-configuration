@@ -32,7 +32,8 @@ SUMMARY
   6.4.    TCP-mode example (tcp)
   6.5.    Comparison example (cmp)
   6.6.    Up-down counter example (updown)
-  6.7.    Empty / minimal example (empty)
+  6.7.    Error-logging example (err)
+  6.8.    Empty / minimal example (empty)
 
 
 1. Overview
@@ -1404,7 +1405,38 @@ its output file after a clean shutdown.
 ---------------------------------------------------------------------
 
 
-6.7. Empty / minimal example (empty)
+6.7. Error-logging example (err)
+----------------------------------
+
+A configuration that drives the filter's runtime error reporting on ordinary
+traffic.  The response scope parents its span under 'orphan span', which only
+the on-server-unavailable scope creates; that event does not fire while the
+backend is alive, so the parent is absent from the runtime context and span
+creation fails on every response.  In the default soft-errors mode the error is
+swallowed at warning level and the request completes; switching the instance to
+hard-errors mode logs at error level and disables the filter for the offending
+stream.  The log lines are edge-triggered and rate-limited; the error counters
+are tracked over the CLI with 'flt-otel status'.
+
+--- test/err/otel.cfg (excerpt) ----------------------------------------
+
+    otel-scope session_start
+        span "HAProxy session" root
+        otel-event on-client-session-start
+
+    otel-scope server_unavailable
+        span "orphan span" parent "HAProxy session"
+        otel-event on-server-unavailable
+
+    otel-scope http_response
+        span "HTTP response" parent "orphan span"
+            attribute "http.status_code" status
+        otel-event on-http-response
+
+---------------------------------------------------------------------
+
+
+6.8. Empty / minimal example (empty)
 --------------------------------------
 
 The minimal valid OTel configuration.  The filter is initialized but no events
