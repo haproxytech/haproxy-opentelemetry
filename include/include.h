@@ -18,6 +18,7 @@
 #include <haproxy/cli.h>
 #include <haproxy/clock.h>
 #include <haproxy/filters.h>
+#include <haproxy/freq_ctr.h>
 #include <haproxy/http_htx.h>
 #include <haproxy/http_rules.h>
 #include <haproxy/log.h>

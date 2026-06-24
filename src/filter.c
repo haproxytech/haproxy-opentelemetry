@@ -318,8 +318,11 @@ bool flt_otel_is_disabled(const struct filter *f FLT_OTEL_DBG_ARGS(, int event))
  * DESCRIPTION
  *   Error handler for filter callbacks that return an integer value.  If
  *   <retval> indicates an error or <err> contains a message, the filter is
- *   disabled when hard-error mode is enabled; in soft-error mode, the error
- *   is silently cleared.  The error message is always freed before returning.
+ *   disabled when hard-error mode is enabled and the cause is logged at
+ *   LOG_ERR; in soft-error mode the error is cleared and logged at LOG_WARNING.
+ *   Both logs are edge-triggered and rate-limited per instance, and a clean
+ *   return re-arms the edge trigger.  The error message is always freed before
+ *   returning.
  *
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_OK if an error was handled, or the original <retval>.
@@ -327,22 +330,36 @@ bool flt_otel_is_disabled(const struct filter *f FLT_OTEL_DBG_ARGS(, int event))
 static int flt_otel_return_int(const struct filter *f, char **err, int retval)
 {
 	struct flt_otel_runtime_context *rt_ctx = f->ctx;
+	struct flt_otel_conf            *conf   = FLT_OTEL_CONF(f);
+	const char                      *msg;
 
 	/* Disable the filter on hard errors; ignore on soft errors. */
 	if ((retval == FLT_OTEL_RET_ERROR) || ((err != NULL) && (*err != NULL))) {
-		if (rt_ctx->flag_harderr) {
-			OTELC_DBG(WARNING, "WARNING: filter hard-error (disabled)");
+		msg = ((err != NULL) && (*err != NULL)) ? *err : "unspecified runtime error";
 
+		if (rt_ctx->flag_harderr) {
 			rt_ctx->flag_disabled = 1;
+			_HA_ATOMIC_ADD(&(conf->instr->n_harderr), 1);
+
+			FLT_OTEL_LOG_LIM(LOG_ERR, FLT_OTEL_LOG_LATCH_ERR, "%s (filter disabled)", msg);
 
 #ifdef FLT_OTEL_USE_COUNTERS
 			_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.disabled + 1, 1);
 #endif
 		} else {
-			OTELC_DBG(WARNING, "WARNING: filter soft-error");
+			_HA_ATOMIC_ADD(&(conf->instr->n_softerr), 1);
+
+			FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, "%s", msg);
 		}
 
 		retval = FLT_OTEL_RET_OK;
+	}
+	else if (_HA_ATOMIC_LOAD(&(conf->instr->log.latch)) != 0) {
+		/*
+		 * Clean callback: re-arm so a fresh error episode logs
+		 * promptly.
+		 */
+		_HA_ATOMIC_STORE(&(conf->instr->log.latch), 0);
 	}
 
 	FLT_OTEL_ERR_FREE(*err);
@@ -1162,6 +1179,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 
 	if (conf->instr != NULL) {
 		OTELC_DBG(DEBUG, "   --- instrumentation '%s' configuration ----------", conf->instr->id);
+		FLT_OTEL_DBG_CONF_INSTR("   ", conf->instr);
 		FLT_OTEL_DBG_LIST(conf->instr, ph_group, "   ", "used", _group, FLT_OTEL_DBG_CONF_PH("      ", _group));
 		FLT_OTEL_DBG_LIST(conf->instr, ph_scope, "   ", "used", _scope, FLT_OTEL_DBG_CONF_PH("      ", _scope));
 	}
@@ -1328,7 +1346,7 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 	f->ctx = flt_otel_runtime_context_init(s, f, &err);
 	FLT_OTEL_ERR_FREE(err);
 	if (f->ctx == NULL) {
-		FLT_OTEL_LOG(LOG_EMERG, "failed to create context");
+		FLT_OTEL_LOG_LIM(LOG_ERR, FLT_OTEL_LOG_LATCH_ERR, "failed to create runtime context");
 
 #ifdef FLT_OTEL_USE_COUNTERS
 		_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 3, 1);
@@ -1347,7 +1365,7 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 #ifdef FLT_OTEL_USE_COUNTERS
 	_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 0, 1);
 #endif
-	FLT_OTEL_LOG(LOG_INFO, "%08x %08x", f->pre_analyzers, f->post_analyzers);
+	OTELC_DBG(DEBUG, "analyzers pre %08x post %08x", f->pre_analyzers, f->post_analyzers);
 
 #ifdef USE_OTEL_VARS
 	flt_otel_vars_dump(s);

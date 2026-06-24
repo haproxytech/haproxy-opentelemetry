@@ -1618,6 +1618,7 @@ with a change in arguments when running the same):
   flt-otel enable          : enable the OTel filter
   flt-otel soft-errors     : disable hard-errors mode
   flt-otel hard-errors     : enable hard-errors mode
+  flt-otel reset-errors    : reset runtime-error counters
   flt-otel logging [state] : set logging state
   flt-otel rate [value]    : set the rate limit
   flt-otel status          : show the OTel filter status
@@ -1660,6 +1661,7 @@ the 'counters' block appear only in a debug build):
          hard errors:   no
          disabled:      no
          logging:       enabled
+         runtime err:   hard 0, soft 0 (suppressed 0)
          idle timeout:  1000 ms
          analyzers:     01e03fbe
 
@@ -1690,9 +1692,25 @@ The 'counters' block tallies how streams attached -- run, rate-limited,
 disabled or errored -- and how many later had tracing disabled, by a scope
 decision (a failed condition or 'otel-stop') or by a hard error.
 
+'runtime err' reports the data-path errors the filter met while processing
+streams: 'hard' counts the hard-error episodes that disabled the filter for a
+stream, 'soft' the errors that were swallowed so processing continued, and
+'suppressed' the log lines the rate limiter held back.  Both kinds are sent to
+the per-instance 'log' target -- hard errors at level err, soft errors at level
+warning -- but each emission is edge-triggered and rate-limited per instance, so
+a fault recurring on every stream yields only a couple of lines per window while
+these counters keep the true tally.  'option dontlog-normal' keeps the error
+lines but drops the warnings, and 'flt-otel logging off' silences both; the
+counters climb either way.
+
 'flt-otel flush' forces every filter instance to export its buffered telemetry
 at once, calling force_flush on the active tracer, meter and logger, each one
 bounded by a five-second timeout.  It requires admin access.
+
+'flt-otel reset-errors' clears the 'runtime err' counters and the log
+rate-limiter state for every filter instance, so a fresh fault is reported
+again instead of folding into the running suppressed tally.  It requires admin
+access.
 
 'flt-otel instruments' lists the metric instruments declared in each scope.  A
 create-form instrument is shown with its type, unit and creation state -- 'not

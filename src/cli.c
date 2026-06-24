@@ -251,20 +251,67 @@ static int flt_otel_cli_parse_logging(char **args, char *payload, struct appctx 
 
 		if (flag_set) {
 			FLT_OTEL_PROXIES_LIST_START() {
-				_HA_ATOMIC_STORE(&(conf->instr->logging), value);
+				_HA_ATOMIC_STORE(&(conf->instr->log.type), value);
 
 				(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : logging is %s", FLT_OTEL_CLI_MSG_CAT(msg), FLT_OTEL_CLI_LOGGING_STATE(value));
 			} FLT_OTEL_PROXIES_LIST_END();
 		}
 	} else {
 		FLT_OTEL_PROXIES_LIST_START() {
-			value = _HA_ATOMIC_LOAD(&(conf->instr->logging));
+			value = _HA_ATOMIC_LOAD(&(conf->instr->log.type));
 
 			(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : logging is currently %s", FLT_OTEL_CLI_MSG_CAT(msg), FLT_OTEL_CLI_LOGGING_STATE(value));
 		} FLT_OTEL_PROXIES_LIST_END();
 	}
 
 	OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, err, msg));
+}
+
+
+/***
+ * NAME
+ *   flt_otel_cli_parse_reset_errors - CLI runtime-error reset handler
+ *
+ * SYNOPSIS
+ *   static int flt_otel_cli_parse_reset_errors(char **args, char *payload, struct appctx *appctx, void *private)
+ *
+ * ARGUMENTS
+ *   args    - CLI command arguments array
+ *   payload - CLI command payload string
+ *   appctx  - CLI application context
+ *   private - unused private data pointer
+ *
+ * DESCRIPTION
+ *   Handles the "flt-otel reset-errors" CLI command.  Requires admin access
+ *   level.  Clears the runtime-error counters, the suppressed-line tally and
+ *   the log edge-trigger latch for all OTel filter instances across all
+ *   proxies, so the next error episode is reported afresh.
+ *
+ * RETURN VALUE
+ *   Returns 1, or 0 if no OTel filter instances are configured or on memory
+ *   allocation failure.
+ */
+static int flt_otel_cli_parse_reset_errors(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	char *msg = NULL;
+
+	OTELC_FUNC("%p, \"%s\", %p, %p", args, OTELC_STR_ARG(payload), appctx, private);
+
+	FLT_OTEL_ARGS_DUMP();
+
+	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+		OTELC_RETURN_INT(1);
+
+	FLT_OTEL_PROXIES_LIST_START() {
+		_HA_ATOMIC_STORE(&(conf->instr->n_harderr), 0);
+		_HA_ATOMIC_STORE(&(conf->instr->n_softerr), 0);
+		_HA_ATOMIC_STORE(&(conf->instr->log.suppressed), 0);
+		_HA_ATOMIC_STORE(&(conf->instr->log.latch), 0);
+
+		(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : runtime errors reset", FLT_OTEL_CLI_MSG_CAT(msg));
+	} FLT_OTEL_PROXIES_LIST_END();
+
+	OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, NULL, msg));
 }
 
 
@@ -425,7 +472,8 @@ static int flt_otel_cli_parse_status(char **args, char *payload, struct appctx *
 		(void)memprintf(&msg, "%s       rate limit:    %.2f %%\n", msg, FLT_OTEL_U32_FLOAT(_HA_ATOMIC_LOAD(&(conf->instr->rate_limit))));
 		(void)memprintf(&msg, "%s       hard errors:   %s\n", msg, FLT_OTEL_STR_FLAG_YN(_HA_ATOMIC_LOAD(&(conf->instr->flag_harderr))));
 		(void)memprintf(&msg, "%s       disabled:      %s\n", msg, FLT_OTEL_STR_FLAG_YN(_HA_ATOMIC_LOAD(&(conf->instr->flag_disabled))));
-		(void)memprintf(&msg, "%s       logging:       %s\n", msg, FLT_OTEL_CLI_LOGGING_STATE(_HA_ATOMIC_LOAD(&(conf->instr->logging))));
+		(void)memprintf(&msg, "%s       logging:       %s\n", msg, FLT_OTEL_CLI_LOGGING_STATE(_HA_ATOMIC_LOAD(&(conf->instr->log.type))));
+		(void)memprintf(&msg, "%s       runtime err:   hard %" PRIu64 ", soft %" PRIu64 " (suppressed %u)\n", msg, _HA_ATOMIC_LOAD(&(conf->instr->n_harderr)), _HA_ATOMIC_LOAD(&(conf->instr->n_softerr)), _HA_ATOMIC_LOAD(&(conf->instr->log.suppressed)));
 		(void)memprintf(&msg, "%s       idle timeout:  %u ms\n", msg, conf->instr->idle_timeout);
 		(void)memprintf(&msg, "%s       analyzers:     %08x", msg, conf->instr->analyzers);
 #ifdef FLT_OTEL_USE_COUNTERS
@@ -711,6 +759,7 @@ static struct cli_kw_list cli_kws = { { }, {
 	{ { FLT_OTEL_CLI_CMD, "enable", NULL }, FLT_OTEL_CLI_CMD " enable                         : enable the OTEL filter", flt_otel_cli_parse_disabled, NULL, NULL, (void *)0, ACCESS_LVL_ADMIN },
 	{ { FLT_OTEL_CLI_CMD, "soft-errors", NULL }, FLT_OTEL_CLI_CMD " soft-errors                    : disable hard-errors mode", flt_otel_cli_parse_option, NULL, NULL, (void *)0, ACCESS_LVL_ADMIN },
 	{ { FLT_OTEL_CLI_CMD, "hard-errors", NULL }, FLT_OTEL_CLI_CMD " hard-errors                    : enable hard-errors mode", flt_otel_cli_parse_option, NULL, NULL, (void *)1, ACCESS_LVL_ADMIN },
+	{ { FLT_OTEL_CLI_CMD, "reset-errors", NULL }, FLT_OTEL_CLI_CMD " reset-errors                   : reset runtime-error counters", flt_otel_cli_parse_reset_errors, NULL, NULL, NULL, ACCESS_LVL_ADMIN },
 	{ { FLT_OTEL_CLI_CMD, "logging",  NULL }, FLT_OTEL_CLI_CMD " logging [state]                : set logging state (default: get current logging state)", flt_otel_cli_parse_logging, NULL, NULL, NULL, 0 },
 	{ { FLT_OTEL_CLI_CMD, "rate", NULL }, FLT_OTEL_CLI_CMD " rate [value]                   : set the rate limit (default: get current rate value)", flt_otel_cli_parse_rate, NULL, NULL, NULL, 0 },
 	{ { FLT_OTEL_CLI_CMD, "status", NULL }, FLT_OTEL_CLI_CMD " status                         : show the OTEL filter status", flt_otel_cli_parse_status, NULL, NULL, NULL, 0 },

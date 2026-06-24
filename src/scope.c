@@ -41,7 +41,7 @@ struct flt_otel_runtime_context *flt_otel_runtime_context_init(struct stream *s,
 	retptr->filter        = f;
 	retptr->flag_harderr  = _HA_ATOMIC_LOAD(&(conf->instr->flag_harderr));
 	retptr->flag_disabled = _HA_ATOMIC_LOAD(&(conf->instr->flag_disabled));
-	retptr->logging       = _HA_ATOMIC_LOAD(&(conf->instr->logging));
+	retptr->logging       = _HA_ATOMIC_LOAD(&(conf->instr->log.type));
 	retptr->idle_timeout  = 0;
 	retptr->idle_exp      = TICK_ETERNITY;
 	retptr->bytes_in      = 0;

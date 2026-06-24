@@ -229,6 +229,7 @@ Available via the HAProxy CLI socket (prefix: `flt-otel`):
 | `flt-otel disable`         | Disable the filter                 |
 | `flt-otel hard-errors`     | Enable hard-errors mode            |
 | `flt-otel soft-errors`     | Disable hard-errors mode           |
+| `flt-otel reset-errors`    | Reset runtime-error counters       |
 | `flt-otel logging [state]` | Set logging state                  |
 | `flt-otel rate [value]`    | Set or show the rate limit         |
 | `flt-otel flush`           | Force-export buffered telemetry    |

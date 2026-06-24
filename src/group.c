@@ -81,7 +81,7 @@ static enum act_return flt_otel_group_action(struct act_rule *rule, struct proxy
 		}
 
 	if (rt_ctx == NULL) {
-		OTELC_DBG(WARNING, "WARNING: cannot find filter, probably not attached to the stream");
+		FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, FLT_OTEL_ACTION_GROUP ": filter not attached to the stream");
 
 		OTELC_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
 	}
@@ -111,7 +111,7 @@ static enum act_return flt_otel_group_action(struct act_rule *rule, struct proxy
 	list_for_each_entry(ph_scope, &(conf_group->ph_scopes), list) {
 		rc = flt_otel_scope_run(s, rt_ctx->filter, (flt_otel_group_data[i].smp_opt_dir == SMP_OPT_DIR_REQ) ? &(s->req) : &(s->res), ph_scope->ptr, NULL, NULL, flt_otel_group_data[i].smp_opt_dir, &err);
 		if ((rc == FLT_OTEL_RET_ERROR) && (opts & ACT_OPT_FINAL))
-			FLT_OTEL_LOG(LOG_ERR, FLT_OTEL_ACTION_GROUP ": scope '%s' failed in group '%s'", ph_scope->id, conf_group->id);
+			FLT_OTEL_LOG_LIM(LOG_ERR, FLT_OTEL_LOG_LATCH_ERR, FLT_OTEL_ACTION_GROUP ": scope '%s' failed in group '%s'", ph_scope->id, conf_group->id);
 
 		OTELC_SFREE_CLEAR(err);
 	}

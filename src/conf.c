@@ -954,7 +954,7 @@ FLT_OTEL_CONF_FUNC_FREE(group, id,
  *
  * DESCRIPTION
  *   Allocates and initializes a conf_instr (instrumentation) structure.  Sets
- *   the default rate limit to 100%, initializes the proxy_log for logger
+ *   the default rate limit to 100%, initializes the log proxy for logger
  *   support, and creates empty lists for ACLs, placeholder groups, and
  *   placeholder scopes.  The <id> string is duplicated and stored as the
  *   instrumentation name.  If <head> is non-NULL, the structure is appended
@@ -965,7 +965,7 @@ FLT_OTEL_CONF_FUNC_FREE(group, id,
  */
 FLT_OTEL_CONF_FUNC_INIT(instr, id,
 	retptr->rate_limit = FLT_OTEL_FLOAT_U32(100.0);
-	init_new_proxy(&(retptr->proxy_log));
+	init_new_proxy(&(retptr->log.proxy));
 	LIST_INIT(&(retptr->acls));
 	LIST_INIT(&(retptr->ph_groups));
 	LIST_INIT(&(retptr->ph_scopes));
@@ -1004,8 +1004,8 @@ FLT_OTEL_CONF_FUNC_FREE(instr, id,
 		FLT_OTEL_LIST_DEL(&(acl->list));
 		OTELC_SFREE(acl);
 	}
-	OTELC_DBG(DEBUG, "- deleting proxy_log.loggers list %s", flt_otel_list_dump(&((*ptr)->proxy_log.loggers)));
-	list_for_each_entry_safe(logger, loggerback, &((*ptr)->proxy_log.loggers), list) {
+	OTELC_DBG(DEBUG, "- deleting log.proxy.loggers list %s", flt_otel_list_dump(&((*ptr)->log.proxy.loggers)));
+	list_for_each_entry_safe(logger, loggerback, &((*ptr)->log.proxy.loggers), list) {
 		LIST_DELETE(&(logger->list));
 		ha_free(&logger);
 	}

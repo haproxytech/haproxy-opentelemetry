@@ -16,6 +16,10 @@
 #  define FLT_OTEL_USE_COUNTERS
 #endif
 
+/* Runtime-log rate ceiling: at most RATE_MAX emitted lines per RATE_PERIOD per instance. */
+#define FLT_OTEL_LOG_RATE_PERIOD  MS_TO_TICKS(10000) /* Sliding window, 10 seconds. */
+#define FLT_OTEL_LOG_RATE_MAX     3                  /* Lines per window before suppression. */
+
 #define FLT_OTEL_ID_MAXLEN        64            /* Maximum identifier length. */
 #define FLT_OTEL_DEBUG_LEVEL   0b11101111111 /* Default debug bitmask. */
 

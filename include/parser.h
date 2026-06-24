@@ -190,6 +190,12 @@ enum FLT_OTEL_LOGGING_enum {
 	FLT_OTEL_LOGGING_NOLOGNORM = 1 << 1,
 };
 
+/* Per-instance edge-trigger latch bits for rate-limited runtime logs. */
+enum FLT_OTEL_LOG_LATCH_enum {
+	FLT_OTEL_LOG_LATCH_ERR = 0, /* A hard-error episode has been logged. */
+	FLT_OTEL_LOG_LATCH_WARN,    /* A soft-error or anomaly episode has been logged. */
+};
+
 /* Keyword metadata used by the configuration section parsers. */
 struct flt_otel_parse_data {
 	int         keyword;       /* Keyword index. */

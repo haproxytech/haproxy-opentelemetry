@@ -178,13 +178,19 @@ Keywords (optional):
   log global
   log <addr> [len <len>] [format <fmt>] <facility> [<level> [<minlevel>]]
   no log
-      Enable per-instance logging.
+      Enable per-instance logging and set its destination.  The filter reports
+      runtime data-path problems here: hard-error episodes at level err and
+      swallowed soft errors at level warning.  Each message is edge-triggered
+      and rate-limited per instance, so a fault recurring on every stream does
+      not flood the log; the 'runtime err' counters in 'flt-otel status' hold
+      the true tally.  Without a 'log' line the filter emits nothing at runtime.
 
   option disabled / no option disabled
       Disable or enable the filter.  Default: enabled.
 
   option dontlog-normal / no option dontlog-normal
-      Suppress logging for normal (successful) operations.  Default: disabled.
+      Drop the below-error log lines (warnings and informational) while keeping
+      the error-level messages.  Default: disabled (all levels are logged).
 
   option hard-errors / no option hard-errors
       Stop all filter processing in a stream after the first error.  Default:

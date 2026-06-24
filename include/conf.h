@@ -83,13 +83,15 @@
 #define FLT_OTEL_DBG_CONF_PH(h,p) \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%p }", (p), FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->ptr)
 
-#define FLT_OTEL_DBG_CONF_INSTR(h,p)                                                                                                        \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %p %p %p %u %hhu %hhu %hhu %hhu %u 0x%02hhx %p:%s 0x%08x %u %s %s %s }",   \
-	                 (p), FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->config, (p)->tracer, (p)->meter, (p)->logger,                             \
-	                 (p)->rate_limit, (p)->flag_harderr, (p)->flag_disabled, (p)->flag_data_req, (p)->flag_data_res, (p)->flag_started, \
-	                 (p)->logging, &((p)->proxy_log), flt_otel_list_dump(&((p)->proxy_log.loggers)), (p)->analyzers, (p)->idle_timeout, \
-	                 flt_otel_list_dump(&((p)->acls)), flt_otel_list_dump(&((p)->ph_groups)),                                           \
-	                 flt_otel_list_dump(&((p)->ph_scopes)))
+#define FLT_OTEL_CONF_LOG_FMT         "%p:{ %hhu %p:{ %s } %p:{ %u } 0x%02x %u }"
+#define FLT_OTEL_CONF_LOG_ARGS(p)     (p), (p)->type, &((p)->proxy), flt_otel_list_dump(&((p)->proxy.loggers)), &((p)->rate), (p)->rate.curr_ctr, (p)->latch, (p)->suppressed
+
+#define FLT_OTEL_DBG_CONF_INSTR(h,p)                                                                                                                                         \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %p %p %p %u %hhu %hhu %hhu %hhu %u " FLT_OTEL_CONF_LOG_FMT " %" PRIu64 " %" PRIu64 " 0x%08x %u %s %s %s }", \
+	                 (p), FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->config, (p)->tracer, (p)->meter, (p)->logger,                                                              \
+	                 (p)->rate_limit, (p)->flag_harderr, (p)->flag_disabled, (p)->flag_data_req, (p)->flag_data_res, (p)->flag_started,                                  \
+	                 FLT_OTEL_CONF_LOG_ARGS(&((p)->log)), (p)->n_harderr, (p)->n_softerr, (p)->analyzers, (p)->idle_timeout,                                             \
+	                 flt_otel_list_dump(&((p)->acls)), flt_otel_list_dump(&((p)->ph_groups)), flt_otel_list_dump(&((p)->ph_scopes)))
 
 #define FLT_OTEL_DBG_CONF_INSTRUMENT(h,p)                                                                                       \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%" PRId64 " %d %d '%s' '%s' %s %s %p %zu %p %p }", (p),             \
@@ -339,6 +341,15 @@ struct flt_otel_conf_ph {
 #define flt_otel_conf_ph_group        flt_otel_conf_ph
 #define flt_otel_conf_ph_scope        flt_otel_conf_ph
 
+/* Runtime-log emission state (mode, log servers, flood control). */
+struct flt_otel_log {
+	uint8_t         type;       /* [0 1 3] */
+	struct proxy    proxy;      /* The log server list. */
+	struct freq_ctr rate;       /* Sliding-window rate of emitted runtime logs. */
+	uint            latch;      /* Atomic FLT_OTEL_LOG_LATCH_* bits, one per open error episode. */
+	uint            suppressed; /* Runtime log lines suppressed since the last emission. */
+};
+
 /* Top-level OTel instrumentation settings (tracer, meter, options). */
 struct flt_otel_conf_instr {
 	FLT_OTEL_CONF_HDR(id);              /* The OpenTelemetry instrumentation name. */
@@ -352,8 +363,9 @@ struct flt_otel_conf_instr {
 	bool                 flag_data_req; /* Request channel needs a data filter for http_end. */
 	bool                 flag_data_res; /* Response channel needs a data filter for http_end. */
 	uint                 flag_started;  /* Atomic claim so the OTel SDK is started once. */
-	uint8_t              logging;       /* [0 1 3] */
-	struct proxy         proxy_log;     /* The log server list. */
+	struct flt_otel_log  log;           /* Runtime-log emission and flood-control state. */
+	uint64_t             n_harderr;     /* Hard-error episodes (filter disabled), for the CLI. */
+	uint64_t             n_softerr;     /* Soft-error occurrences (error swallowed), for the CLI. */
 	uint                 analyzers;     /* Defined channel analyzers. */
 	uint                 idle_timeout;  /* Minimum idle timeout across scopes (ms, 0 = off). */
 	struct list          acls;          /* ACLs declared on this tracer. */

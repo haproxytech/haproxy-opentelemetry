@@ -735,15 +735,15 @@ static int flt_otel_parse_cfg_instr(const char *file, int line, char **args, int
 		}
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_INSTR_LOG) {
-		if (parse_logger(args, &(flt_otel_current_instr->proxy_log.loggers), kw_mod == KWM_NO, file, line, &err_log) == 0) {
+		if (parse_logger(args, &(flt_otel_current_instr->log.proxy.loggers), kw_mod == KWM_NO, file, line, &err_log) == 0) {
 			FLT_OTEL_PARSE_ERR(&err, "'%s %s ...' : %s", args[0], args[1], err_log);
 			OTELC_SFREE_CLEAR(err_log);
 		}
 		else if (kw_mod == KWM_NO) {
-			flt_otel_current_instr->logging &= ~FLT_OTEL_LOGGING_ON;
+			flt_otel_current_instr->log.type &= ~FLT_OTEL_LOGGING_ON;
 		}
 		else {
-			flt_otel_current_instr->logging |= FLT_OTEL_LOGGING_ON;
+			flt_otel_current_instr->log.type |= FLT_OTEL_LOGGING_ON;
 		}
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_INSTR_CONFIG) {
@@ -781,9 +781,9 @@ static int flt_otel_parse_cfg_instr(const char *file, int line, char **args, int
 		}
 		else if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_PARSE_OPTION_NOLOGNORM)) {
 			if (kw_mod == KWM_NO)
-				flt_otel_current_instr->logging &= ~FLT_OTEL_LOGGING_NOLOGNORM;
+				flt_otel_current_instr->log.type &= ~FLT_OTEL_LOGGING_NOLOGNORM;
 			else
-				flt_otel_current_instr->logging |= FLT_OTEL_LOGGING_NOLOGNORM;
+				flt_otel_current_instr->log.type |= FLT_OTEL_LOGGING_NOLOGNORM;
 		}
 		else
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid option '%s'", args[0], args[1]);

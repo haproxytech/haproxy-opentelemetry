@@ -32,15 +32,41 @@
  */
 #define FLT_OTEL_LOG(l,f, ...)                                                                                                   \
 	do {                                                                                                                     \
-		if (!(conf->instr->logging & FLT_OTEL_LOGGING_ON))                                                               \
+		if (!(conf->instr->log.type & FLT_OTEL_LOGGING_ON))                                                              \
 			OTELC_DBG(DEBUG, "NOLOG[%d]: [" FLT_OTEL_SCOPE "]: [%s] " f, (l), conf->id, ##__VA_ARGS__);              \
-		else if ((conf->instr->logging & FLT_OTEL_LOGGING_NOLOGNORM) && ((l) > LOG_ERR))                                 \
+		else if ((conf->instr->log.type & FLT_OTEL_LOGGING_NOLOGNORM) && ((l) > LOG_ERR))                                \
 			OTELC_DBG(DEBUG, "NOLOG[%d]: [" FLT_OTEL_SCOPE "]: [%s] " f, (l), conf->id, ##__VA_ARGS__);              \
 		else {                                                                                                           \
-			send_log(&(conf->instr->proxy_log), (l), "[" FLT_OTEL_SCOPE "]: [%s] " f "\n", conf->id, ##__VA_ARGS__); \
+			send_log(&(conf->instr->log.proxy), (l), "[" FLT_OTEL_SCOPE "]: [%s] " f "\n", conf->id, ##__VA_ARGS__); \
 			                                                                                                         \
 			OTELC_DBG(INFO, "LOG[%d]: %s", (l), logline);                                                            \
 		}                                                                                                                \
+	} while (0)
+
+/*
+ * FLT_OTEL_LOG_LIM - rate-limited, edge-triggered runtime log.
+ *
+ * Emits at most once per error episode -- the <b> bit, which the caller re-arms
+ * on a clean return -- and never more than FLT_OTEL_LOG_RATE_MAX lines per
+ * FLT_OTEL_LOG_RATE_PERIOD per instance.  Lines that are held back are tallied
+ * and reported as a suffix on the next line that is emitted.  Like FLT_OTEL_LOG,
+ * it requires an ambient <conf> pointer.
+ */
+#define FLT_OTEL_LOG_LIM(l,b,f, ...)                                                                       \
+	do {                                                                                               \
+		uint old  = _HA_ATOMIC_BTS(&(conf->instr->log.latch), (b));                                \
+		uint rate = update_freq_ctr_period(&(conf->instr->log.rate), FLT_OTEL_LOG_RATE_PERIOD, 1); \
+		                                                                                           \
+		if ((old == 0) && (rate <= FLT_OTEL_LOG_RATE_MAX)) {                                       \
+			uint sup = _HA_ATOMIC_XCHG(&(conf->instr->log.suppressed), 0);                     \
+			                                                                                   \
+			if (sup == 0)                                                                      \
+				FLT_OTEL_LOG((l), f, ##__VA_ARGS__);                                       \
+			else                                                                               \
+				FLT_OTEL_LOG((l), f " (%u more suppressed)", ##__VA_ARGS__, sup);          \
+		} else {                                                                                   \
+			_HA_ATOMIC_ADD(&(conf->instr->log.suppressed), 1);                                 \
+		}                                                                                          \
 	} while (0)
 
 #endif /* _OTEL_DEBUG_H_ */
