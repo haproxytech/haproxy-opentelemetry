@@ -2257,32 +2257,15 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_INJECT) {
 		/*
-		 * The context name is automatically generated when the macro
-		 * FLT_OTEL_PARSE_CTX_AUTONAME is used as the name.
-		 *
-		 * In this case, if the inject directive is defined after the
-		 * event definition, the event name is used as the context name;
-		 * otherwise, the context name is taken from the span name.
+		 * The context name is stored verbatim.  The autoname sentinel
+		 * (FLT_OTEL_PARSE_CTX_AUTONAME) is resolved in the post-parse
+		 * phase, where the scope event is known regardless of whether
+		 * 'inject' precedes or follows the 'otel-event' directive.
 		 */
 		if (flt_otel_current_span->ctx_id != NULL)
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : only one context per span is allowed", args[1]);
-		else if (!FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_PARSE_CTX_AUTONAME))
+		else
 			retval = flt_otel_parse_strdup(&(flt_otel_current_span->ctx_id), &(flt_otel_current_span->ctx_id_len), args[1], &err, args[0]);
-		else if (flt_otel_current_scope->event != FLT_OTEL_EVENT__NONE)
-			retval = flt_otel_parse_strdup(&(flt_otel_current_span->ctx_id), &(flt_otel_current_span->ctx_id_len), flt_otel_event_data[flt_otel_current_scope->event].name, &err, args[0]);
-		else {
-			const char *ch;
-
-			/*
-			 * When the context name is derived from the span name,
-			 * only the following characters are valid: [A-Za-z_.-].
-			 */
-			ch = invalid_prefix_char(flt_otel_current_span->id);
-			if (ch == NULL)
-				retval = flt_otel_parse_strdup(&(flt_otel_current_span->ctx_id), &(flt_otel_current_span->ctx_id_len), flt_otel_current_span->id, &err, args[0]);
-			else
-				FLT_OTEL_PARSE_ERR(&err, "'%s' : character '%c' is not permitted in the context name", flt_otel_current_span->id, *ch);
-		}
 
 		if (flt_otel_current_span->ctx_id != NULL) {
 			/*
@@ -2300,7 +2283,12 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 				flt_otel_current_span->ctx_flags = FLT_OTEL_CTX_USE_HEADERS;
 			}
 
-			if (flt_otel_current_span->ctx_flags & FLT_OTEL_CTX_USE_VARS)
+			/*
+			 * An explicit name is warned about now; the autoname's
+			 * warning is deferred to the post-parse phase, where it
+			 * is emitted against the resolved name.
+			 */
+			if ((flt_otel_current_span->ctx_flags & FLT_OTEL_CTX_USE_VARS) && !FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_PARSE_CTX_AUTONAME))
 				flt_otel_parse_ctx_name_warn(file, line, args[0], flt_otel_current_span->ctx_id);
 		}
 	}
@@ -2428,6 +2416,84 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 
 /***
  * NAME
+ *   flt_otel_post_parse_ctx_autoname - resolve a deferred autoname context
+ *
+ * SYNOPSIS
+ *   static int flt_otel_post_parse_ctx_autoname(struct flt_otel_conf_span *conf_span)
+ *
+ * ARGUMENTS
+ *   conf_span - the span whose autoname context is resolved
+ *
+ * DESCRIPTION
+ *   Resolves a span context name that 'inject' deferred at parse time with the
+ *   FLT_OTEL_PARSE_CTX_AUTONAME sentinel.  Runs in the otel-scope post-parse
+ *   phase, where the scope event is known regardless of whether 'inject'
+ *   preceded or followed 'otel-event'.  The scope event name is preferred; the
+ *   span name is used only when the scope has no event and must then be a valid
+ *   context prefix.  The resolved name keeps the FLT_OTEL_PARSE_CTX_IGNORE_NAME
+ *   prefix, so the injected headers carry only the bare W3C propagation
+ *   headers.  When the context is stored in HAProxy variables, the variable-name
+ *   warning is emitted here against the resolved name.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE (== 0) in case of success,
+ *   or a combination of ERR_* flags if an error is encountered.
+ */
+static int flt_otel_post_parse_ctx_autoname(struct flt_otel_conf_span *conf_span)
+{
+	const char *name = NULL, *ch;
+	char       *resolved;
+	size_t      len;
+	int         retval = ERR_NONE;
+
+	OTELC_FUNC("%p", conf_span);
+
+	if (flt_otel_current_scope->event != FLT_OTEL_EVENT__NONE) {
+		name = flt_otel_event_data[flt_otel_current_scope->event].name;
+	} else {
+		/*
+		 * The span name fallback is only valid as a context prefix
+		 * when it has only the characters [A-Za-z_.-].
+		 */
+		ch = invalid_prefix_char(conf_span->id);
+		if (ch == NULL)
+			name = conf_span->id;
+		else
+			FLT_OTEL_POST_PARSE_ALERT("inject '%s' : character '%c' is not permitted in the context name", conf_span->cfg_line, conf_span->id, *ch);
+	}
+
+	if (name == NULL)
+		OTELC_RETURN_INT(retval);
+
+	/*
+	 * The generated name keeps the FLT_OTEL_PARSE_CTX_IGNORE_NAME prefix
+	 * so the injected headers carry no HAProxy-specific name, leaving only
+	 * the bare W3C propagation headers.
+	 */
+	len      = strlen(name);
+	resolved = OTELC_MALLOC(len + 2);
+	if (resolved == NULL) {
+		FLT_OTEL_POST_PARSE_ALERT("inject '%s' : out of memory", conf_span->cfg_line, name);
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	*resolved = FLT_OTEL_PARSE_CTX_IGNORE_NAME;
+	(void)memcpy(resolved + 1, name, len + 1);
+
+	OTELC_SFREE(conf_span->ctx_id);
+	conf_span->ctx_id     = resolved;
+	conf_span->ctx_id_len = len + 1;
+
+	if (conf_span->ctx_flags & FLT_OTEL_CTX_USE_VARS)
+		flt_otel_parse_ctx_name_warn(flt_otel_current_config->cfg_file, conf_span->cfg_line, "inject", conf_span->ctx_id);
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_post_parse_cfg_scope - otel-scope post-parse check
  *
  * SYNOPSIS
@@ -2456,11 +2522,23 @@ static int flt_otel_post_parse_cfg_scope(void)
 	if (flt_otel_current_scope == NULL)
 		OTELC_RETURN_INT(retval);
 
-	/* If span context inject is used, check that this is possible. */
-	list_for_each_entry(conf_span, &(flt_otel_current_scope->spans), list)
-		if ((conf_span->ctx_id != NULL) && (conf_span->ctx_flags & FLT_OTEL_CTX_USE_HEADERS))
+	/*
+	 * Resolve any deferred autoname context, then verify that HTTP
+	 * header injection is only used on events that support it.  The
+	 * scope event is known here regardless of the directive order.
+	 */
+	list_for_each_entry(conf_span, &(flt_otel_current_scope->spans), list) {
+		if ((conf_span->ctx_id != NULL) && (strcmp(conf_span->ctx_id, FLT_OTEL_PARSE_CTX_AUTONAME) == 0))
+			retval |= flt_otel_post_parse_ctx_autoname(conf_span);
+
+		/*
+		 * A context still holding the autoname sentinel failed to
+		 * resolve and was already reported, so it is skipped here.
+		 */
+		if ((conf_span->ctx_id != NULL) && (strcmp(conf_span->ctx_id, FLT_OTEL_PARSE_CTX_AUTONAME) != 0) && (conf_span->ctx_flags & FLT_OTEL_CTX_USE_HEADERS))
 			if (!flt_otel_event_data[flt_otel_current_scope->event].flag_http_inject)
 				FLT_OTEL_POST_PARSE_ALERT("inject '%s' : cannot use on this event", conf_span->cfg_line, conf_span->ctx_id);
+	}
 
 	/* Validate idle-timeout / on-idle-timeout consistency. */
 	if (flt_otel_current_scope->idle_timeout == 0) {

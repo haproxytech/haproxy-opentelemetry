@@ -649,7 +649,9 @@ inject <name-prefix> [use-vars] [use-headers]
   can be used to construct the data name prefix.  Uppercase letters can actually
   be used, but they will be converted to lowercase when creating the prefix.
   The special prefix '-' can be used to generate the name automatically from the
-  scope's event name or the span name.
+  scope's event name or the span name.  The generated name keeps a leading '-',
+  so by the rule below the injected headers carry only the bare propagation
+  headers, with no HAProxy-specific name prefix.
 
   When the OpenTelemetry context is transferred via the HTTP header and the
   first character of the context name is '-', the context name is excluded
