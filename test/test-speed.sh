@@ -123,7 +123,7 @@ sh_haproxy_stop ()
 sh_wrk_run ()
 {
 	_arg_ratio="${1}"
-	_var_cpulog="${SH_LOG_DIR}/_cpu-${_arg_ratio}.log"
+	_var_cpulog="${SH_LOG_DIR}/_log-cpu-${SH_ARG_CFG}-${_arg_ratio}.log"
 	_var_cpupid=
 
 	echo "--- rate-limit ${_arg_ratio} --------------------------------------------------"
@@ -173,6 +173,9 @@ if test "${SH_ARG_CFG}" = "all"; then
 	"${0}" "${_var_args}" cmp cmp
 	"${0}" "${_var_args}" ctx ctx
 	"${0}" "${_var_args}" fe-be fe
+	"${0}" "${_var_args}" full full
+	"${0}" "${_var_args}" tcp tcp
+	"${0}" "${_var_args}" updown updown
 	exit 0
 elif test "${SH_ARG_CFG}" = "fe-be"; then
 	SH_ARG_DIR="fe"

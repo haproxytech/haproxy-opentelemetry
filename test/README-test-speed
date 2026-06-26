@@ -73,6 +73,9 @@ This produces result files in the _logs directory:
   _logs/README-speed-sa
   _logs/README-speed-cmp
   _logs/README-speed-ctx
+  _logs/README-speed-full
+  _logs/README-speed-tcp
+  _logs/README-speed-updown
 
 To run a single configuration:
 
@@ -110,10 +113,12 @@ The backend origin server (thttpd) serves a small static HTML page (index.html,
 approximately 50 bytes) on port 8000.  HAProxy listens on port 10080 and proxies
 requests to the origin.
 
-The connection concurrency (-c8) suits the HTTP configurations (sa, cmp, ctx
-and fe-be), which reuse persistent client connections: a handful of connections
-is enough for the per-request filter work to dominate, and the overhead tracks
-the rate-limit cleanly.  It does not transfer to a connection-churn workload.
+The connection concurrency (-c8) suits the HTTP configurations (sa, cmp, ctx,
+fe-be, full and updown), which reuse persistent client connections: a handful
+of connections is enough for the per-request filter work to dominate, and the
+overhead tracks the rate-limit cleanly.  It does not transfer to a workload
+that churns connections.
+
 A 'mode tcp' proxy cannot manage HTTP keep-alive, so every request opens and
 closes a fresh connection on both sides; with only a few connections in flight
 a many-core host never saturates, and throughput becomes bound by per-request
@@ -164,8 +169,8 @@ the 'off' baseline, expressed as a percentage:
 6. Test configurations
 -----------------------
 
-Four OTEL filter configurations are tested.  They differ in complexity and in
-the features they exercise:
+The following OTEL filter configurations are tested.  They differ in complexity
+and in the features they exercise:
 
   sa     - Standalone.  Exercises most of the HAProxy filter events with spans,
            attributes, events, links, baggage, status, metrics and groups (the
@@ -195,6 +200,18 @@ the features they exercise:
            hard-errors on).  The backend configuration is only modified for
            the 'disabled' and 'off' levels.
 
+  full   - Full event coverage.  Extends 'sa' with the remaining lifecycle
+           events, covering every filter event except on-http-tarpit-request.
+
+  tcp    - TCP mode.  Traces the raw connection on a 'mode tcp' proxy with a
+           single session span and counts the forwarded payload.  Every request
+           opens a fresh connection, so the -c8 default under-saturates the
+           host; see the concurrency discussion in section 4.
+
+  updown - Up-down counter.  A metrics-only configuration: a udcnt_int
+           instrument records a signed per-session delta on client session
+           start and end, with no spans or context propagation.
+
 
 7. Results
 -----------
@@ -202,7 +219,8 @@ the features they exercise:
 The tables below summarize the benchmarking results.  The 'req/s' column shows
 the sustained request rate reported by wrk, 'avg latency' is the average
 response time, and 'overhead' is the throughput loss relative to the 'off'
-baseline.
+baseline.  Published tables cover the sa, cmp, ctx and fe-be configurations; a
+sweep run writes the remaining configurations' tables to the _logs directory.
 
 
 7.1. Standalone (sa)
@@ -310,8 +328,8 @@ configurations.
 8. Summary
 -----------
 
-The table below shows the overhead for each configuration at selected rate-limit
-levels:
+The table below shows each benchmarked configuration's overhead at selected
+rate-limit levels:
 
   ---------------------------------------------------
    rate-limit    sa      cmp      ctx     fe-be
