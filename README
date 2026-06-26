@@ -1642,10 +1642,10 @@ the 'counters' block appear only in a debug build):
      library:       C++ 1.26.0, C wrapper 2.0.0-862
      debug level:   0x7f
      export pipeline
-       signal   queued             dropped     exported       failed  last export
-       traces   0/2048                   0           12            0  120 ms
-       logs     0/2048                   0            3            0  1500 ms
-       metrics  -                        -            5            0  9800 ms
+       signal   queued             dropped               exported                 failed  last export
+       traces   0/2048                   0                2400/12                    0/0  120 ms
+       logs     0/2048                   0                  300/3                    0/0  1500 ms
+       metrics  -                        -                    -/5                    -/0  9800 ms
      sdk diagnostics: 0
 
      proxy fe_main, filter otel
@@ -1673,18 +1673,20 @@ the 'counters' block appear only in a debug build):
 Most lines are self-explanatory.  Per signal, the 'export pipeline' table shows
 the batch-processor state: 'queued' is the live queue depth over the configured
 capacity, 'dropped' the records dropped because the queue was full, 'exported'
-and 'failed' the Export() outcomes, and 'last export' the age of the most recent
-successful export.  The 'exported' and 'failed' counts reflect what Export()
-returns: a real delivery result for synchronous exporters such as ostream and
-otlp_file, but only acceptance for the async OTLP/HTTP and OTLP/gRPC exporters,
-which hand the batch to a background client and report a connection failure only
-later.  Those failures instead appear in 'sdk diagnostics', the internal-message
-count the SDK reported; for an OTLP exporter a rising 'sdk diagnostics' with a
-stale 'last export' is the signature of an unreachable collector.  Metrics use a
-periodic reader rather than a queue, so their 'queued' and 'dropped' read '-';
-'exported', 'failed' and 'last export' track the periodic push, which runs on
-its configured interval whether or not any instrument recorded data, so the
-'exported' count climbs even when no instruments are configured.
+and 'failed' the Export() outcomes as records/calls -- the records moved and the
+Export() calls that carried them -- and 'last export' the age of the most recent
+successful export.  The call counts reflect the Export() return value: a real
+delivery result for synchronous exporters such as ostream and otlp_file, but
+only acceptance for the async OTLP/HTTP and OTLP/gRPC exporters, which hand the
+batch to a background client and report a connection failure only later.  Those
+failures instead appear in 'sdk diagnostics', the internal-message count the SDK
+reported; for an OTLP exporter a rising 'sdk diagnostics' with a stale 'last
+export' is the signature of an unreachable collector.  Metrics use a periodic
+reader rather than a queue, so their 'queued' and 'dropped' read '-', and the
+records side of 'exported' and 'failed' reads '-' too because the reader has no
+per-record count; the call counts and 'last export' track the periodic push,
+which runs on its configured interval whether or not any instrument recorded
+data, so the 'exported' count climbs even when no instruments are configured.
 
 'idle timeout' is the smallest scope idle timeout in milliseconds (0 means
 off), and 'analyzers' is the channel analyzer bitmask the filter registered.

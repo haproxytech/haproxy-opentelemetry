@@ -417,26 +417,31 @@ static int flt_otel_cli_parse_status(char **args, char *payload, struct appctx *
 	(void)memprintf(&msg, "%s   debug level:   0x%02hhx\n", msg, otelc_dbg_level);
 #endif
 	(void)memprintf(&msg, "%s   export pipeline\n", msg);
-	(void)memprintf(&msg, "%s     %-7s  %-13s  %11s  %11s  %11s  %s\n", msg, "signal", "queued", "dropped", "exported", "failed", "last export");
+	(void)memprintf(&msg, "%s     %-7s  %-13s  %11s  %21s  %21s  %s\n", msg, "signal", "queued", "dropped", "exported", "failed", "last export");
 
 	otelc_pipeline_status_get(&status);
 
 	for (i = 0; i <= 2; i++) {
 		static const char *const signal[] = { "traces", "logs", "metrics" };
-		char                     queued[32], dropped[32], agebuf[32];
+		char                     queued[32], dropped[32], agebuf[32], expbuf[48], failbuf[48];
 		const char              *last;
 		int64_t                  age = sig[i]->last_export_ms;
 
 		/*
 		 * Metrics use a periodic reader, not a queue, so depth and drops
-		 * do not apply and are shown as a dash.
+		 * do not apply and are shown as a dash; their per-record counts
+		 * are likewise unavailable, shown as a dash beside the call count.
 		 */
 		if (i == 2) {
 			(void)snprintf(queued, sizeof(queued), "-");
 			(void)snprintf(dropped, sizeof(dropped), "-");
+			(void)snprintf(expbuf, sizeof(expbuf), "-/%" PRId64, sig[i]->export_ok);
+			(void)snprintf(failbuf, sizeof(failbuf), "-/%" PRId64, sig[i]->export_fail);
 		} else {
 			(void)snprintf(queued, sizeof(queued), "%" PRId64 "/%" PRId64, sig[i]->queue_depth, sig[i]->queue_capacity);
 			(void)snprintf(dropped, sizeof(dropped), "%" PRId64, sig[i]->dropped);
+			(void)snprintf(expbuf, sizeof(expbuf), "%" PRId64 "/%" PRId64, sig[i]->records_ok, sig[i]->export_ok);
+			(void)snprintf(failbuf, sizeof(failbuf), "%" PRId64 "/%" PRId64, sig[i]->records_fail, sig[i]->export_fail);
 		}
 
 		if (age < 0) {
@@ -446,7 +451,7 @@ static int flt_otel_cli_parse_status(char **args, char *payload, struct appctx *
 			last = agebuf;
 		}
 
-		(void)memprintf(&msg, "%s     %-7s  %-13s  %11s  %11" PRId64 "  %11" PRId64 "  %s\n", msg, signal[i], queued, dropped, sig[i]->export_ok, sig[i]->export_fail, last);
+		(void)memprintf(&msg, "%s     %-7s  %-13s  %11s  %21s  %21s  %s\n", msg, signal[i], queued, dropped, expbuf, failbuf, last);
 	}
 
 	(void)memprintf(&msg, "%s   sdk diagnostics: %" PRIu64 "\n", msg, _HA_ATOMIC_LOAD(&flt_otel_drop_cnt));
