@@ -400,11 +400,14 @@ static int flt_otel_cli_parse_rate(char **args, char *payload, struct appctx *ap
  */
 static int flt_otel_cli_parse_status(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	const char *nl = "";
-	char       *msg = NULL;
-	int         i;
-	struct otelc_pipeline_status      status;
-	const struct otelc_export_status *sig[] = { &(status.traces), &(status.logs), &(status.metrics) };
+	const char                       *nl = "";
+	char                             *msg = NULL;
+	int                               i;
+	static const char *const          sig_name[] = { "traces", "logs", "metrics" };
+	char                              queued[3][32], dropped[3][32], agebuf[3][32], expbuf[3][48], failbuf[3][48];
+	struct flt_otel_table            *sig_table;
+	struct otelc_pipeline_status      sig_stat;
+	const struct otelc_export_status *sig[] = { &(sig_stat.traces), &(sig_stat.logs), &(sig_stat.metrics) };
 
 	OTELC_FUNC("%p, \"%s\", %p, %p", args, OTELC_STR_ARG(payload), appctx, private);
 
@@ -417,15 +420,10 @@ static int flt_otel_cli_parse_status(char **args, char *payload, struct appctx *
 	(void)memprintf(&msg, "%s   debug level:   0x%02hhx\n", msg, otelc_dbg_level);
 #endif
 	(void)memprintf(&msg, "%s   export pipeline\n", msg);
-	(void)memprintf(&msg, "%s     %-7s  %-13s  %11s  %21s  %21s  %s\n", msg, "signal", "queued", "dropped", "exported", "failed", "last export");
+	otelc_pipeline_status_get(&sig_stat);
 
-	otelc_pipeline_status_get(&status);
-
-	for (i = 0; i <= 2; i++) {
-		static const char *const signal[] = { "traces", "logs", "metrics" };
-		char                     queued[32], dropped[32], agebuf[32], expbuf[48], failbuf[48];
-		const char              *last;
-		int64_t                  age = sig[i]->last_export_ms;
+	for (i = 0; i < 3; i++) {
+		int64_t age = sig[i]->last_export_ms;
 
 		/*
 		 * Metrics use a periodic reader, not a queue, so depth and drops
@@ -433,25 +431,37 @@ static int flt_otel_cli_parse_status(char **args, char *payload, struct appctx *
 		 * are likewise unavailable, shown as a dash beside the call count.
 		 */
 		if (i == 2) {
-			(void)snprintf(queued, sizeof(queued), "-");
-			(void)snprintf(dropped, sizeof(dropped), "-");
-			(void)snprintf(expbuf, sizeof(expbuf), "-/%" PRId64, sig[i]->export_ok);
-			(void)snprintf(failbuf, sizeof(failbuf), "-/%" PRId64, sig[i]->export_fail);
+			(void)snprintf(queued[i], sizeof(queued[i]), "-");
+			(void)snprintf(dropped[i], sizeof(dropped[i]), "-");
+			(void)snprintf(expbuf[i], sizeof(expbuf[i]), "-/%" PRId64, sig[i]->export_ok);
+			(void)snprintf(failbuf[i], sizeof(failbuf[i]), "-/%" PRId64, sig[i]->export_fail);
 		} else {
-			(void)snprintf(queued, sizeof(queued), "%" PRId64 "/%" PRId64, sig[i]->queue_depth, sig[i]->queue_capacity);
-			(void)snprintf(dropped, sizeof(dropped), "%" PRId64, sig[i]->dropped);
-			(void)snprintf(expbuf, sizeof(expbuf), "%" PRId64 "/%" PRId64, sig[i]->records_ok, sig[i]->export_ok);
-			(void)snprintf(failbuf, sizeof(failbuf), "%" PRId64 "/%" PRId64, sig[i]->records_fail, sig[i]->export_fail);
+			(void)snprintf(queued[i], sizeof(queued[i]), "%" PRId64 "/%" PRId64, sig[i]->queue_depth, sig[i]->queue_capacity);
+			(void)snprintf(dropped[i], sizeof(dropped[i]), "%" PRId64, sig[i]->dropped);
+			(void)snprintf(expbuf[i], sizeof(expbuf[i]), "%" PRId64 "/%" PRId64, sig[i]->records_ok, sig[i]->export_ok);
+			(void)snprintf(failbuf[i], sizeof(failbuf[i]), "%" PRId64 "/%" PRId64, sig[i]->records_fail, sig[i]->export_fail);
 		}
 
-		if (age < 0) {
-			last = "never";
-		} else {
-			(void)snprintf(agebuf, sizeof(agebuf), "%" PRId64 " ms", age);
-			last = agebuf;
-		}
+		if (age < 0)
+			(void)snprintf(agebuf[i], sizeof(agebuf[i]), "never");
+		else
+			(void)snprintf(agebuf[i], sizeof(agebuf[i]), "%" PRId64 " ms", age);
+	}
 
-		(void)memprintf(&msg, "%s     %-7s  %-13s  %11s  %21s  %21s  %s\n", msg, signal[i], queued, dropped, expbuf, failbuf, last);
+	sig_table = flt_otel_table_init();
+	if (sig_table != NULL) {
+		(void)flt_otel_table_add_column(sig_table, "signal",      true,  sig_name[0], sig_name[1], sig_name[2], NULL);
+		(void)flt_otel_table_add_column(sig_table, "queued",      true,  queued[0],   queued[1],   queued[2],   NULL);
+		(void)flt_otel_table_add_column(sig_table, "dropped",     false, dropped[0],  dropped[1],  dropped[2],  NULL);
+		(void)flt_otel_table_add_column(sig_table, "exported",    false, expbuf[0],   expbuf[1],   expbuf[2],   NULL);
+		(void)flt_otel_table_add_column(sig_table, "failed",      false, failbuf[0],  failbuf[1],  failbuf[2],  NULL);
+		(void)flt_otel_table_add_column(sig_table, "last export", true,  agebuf[0],   agebuf[1],   agebuf[2],   NULL);
+
+		if (flt_otel_table_format(sig_table) == OTELC_RET_OK)
+			for (i = 0; i < (int)(sig_table->rows); i++)
+				(void)memprintf(&msg, "%s     %s\n", msg, sig_table->row[i]);
+
+		flt_otel_table_free(&sig_table);
 	}
 
 	(void)memprintf(&msg, "%s   sdk diagnostics: %" PRIu64 "\n", msg, _HA_ATOMIC_LOAD(&flt_otel_drop_cnt));
