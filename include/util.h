@@ -27,6 +27,22 @@
 				}   \
 	} while (0)
 
+/* A single column of an aligned text table. */
+struct flt_otel_table_column {
+	char    *title;     /* Column header text. */
+	bool     flag_left; /* Whether the column is left-aligned. */
+	char   **data;      /* Duplicated cell values, one per data row. */
+	size_t   length;    /* Number of cells stored. */
+};
+
+/* An aligned text table built column by column. */
+struct flt_otel_table {
+	struct flt_otel_table_column  *column;  /* Array of columns. */
+	size_t                         columns; /* Number of columns added. */
+	char                         **row;     /* Formatted output lines. */
+	size_t                         rows;    /* Number of formatted lines. */
+};
+
 #ifdef DEBUG_OTEL
 #  define FLT_OTEL_ARGS_DUMP()   do { if (otelc_dbg_level & (1 << OTELC_DBG_LEVEL_LOG)) flt_otel_args_dump((const char **)args); } while (0)
 #else
@@ -101,6 +117,20 @@ int         flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf
 /* Render a field of an OTel span or context as a string. */
 int         flt_otel_ctx_field_to_str(const struct otelc_span *span, const struct otelc_span_context *context, const char *baggage, int field, const char *field_key, char *value, size_t size, char **err);
 
+/* Allocate an empty table to be filled with columns of cells. */
+struct flt_otel_table *flt_otel_table_init(void);
+
+/* Append a column whose cells come from an array to a table. */
+int         flt_otel_table_add_column_n(struct flt_otel_table *ptr, const char *title, bool flag_left, const char **data, size_t n);
+
+/* Append a column with its title, alignment and cells to a table. */
+int         flt_otel_table_add_column(struct flt_otel_table *ptr, const char *title, bool flag_left, const char *data, ...);
+
+/* Lay out the table columns into aligned, ready-to-print lines. */
+int         flt_otel_table_format(struct flt_otel_table *ptr);
+
+/* Free a table and the column and line data it owns. */
+void        flt_otel_table_free(struct flt_otel_table **ptr);
 #endif /* _OTEL_UTIL_H_ */
 
 /*

@@ -1482,6 +1482,311 @@ int flt_otel_sample_add_attr(struct stream *s, uint dir, struct flt_otel_conf_sa
 	OTELC_RETURN_INT(retval);
 }
 
+
+/***
+ * NAME
+ *   flt_otel_table_init - aligned table allocation
+ *
+ * SYNOPSIS
+ *   struct flt_otel_table *flt_otel_table_init(void)
+ *
+ * ARGUMENTS
+ *   This function takes no arguments.
+ *
+ * DESCRIPTION
+ *   Allocates and initializes an empty table.  Columns are appended one at a
+ *   time, each carrying its own cells, and the table is then laid out into
+ *   ready-to-print lines; the column array grows on demand and the row count
+ *   follows the columns, so no dimensions are fixed in advance.
+ *
+ * RETURN VALUE
+ *   Returns a pointer to the initialized table, or NULL on failure.
+ */
+struct flt_otel_table *flt_otel_table_init(void)
+{
+	struct flt_otel_table *retptr = NULL;
+
+	OTELC_FUNC("");
+
+	retptr = OTELC_CALLOC(1, sizeof(*retptr));
+
+	OTELC_RETURN_PTR(retptr);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_table_add_column_n - append a table column from an array
+ *
+ * SYNOPSIS
+ *   int flt_otel_table_add_column_n(struct flt_otel_table *ptr, const char *title, bool flag_left, const char **data, size_t n)
+ *
+ * ARGUMENTS
+ *   ptr       - the table
+ *   title     - column header text
+ *   flag_left - whether to left-align the column, else right-align
+ *   data      - the array of cell values, one per data row
+ *   n         - the number of cell values in the array
+ *
+ * DESCRIPTION
+ *   Appends a column to <ptr>, growing its column array by one and duplicating
+ *   <title> and the <n> cell values of <data> so the caller keeps ownership of
+ *   its strings.  A NULL entry in <data> is kept as an empty cell, so a column
+ *   may carry gaps that the NULL-terminated variadic builder cannot express.
+ *   Setting <flag_left> left-aligns the column, otherwise it is right-aligned;
+ *   the column width is set when the table is formatted.
+ *
+ * RETURN VALUE
+ *   Returns OTELC_RET_OK on success, OTELC_RET_ERROR on failure.
+ */
+int flt_otel_table_add_column_n(struct flt_otel_table *ptr, const char *title, bool flag_left, const char **data, size_t n)
+{
+	struct flt_otel_table_column *col, *ncol;
+	size_t                        i;
+	int                           retval = OTELC_RET_ERROR;
+
+	OTELC_FUNC("%p, \"%s\", %hhu, %p, %zu", ptr, OTELC_STR_ARG(title), flag_left, data, n);
+
+	if ((ptr == NULL) || (title == NULL) || (data == NULL) || (n == 0))
+		OTELC_RETURN_INT(retval);
+
+	/* Grow the column array by one slot. */
+	ncol = OTELC_REALLOC(ptr->column, sizeof(*(ptr->column)) * (ptr->columns + 1));
+	if (ncol == NULL)
+		OTELC_RETURN_INT(retval);
+	ptr->column = ncol;
+
+	col        = &(ptr->column[ptr->columns]);
+	col->title = OTELC_STRDUP(title);
+	col->data  = OTELC_CALLOC(n, sizeof(*(col->data)));
+	if ((col->title == NULL) || (col->data == NULL)) {
+		OTELC_SFREE(col->title);
+		OTELC_SFREE(col->data);
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	/* The cells are duplicated, so the caller keeps ownership of its data. */
+	for (i = 0; i < n; i++)
+		if (data[i] != NULL)
+			col->data[i] = OTELC_STRDUP(data[i]);
+
+	col->flag_left = flag_left;
+	col->length    = n;
+	ptr->columns++;
+
+	retval = OTELC_RET_OK;
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_table_add_column - append a table column
+ *
+ * SYNOPSIS
+ *   int flt_otel_table_add_column(struct flt_otel_table *ptr, const char *title, bool flag_left, const char *data, ...)
+ *
+ * ARGUMENTS
+ *   ptr       - the table
+ *   title     - column header text
+ *   flag_left - whether to left-align the column, else right-align
+ *   data      - the column's first cell value
+ *   ...       - the remaining cell values, terminated by a NULL pointer
+ *
+ * DESCRIPTION
+ *   Gathers <data> and the variadic cell values up to the NULL terminator into
+ *   an array and forwards them to flt_otel_table_add_column_n, which appends
+ *   the column and duplicates the cells.  The cell count becomes the column's
+ *   row count, so the caller keeps ownership of its strings.
+ *
+ * RETURN VALUE
+ *   Returns OTELC_RET_OK on success, OTELC_RET_ERROR on failure.
+ */
+int flt_otel_table_add_column(struct flt_otel_table *ptr, const char *title, bool flag_left, const char *data, ...)
+{
+	va_list     ap;
+	const char *value, **values = NULL;
+	size_t      n = 1, i;
+	int         retval = OTELC_RET_ERROR;
+
+	OTELC_FUNC("%p, \"%s\", %hhu, \"%s\", ...", ptr, OTELC_STR_ARG(title), flag_left, OTELC_STR_ARG(data));
+
+	if (data == NULL)
+		OTELC_RETURN_INT(retval);
+
+	/* Count the cells: <data> plus the variadic arguments up to the NULL. */
+	va_start(ap, data);
+	for (n = 1; va_arg(ap, const char *) != NULL; n++);
+	va_end(ap);
+
+	/* Gather the cells into an array for the array-based builder. */
+	values = OTELC_CALLOC(n, sizeof(*values));
+	if (values == NULL)
+		OTELC_RETURN_INT(retval);
+
+	va_start(ap, data);
+	for (i = 0, value = data; value != NULL; i++) {
+		values[i] = value;
+		value     = va_arg(ap, const char *);
+	}
+	va_end(ap);
+
+	retval = flt_otel_table_add_column_n(ptr, title, flag_left, values, n);
+
+	OTELC_SFREE(values);
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_table_format - lay out the table into lines
+ *
+ * SYNOPSIS
+ *   int flt_otel_table_format(struct flt_otel_table *ptr)
+ *
+ * ARGUMENTS
+ *   ptr - the table
+ *
+ * DESCRIPTION
+ *   Renders the columns of <ptr> into aligned text lines stored in <ptr>->row:
+ *   the first line is the header built from the column titles and the rest
+ *   hold the cell data, as many rows as the column with the most cells.  Each
+ *   column is sized to the widest of its title and cells and padded to that
+ *   width, right-aligned by default or left-aligned when its flag_left is set;
+ *   columns are separated by two spaces.  Each line is then right-trimmed, so
+ *   the padding of empty trailing cells leaves no trailing blanks while the
+ *   populated cells keep their alignment.
+ *
+ * RETURN VALUE
+ *   Returns OTELC_RET_OK on success, OTELC_RET_ERROR on failure.
+ */
+int flt_otel_table_format(struct flt_otel_table *ptr)
+{
+	size_t i, j, rows = 0, *width = NULL;
+	int    retval = OTELC_RET_ERROR;
+
+	OTELC_FUNC("%p", ptr);
+
+	if ((ptr == NULL) || (ptr->columns == 0))
+		OTELC_RETURN_INT(retval);
+
+	/* The data row count is that of the column holding the most cells. */
+	for (i = 0; i < ptr->columns; i++)
+		if (ptr->column[i].length > rows)
+			rows = ptr->column[i].length;
+
+	width    = OTELC_CALLOC(ptr->columns, sizeof(*width));
+	ptr->row = OTELC_CALLOC(rows + 1, sizeof(*(ptr->row)));
+	if ((width == NULL) || (ptr->row == NULL)) {
+		OTELC_SFREE(width);
+		OTELC_SFREE_CLEAR(ptr->row);
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	/* Size each column to the widest of its title and its cells. */
+	for (i = 0; i < ptr->columns; i++) {
+		const struct flt_otel_table_column *col = &(ptr->column[i]);
+
+		width[i] = strlen(col->title);
+		for (j = 0; j < col->length; j++) {
+			size_t len = (col->data[j] == NULL) ? 0 : strlen(col->data[j]);
+
+			if (len > width[i])
+				width[i] = len;
+		}
+	}
+
+	/* Line 0 is the header of titles; the rest hold the cell data. */
+	for (j = 0; j <= rows; j++) {
+		char  *line = NULL;
+		size_t len;
+
+		for (i = 0; i < ptr->columns; i++) {
+			const struct flt_otel_table_column *col = &(ptr->column[i]);
+			const char                         *cell, *sep = (i == 0) ? "" : "  ";
+
+			cell = (j == 0) ? col->title : (((j - 1) < col->length) ? col->data[j - 1] : NULL);
+			if (cell == NULL)
+				cell = "";
+
+			/*
+			 * flag_left selects left alignment, otherwise the
+			 * column is right-aligned.
+			 */
+			(void)memprintf(&line, col->flag_left ? "%s%s%-*s" : "%s%s%*s", (line == NULL) ? "" : line, sep, (int)width[i], cell);
+		}
+
+		/*
+		 * Right-trim the padding of empty trailing cells; aligned cells
+		 * keep theirs.
+		 */
+		len = (line == NULL) ? 0 : strlen(line);
+		while ((len > 0) && (line[len - 1] == ' '))
+			line[--len] = '\0';
+
+		ptr->row[j] = line;
+	}
+
+	OTELC_SFREE(width);
+
+	ptr->rows = rows + 1;
+	retval    = OTELC_RET_OK;
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_table_free - aligned table deallocation
+ *
+ * SYNOPSIS
+ *   void flt_otel_table_free(struct flt_otel_table **ptr)
+ *
+ * ARGUMENTS
+ *   ptr - a pointer to the address of a table
+ *
+ * DESCRIPTION
+ *   Releases the table <ptr> points to and everything it owns: the duplicated
+ *   titles and cell values, the column array, and the formatted output lines.
+ *   The table pointer is cleared on return.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+void flt_otel_table_free(struct flt_otel_table **ptr)
+{
+	size_t i, j;
+
+	OTELC_FUNC("%p:%p", OTELC_DPTR_ARGS(ptr));
+
+	if ((ptr == NULL) || (*ptr == NULL))
+		OTELC_RETURN();
+
+	for (i = 0; i < (*ptr)->columns; i++) {
+		struct flt_otel_table_column *col = &((*ptr)->column[i]);
+
+		OTELC_SFREE(col->title);
+		for (j = 0; j < col->length; j++)
+			OTELC_SFREE(col->data[j]);
+		OTELC_SFREE(col->data);
+	}
+	OTELC_SFREE((*ptr)->column);
+
+	for (i = 0; i < (*ptr)->rows; i++)
+		OTELC_SFREE((*ptr)->row[i]);
+	OTELC_SFREE((*ptr)->row);
+
+	OTELC_SFREE_CLEAR(*ptr);
+
+	OTELC_RETURN();
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8
