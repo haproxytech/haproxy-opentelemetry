@@ -69,12 +69,14 @@ connections that are of interest to us.
 2. Build instructions
 ----------------------
 
-OTel is the HAProxy filter and as such is compiled together with HAProxy.
+OTel is the HAProxy filter and as such is compiled together with HAProxy.  It
+supports all HAProxy versions from 3.4 onward; the sources are available at
+https://github.com/haproxy/haproxy/ .
 
 To communicate with an OpenTelemetry compatible backend, the OTel filter uses
-the OpenTelemetry C Wrapper library (which again uses the OpenTelemetry C++
-SDK).  This means that we must have the library installed on the system on which
-we want to compile or use HAProxy.
+the OpenTelemetry C Wrapper library version 2.2.0 or later (which again uses
+the OpenTelemetry C++ SDK).  This means that we must have the library installed
+on the system on which we want to compile or use HAProxy.
 
 Instructions for compiling and installing the required library can be found at
 https://github.com/haproxytech/opentelemetry-c-wrapper .

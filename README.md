@@ -41,7 +41,10 @@ observability framework.
 
 The filter requires the
 [OpenTelemetry C Wrapper](https://github.com/haproxytech/opentelemetry-c-wrapper)
-library, which wraps the OpenTelemetry C++ SDK.
+library version 2.2.0 or later, which wraps the OpenTelemetry C++ SDK.
+
+It supports all [HAProxy](https://github.com/haproxy/haproxy/) versions from
+3.4 onward.
 
 ### Building
 
