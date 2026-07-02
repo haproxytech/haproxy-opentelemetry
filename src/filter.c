@@ -1481,9 +1481,9 @@ static int flt_otel_ops_stream_start(struct stream *s, struct filter *f)
  *
  * DESCRIPTION
  *   It is called when a backend is set for a stream.  This callback will be
- *   called for all filters attached to a stream (frontend and backend).  Note
- *   this callback is not called if the frontend and the backend are the same.
- *   It fires the on-backend-set event.
+ *   called for all filters attached to a stream (frontend and backend), even
+ *   when the frontend and the backend are the same proxy.  It fires the
+ *   on-backend-set event.
  *
  * RETURN VALUE
  *   Returns a negative value if an error occurs, any other value otherwise.

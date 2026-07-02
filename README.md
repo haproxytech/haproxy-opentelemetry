@@ -78,7 +78,7 @@ make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_INC=/opt/
 | `OTEL_DEBUG`    | Compile in debug mode                                 |
 | `OTEL_INC`      | Force path to opentelemetry-c-wrapper include files   |
 | `OTEL_LIB`      | Force path to opentelemetry-c-wrapper library         |
-| `OTEL_RUNPATH`  | Add opentelemetry-c-wrapper RUNPATH to executable     |
+| `OTEL_RUNPATH`  | Add opentelemetry-c-wrapper RUNPATH (needs OTEL_LIB)  |
 | `OTEL_STATIC`   | Pass --static to pkg-config for static linking        |
 | `OTEL_USE_VARS` | Enable context propagation via HAProxy variables      |
 
@@ -103,7 +103,7 @@ PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 TARGET=linux-glibc EXTRA_MAKE="../ha
 If the filter is built in, the output contains:
 
 ```
-Built with OpenTelemetry support (C++ version 1.26.0, C Wrapper version 2.0.0-862).
+Built with OpenTelemetry support (C++ version 1.26.0, C Wrapper version 2.2.0-868).
 	[OTEL] opentelemetry
 ```
 
@@ -243,8 +243,8 @@ current value.
 
 ### Performance
 
-Benchmark results from the standalone (`sa`) configuration, which exercises all
-events (worst-case scenario):
+Benchmark results from the standalone (`sa`) configuration, the heaviest of the
+benchmarked scenarios (worst case):
 
 | Rate limit | Req/s  | Avg latency | Overhead |
 |------------|--------|-------------|----------|
@@ -263,9 +263,11 @@ Detailed methodology and additional results are in the `test/` directory.
 
 The `test/` directory contains ready-to-run example configurations:
 
-- **sa** -- standalone; the most comprehensive example, demonstrating spans,
+- **sa** -- standalone; the benchmark reference example, demonstrating spans,
   attributes, events, links, baggage, status, metrics, log records, ACL
   conditions and idle-timeout events.
+- **full** -- extends `sa` with the remaining lifecycle events; covers every
+  filter event except `on-http-tarpit-request`.
 - **fe/be** -- distributed tracing across two cascaded HAProxy instances using
   HTTP header-based context propagation.
 - **ctx** -- context propagation via HAProxy variables using the inject/extract
@@ -284,10 +286,11 @@ Start a Jaeger all-in-one container:
 docker run -d --name jaeger -p 4317:4317 -p 4318:4318 -p 16686:16686 jaegertracing/all-in-one:latest
 ```
 
-Run one of the test configurations:
+Run one of the test configurations from the `test/` directory (each script
+resolves the HAProxy binary and its configuration files relative to it):
 
 ```
-./test/run-sa.sh
+cd test && ./run-sa.sh
 ```
 
 Open the Jaeger UI at `http://localhost:16686` to view traces.

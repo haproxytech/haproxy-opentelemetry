@@ -36,6 +36,7 @@ with runner scripts.
   |   |-- http.h         HTTP header manipulation
   |   |-- otelc.h        Span context inject/extract wrappers
   |   |-- vars.h         HAProxy variable integration
+  |   |-- sample.h       Sample fetch names (otel.context, otel.bytes_*)
   |   |-- util.h         String conversion, sample helpers
   |   |-- group.h        Group action (HAProxy rule integration)
   |   `-- cli.h          CLI command interface
@@ -56,15 +57,25 @@ with runner scripts.
   `-- test/
       |-- copy-yml.sh    YAML configuration transformer
       |-- test-speed.sh  Performance benchmarking runner
-      |-- run-sa.sh      Standalone test runner
+      |-- run-test-config.sh  Single-instance runner (real file)
+      |-- run-sa.sh      Standalone test runner (symlink)
+      |-- run-full.sh    Full event-coverage test runner (symlink)
       |-- run-fe-be.sh   Frontend-backend chain runner
-      |-- run-ctx.sh     Context propagation test runner
-      |-- run-cmp.sh     Comparison test runner
+      |-- run-ctx.sh     Context propagation test runner (symlink)
+      |-- run-cmp.sh     Comparison test runner (symlink)
+      |-- run-tcp.sh     TCP-mode test runner (symlink)
+      |-- run-empty.sh   Empty configuration test runner (symlink)
+      |-- otlp_http-recorder.py  OTLP/HTTP traffic recorder
+      |-- otlp_http-replay.py    OTLP/HTTP traffic replayer
+      |-- haproxy-common.cfg     Shared HAProxy configuration part
+      |-- index.html     Static page served by the origin server
       |-- sa/            Standalone test configs
+      |-- full/          Full event-coverage test configs
       |-- fe/            Frontend-only test configs
       |-- be/            Backend-only test configs
       |-- ctx/           Context propagation test configs
       |-- cmp/           Comparison test configs
+      |-- tcp/           TCP-mode test configs
       `-- empty/         Minimal/empty configuration test
 
 
@@ -84,9 +95,10 @@ Build options:
   OTEL_DEBUG=1      Compile with DEBUG_OTEL; links the _dbg variant of the
                     wrapper library and enables the debug-only flt_ops callbacks
                     deinit_per_thread, http_payload and http_reset in filter.c.
-  OTEL_USE_VARS=1   Compile vars.c; enables USE_OTEL_VARS which allows span
-                    context propagation via HAProxy transaction variables in
-                    addition to HTTP headers.
+  OTEL_USE_VARS=1   Define USE_OTEL_VARS (and USE_OTEL_VARS_NAME when struct
+                    var has a 'name' member), which allows span context
+                    propagation via HAProxy transaction variables in addition
+                    to HTTP headers; vars.c itself is always compiled.
   OTEL_INC=<path>   Manual include path for the C wrapper.
   OTEL_LIB=<path>   Manual library path for the C wrapper.
   OTEL_RUNPATH=1    Embed RPATH to the wrapper library.
@@ -154,6 +166,7 @@ executes all referenced scopes when the rule fires.
 
   otel-scope <name>
       otel-event <event-name> [{ if | unless } <condition>]
+      idle-timeout <time>
       extract <name-prefix> [use-vars | use-headers]
       span <name> [parent <ref>] [link <ref>] [root] [kind <kind>]
         link { <ref> ... | <ref> attr <key> <sample> ... }
@@ -161,6 +174,7 @@ executes all referenced scopes when the rule fires.
         event <name> [time [<unit>] <sample>] <key> <sample> ... [{ if | unless } <condition>]
         baggage <key> <sample> ... [{ if | unless } <condition>]
         status <code> [<sample> ...] [{ if | unless } <condition>]
+        exception <type> [message <sample> ...] [attr <key> <sample> ...] [{ if | unless } <condition>]
         inject <name-prefix> [use-vars] [use-headers]
       finish <name> ...
       instrument <type> <name> ... / instrument update <name> ...
@@ -222,6 +236,8 @@ The full init/free chain for all structures:
         flt_otel_conf_link       generated
         flt_otel_conf_sample     generated + _init_ex()
           flt_otel_conf_sample_expr  generated
+        flt_otel_conf_exception  generated
+          flt_otel_conf_sample     generated (message, attributes)
       flt_otel_conf_str        generated (for spans_to_finish)
       flt_otel_conf_instrument generated
       flt_otel_conf_log_record generated
@@ -290,7 +306,10 @@ and the keyword parser via INITCALL1 (parser.c).
     - Sets pre_analyzers and post_analyzers bitmasks from the instrumentation's
       aggregated analyzer flags.  AN_REQ_WAIT_HTTP and AN_RES_WAIT_HTTP are
       placed in post_analyzers because those analyzers can only be used in the
-      post_analyze callback.  AN_REQ_HTTP_TARPIT is excluded from pre_analyzers.
+      post_analyze callback.  AN_REQ_HTTP_TARPIT stays in pre_analyzers; it is
+      left out only when channel_start_analyze force-injects the pre_analyzers
+      into the channel, so the tarpit event fires only when a tarpit rule has
+      armed that analyzer itself.
 
   flt_otel_ops_detach():
     - Frees the runtime context, which finishes all remaining active spans and
@@ -331,11 +350,14 @@ Each event entry carries:
   - an_bit:           the HAProxy analyzer bit (AN_REQ_*, AN_RES_*)
   - an_name:          the analyzer bit name (e.g. "AN_REQ_HTTP_PROCESS_FE")
   - smp_opt_dir:      sample fetch direction (REQ or RES)
-  - smp_val_fe/be:    reserved SMP_VAL_FE_*/SMP_VAL_BE_* fetch-location masks
-                      for a future fetch-validity check (mirrors the SPOE
-                      filter's per-event mapping; not read yet)
+  - smp_val_fe/be:    SMP_VAL_FE_*/SMP_VAL_BE_* fetch-location masks for the
+                      event's processing point (mirrors the SPOE filter's
+                      per-event mapping); flt_otel_ops_check() ORs the two into
+                      the location a bound scope's fetches and conditions are
+                      validated against
   - flag_http_inject: whether span context can be injected into HTTP headers
                       at this point
+  - flag_http_only:   whether the event fires only on an HTTP-mode proxy
   - name:             configuration event name (e.g. "on-frontend-http-request")
 
 Events with an_bit == 0 are pseudo-events not tied to any channel
@@ -379,7 +401,7 @@ and response fetches.
 
   stream_set_backend(s, f, be):
     - Fires on-backend-set with chn=&s->req.
-    - Called when a backend is assigned (skipped if frontend == backend).
+    - Called when a backend is assigned, the frontend itself included.
 
   stream_stop(s, f):
     - Fires on-stream-stop with chn=NULL.
@@ -392,7 +414,8 @@ and response fetches.
       when the filter is disabled for the stream.
 
   channel_start_analyze(chn):
-    - Enables the per-channel analyzers from pre_analyzers.
+    - Enables the per-channel analyzers from pre_analyzers (except
+      AN_REQ_HTTP_TARPIT, which only an armed tarpit rule may enable).
     - Fires on-client-session-start (request) or on-server-session-start
       (response).
 
@@ -444,8 +467,8 @@ and response fetches.
           scope_span (by name) or creates a new one with resolved parent
           reference.
        b. Resolves span links against the runtime context -- first searching
-          active spans, then extracted contexts.  Unresolved links produce a
-          WARNING-level message and are skipped.
+          active spans, then extracted contexts.  Unresolved links are skipped
+          (a debug build traces them; a release build stays silent).
        c. Evaluates attributes, events, baggages, and status from sample
           expressions via flt_otel_sample_add().
        d. Calls flt_otel_scope_run_span() which:
@@ -494,6 +517,8 @@ and response fetches.
     analyzers      Bitmask of analyzers that have actually executed.
     idle_timeout   Idle timeout interval in milliseconds (0 = off).
     idle_exp       Tick at which the next idle timeout fires.
+    bytes_in       Raw payload bytes seen on the request channel (TCP mode).
+    bytes_out      Raw payload bytes seen on the response channel (TCP mode).
     spans          Linked list of flt_otel_scope_span.
     contexts       Linked list of flt_otel_scope_context.
 
@@ -531,8 +556,9 @@ and response fetches.
   flt_otel_scope_data:
     baggage        Key-value array for baggage items.
     attributes     Key-value array for span attributes.
-    events         Linked list of flt_otel_scope_data_event (each with name
-                   + key-value array).
+    events         Linked list of flt_otel_scope_data_event (each with name,
+                   an optional per-event timestamp in ts / ts_set, and a
+                   key-value array).
     links          Linked list of flt_otel_scope_data_link (each with span
                    and/or context pointer).
     status         Status code and description string.
@@ -596,7 +622,8 @@ At scope execution time (event.c, flt_otel_scope_run), for each configured link:
   2. If not found in spans, the name is searched in rt_ctx->contexts (extracted
      scope_context entries).  If found, the OTel span_context pointer is
      captured.
-  3. If neither found, a WARNING is logged and the link is skipped.
+  3. If neither is found, the link is skipped (a debug build traces the
+     miss; a release build stays silent).
   4. A flt_otel_scope_data_link node is allocated and appended to the scope
      data's links list.
 
@@ -669,9 +696,10 @@ Enabled with OTEL_USE_VARS=1.  Provides an alternative propagation mechanism
 using HAProxy transaction-scoped variables.
 
 Variable names are normalized: dashes and spaces are replaced with special
-characters to comply with HAProxy variable naming rules.  A meta-variable
-tracks the list of context variable names so they can be enumerated for
-extraction.
+characters to comply with HAProxy variable naming rules.  In a build without
+USE_OTEL_VARS_NAME, a meta-variable tracks the list of context variable names
+so they can be enumerated for extraction; with it, the variable store is scanned
+directly by name prefix.
 
 Key functions:
   flt_otel_var_register()   Registers a variable with HAProxy.
@@ -730,8 +758,10 @@ pool.  This ensures OTel objects benefit from HAProxy's pool allocator.
 ----------------------------------------------------------------------
 
   cli.c registers commands under "flt-otel" for runtime control:
-  - Setting the debug level.
-  - Enabling/disabling the filter on the fly.
+  - Introspection: status, instruments and scopes reports.
+  - Runtime switches: enable/disable, hard-errors/soft-errors, logging, rate,
+    reset-errors, and -- in a debug build -- the debug level.
+  - Data control: flush, which force-exports the buffered telemetry.
 
 Logging can be independently controlled via the instrumentation's logging
 flags (ON, NOLOGNORM).  Log output goes to the log servers configured in the
@@ -769,10 +799,14 @@ The debug level is a bitmask that can be adjusted at runtime via the CLI.
 
 16.1  Test Scenarios
 
-  sa    Standalone: comprehensive test exercising all request and response
-        events, span links (both inline and standalone syntax), events with data
-        capture, baggage, and the full span hierarchy from client session start
-        to server session end.
+  sa    Standalone: comprehensive test exercising most request and response
+        events (six are left to the 'full' configuration), span links (both
+        inline and standalone syntax), events with data capture, baggage, and
+        the full span hierarchy from client session start to server session
+        end.
+
+  full  Full event coverage: extends sa with the remaining lifecycle events,
+        covering every filter event except on-http-tarpit-request.
 
   fe    Frontend-only: tests the request-side span chain with context injection
         into HTTP headers.
@@ -787,25 +821,41 @@ The debug level is a bitmask that can be adjusted at runtime via the CLI.
   cmp   Comparison: simplified configuration made for comparison with other
         tracing implementations.
 
+  tcp   TCP mode: traces the raw connection on a TCP-mode proxy and counts the
+        forwarded payload via the otel.bytes_in / otel.bytes_out fetches.
+
   empty Minimal: validates that an empty configuration (only the
         instrumentation block, no scopes) does not crash.
 
 16.2  Test Runners
 
-All runners are POSIX shell scripts (/bin/sh).  They accept an optional HAProxy
-binary path and log to test/_logs/.
+All runners are POSIX shell scripts (/bin/sh) meant to be run from the test/
+directory.  The run-*.sh runners accept an optional HAProxy binary path and
+log to test/_logs/; test-speed.sh takes [-d duration] [-r rate-limits] and a
+configuration name instead.
 
+  run-test-config.sh  Single-instance runner: derives the configuration
+                directory from the name it is invoked under (run-<dir>.sh).
+                The per-configuration runners below are symlinks to it.
   run-sa.sh     Runs a single HAProxy instance with sa/ config.
+  run-full.sh   Runs a single HAProxy instance with full/ config.
   run-cmp.sh    Runs a single HAProxy instance with cmp/ config.
-  test-speed.sh Runs performance benchmarks for one or all configurations.
   run-ctx.sh    Runs a single HAProxy instance with ctx/ config.
+  run-tcp.sh    Runs a single HAProxy instance with tcp/ config.
+  run-empty.sh  Runs a single HAProxy instance with empty/ config.
   run-fe-be.sh  Launches two HAProxy instances (frontend on port 10080, backend
                 on port 11080) forming a trace propagation chain.  Handles
-                graceful shutdown via SIGUSR1.
+                graceful shutdown via SIGUSR1.  A separate script, not a
+                symlink.
+  test-speed.sh Runs performance benchmarks for one or all configurations.
 
   copy-yml.sh   Transforms a template YAML configuration by replacing
                 placeholders with test-specific values (service names, file
                 suffixes, etc.).
+  otlp_http-recorder.py  Records incoming OTLP/HTTP requests to files, with
+                optional forwarding to an upstream collector.
+  otlp_http-replay.py    Replays previously recorded OTLP/HTTP requests to a
+                collector.
 
 16.3  Exporter Configuration
 
@@ -1055,14 +1105,21 @@ the span with data collected during scope execution:
 
   Events (event.c):
     For each event in data->events (iterated in reverse insertion order):
-    span->add_event_kv_n(event->name, ts_system, event->attr, event->cnt)
-    adds a named event with a wall-clock timestamp and key-value
-    attributes.
+    span->add_event_kv_n(event->name, ts, event->attr, event->cnt) adds a
+    named event with key-value attributes; ts is the event's own evaluated
+    'time' value when one was set (the node's ts / ts_set fields), the
+    wall-clock timestamp otherwise.
+
+  Exceptions (event.c):
+    Each configured 'exception' whose condition holds is emitted through
+    span->record_exception() as a span event named 'exception', carrying
+    the type, the evaluated message and any additional attributes.
 
   Status (event.c):
     span->set_status(data->status.code, data->status.description)
-    sets the span's status code and description string.  Only one status
-    per event is allowed.
+    sets the span's status code and description string.  The configured
+    status lines are tried in order and the first whose condition holds
+    provides the one status that is set.
 
 18.4.4  Span Context Injection
 
@@ -1178,6 +1235,7 @@ The flt_otel_conf_instrument structure (conf.h) holds:
   bounds_num   Number of histogram bucket boundaries.
   attributes   List of flt_otel_conf_sample entries (update-form only).
   ref          Pointer to the create-form instrument (update-form only).
+  cond         Optional if/unless ACL condition gating the recording.
 
 18.5.3  Meter Initialization and Startup
 
@@ -1205,12 +1263,12 @@ passes during scope execution.
     b. Instrument creation: meter->create_instrument() is called with
        the instrument name, description, unit, type and callback data.
        On success, the returned index is stored atomically; on failure,
-       the idx is reset to UNSET.  If the instrument has an explicit
-       aggregation type or histogram bucket boundaries, meter->add_view()
-       is called before instrument creation to register a view with the
-       configured aggregation strategy and optional bounds.  When bounds
-       are present without an explicit aggregation type, histogram
-       aggregation is used automatically for backward compatibility.
+       the idx is reset to UNSET.  If the instrument carries histogram
+       bucket boundaries, meter->add_view() is called before instrument
+       creation to register a view with the configured aggregation
+       strategy and those bounds; with bounds present and no explicit
+       aggregation type, histogram aggregation is used automatically.
+       An 'aggr' type given without bounds registers no view.
 
   Pass 2 -- Update-form instruments (event.c):
 
@@ -1288,6 +1346,7 @@ The flt_otel_conf_log_record structure (conf.h) holds:
   time         Optional timestamp expression (single-entry conf_sample list).
   attributes   List of flt_otel_conf_sample entries for attributes.
   samples      List of sample expressions for the body.
+  cond         Optional if/unless ACL condition gating the record.
 
 The attributes list contains flt_otel_conf_sample entries, one per "attr"
 keyword.  Each entry's key field holds the attribute name and its sample
@@ -1340,8 +1399,8 @@ For each configured log record the function performs:
   4. Span resolution: if conf_log->span is non-NULL, the runtime
      context's spans list is searched for a scope_span with a matching
      name.  If found, the OTel span pointer is captured for correlation.
-     A missing span is non-fatal -- a WARNING is logged and the record is
-     emitted without span correlation.
+     A missing span is non-fatal: the record is emitted without span
+     correlation (a debug build traces the miss).
 
   5. Event timestamp selection: when conf_log->time is non-empty, its single
      sample is evaluated via flt_otel_sample_eval() in native mode.  A string

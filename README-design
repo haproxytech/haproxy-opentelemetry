@@ -20,18 +20,21 @@ a helper macro whose name is supplied by the expansion context.
 FLT_OTEL_EVENT_DEFINES (event.h) drives the event system.  Each entry has the
 form:
 
-  FLT_OTEL_EVENT_DEF(NAME, CHANNEL, REQ_AN, RES_AN, HTTP_INJ, "string")
+  FLT_OTEL_EVENT_DEF(NAME, CHANNEL, SMP_FE, SMP_BE, INJECT, HTTP_ONLY, "string")
 
 The same list is expanded twice:
 
-  - In enum FLT_OTEL_EVENT_enum (event.h) to produce symbolic constants
-    (FLT_OTEL_EVENT_NONE, FLT_OTEL_EVENT_REQ_STREAM_START, etc.) followed by
-    the FLT_OTEL_EVENT_MAX sentinel.
+  - In enum FLT_OTEL_EVENT_enum (event.h) to produce symbolic constants built
+    by pasting the channel and the name (e.g. FLT_OTEL_EVENT_REQ_INSPECT_FE,
+    or FLT_OTEL_EVENT__STREAM_START with a double underscore for a lifecycle
+    event whose channel argument is empty), followed by the FLT_OTEL_EVENT_MAX
+    sentinel.
 
   - In the flt_otel_event_data[] initializer (event.c) to produce a const table
-    of struct flt_otel_event_data entries carrying the analyzer bit, sample
-    fetch direction, valid fetch locations, HTTP injection flag and event name
-    string.
+    of struct flt_otel_event_data entries carrying the analyzer bit and name,
+    the sample fetch direction, the SMP_VAL_FE_* / SMP_VAL_BE_* fetch-validity
+    bits, the HTTP context-injection flag, the HTTP-only flag and the event
+    name string.
 
 Adding a new event requires a single line in the X-macro list.
 
@@ -104,33 +107,27 @@ default values.
 2  Type-Safe Generic Macros
 ----------------------------------------------------------------------
 
-define.h provides utility macros that use typeof() and statement expressions
-for type-safe generic programming without C++ templates.
+define.h provides utility macros -- several built on typeof() and statement
+expressions -- that centralize common expression patterns without repetitive
+boilerplate.
 
 2.1  Safe Pointer Dereferencing
 
-  FLT_OTEL_PTR_SAFE(a, b)
-    Returns 'a' if non-NULL, otherwise the default value 'b'.  Uses typeof(*(a))
-    to verify type compatibility at compile time.
-
   FLT_OTEL_DEREF(p, m, v)
-    Safely dereferences p->m, returning 'v' if 'p' is NULL.
+    Dereferences p->m and returns 'v' if 'p' is NULL -- a plain conditional
+    expression, usable wherever an expression is expected.
 
-  FLT_OTEL_DDEREF(a, m, v)
-    Safely double-dereferences *a->m, returning 'v' if either 'a' or '*a' is
-    NULL.
-
-These macros eliminate repetitive NULL checks while preserving the correct
-pointer types through typeof().
+The macro eliminates repetitive NULL checks at member access sites.
 
 2.2  String Comparison
 
   FLT_OTEL_STR_CMP(S, s)
-    Compares a runtime string 's' against a compile-time string literal 'S'.
-    Expands to a call with the literal's address and computed length, avoiding
-    repeated strlen() on known constants.
+    Compares a runtime string 's' against a compile-time string literal 'S':
+    the cached s_len field is compared with the literal's compile-time size
+    first and memcmp() only runs on a match, so no strlen() is ever repeated
+    on known constants.
 
-  FLT_OTEL_CONF_STR_CMP(s, S)
+  FLT_OTEL_CONF_STR_CMP(s, S)  (defined in conf.h)
     Compares two configuration strings using their cached length fields (from
     FLT_OTEL_CONF_STR / FLT_OTEL_CONF_HDR).  Falls through to memcmp() only when
     lengths match, providing an early-out fast path.
@@ -153,14 +150,13 @@ pointer types through typeof().
 2.4  Thread-Local Rotating Buffers
 
   FLT_OTEL_BUFFER_THR(b, m, n, p)
-    Declares a thread-local pool of 'n' string buffers, each of size 'm'.
+    Declares a thread-local pool of 'm' string buffers, each of size 'n' bytes.
     The pool index rotates on each invocation, avoiding the need for explicit
     allocation in debug formatting functions.  Each call returns a pointer to
     the next buffer via the output parameter 'p'.
 
-    Used primarily in debug-only functions (flt_otel_analyzer,
-    flt_otel_list_dump) where temporary strings must survive until their caller
-    finishes with them.
+    Used by the debug list formatter flt_otel_list_dump(), whose returned string
+    must survive until the caller finishes with it.
 
 
 3  Error Handling Architecture
@@ -180,8 +176,9 @@ Macros in define.h manage error messages:
     Used when a function must report multiple issues.
 
   FLT_OTEL_ERR_FREE(p)
-    Logs the accumulated error message at WARNING level via FLT_OTEL_ALERT,
-    then frees the string and NULLs the pointer.
+    Emits the accumulated error message as a debug-build trace (OTELC_DBG at
+    ERROR level), then frees the string and NULLs the pointer; a release build
+    only discards it.
 
 All source functions that can fail accept a char **err parameter.  The
 convention is: set *err on error, leave it alone on success.  Callers check
@@ -219,13 +216,21 @@ If an error is detected (retval == FLT_OTEL_RET_ERROR or *err != NULL):
 
   Hard-error mode (rt_ctx->flag_harderr):
     Sets rt_ctx->flag_disabled = 1, disabling the filter for the remainder of
-    the stream.  Atomically increments the disabled counter.  The error is
-    logged as "filter hard-error (disabled)".
+    the stream.  Atomically increments the n_harderr tally (and the disabled
+    counter in a counters build), and logs the error message with a " (filter
+    disabled)" suffix at level err.
 
   Soft-error mode (default):
-    The error is logged as "filter soft-error" and processing continues.  The
-    tracing data for the current event may be incomplete but the stream is not
-    affected.
+    Increments the n_softerr tally and logs the error message at level warning;
+    processing continues.  The tracing data for the current event may then be
+    incomplete but the stream is not affected.
+
+Both emissions go through FLT_OTEL_LOG_LIM (debug.h): one per-mode latch bit
+makes each error episode log only once -- a clean callback return re-arms it
+-- and a sliding frequency counter caps the output at FLT_OTEL_LOG_RATE_MAX
+lines per FLT_OTEL_LOG_RATE_PERIOD per instance (config.h), with the held-back
+lines tallied in log.suppressed and reported as a suffix on the next emitted
+line.
 
 In both modes, FLT_OTEL_RET_OK is always returned to HAProxy.  A tracing failure
 never interrupts stream processing.
@@ -257,8 +262,7 @@ operations.
 The following fields are accessed atomically across threads:
 
   conf->instr->flag_disabled  Toggled by CLI "flt-otel enable/disable".
-                              Checked in flt_otel_ops_attach() and
-                              flt_otel_is_disabled().
+                              Checked in flt_otel_ops_attach().
 
   conf->instr->flag_harderr   Toggled by CLI "flt-otel hard-errors/soft-errors".
                               Copied to rt_ctx at attach time.
@@ -266,8 +270,14 @@ The following fields are accessed atomically across threads:
   conf->instr->rate_limit     Set by CLI "flt-otel rate".
                               Read in flt_otel_ops_attach().
 
-  conf->instr->logging        Set by CLI "flt-otel logging".
-                              Copied to rt_ctx at attach time.
+  conf->instr->log.type       Set by CLI "flt-otel logging".
+                              Read at each FLT_OTEL_LOG emission.
+
+  conf->instr->log.latch      Edge-trigger bits of the rate-limited runtime
+  conf->instr->log.suppressed log and its held-back line tally (section 3.3).
+
+  conf->instr->n_harderr      Runtime-error tallies shown by "flt-otel status"
+  conf->instr->n_softerr      and cleared by "flt-otel reset-errors".
 
   flt_otel_drop_cnt           Incremented in flt_otel_log_handler_cb().
                               Read by CLI "flt-otel status".
@@ -391,12 +401,16 @@ sample to an otelc_value, it dispatches based on type:
   FLT_OTEL_EVENT_SAMPLE_EVENT
     -> flt_otel_sample_add_event(&data->events, sample, &value)
        Groups attributes by event name; creates a new flt_otel_scope_data_event
-       node if the event name is not yet present.
+       node if the event name is not yet present.  A sample's 'time' clause
+       fills the node's ts field and sets ts_set, overriding the span timestamp
+       at emission.
 
   FLT_OTEL_EVENT_SAMPLE_STATUS
     -> flt_otel_sample_set_status(&data->status, sample, &value, err)
-       Sets the status code from sample->extra.num and the description from the
-       evaluated value.  Rejects duplicate status settings.
+       Sets the status code from the int32 carried in the sample's extra data
+       and the description from the evaluated value.  Status lines are tried
+       in configuration order and only the first whose condition holds runs;
+       a guard against setting the status twice remains as a safeguard.
 
 5.4  Growable Key-Value Arrays
 
@@ -404,7 +418,7 @@ Attribute and baggage arrays use a lazy-allocation / grow-on-demand pattern via
 flt_otel_sample_add_kv() (util.c):
 
   - Initial allocation: FLT_OTEL_ATTR_INIT_SIZE (8) elements via otelc_kv_new().
-  - Growth: FLT_OTEL_ATTR_INC_SIZE (4) additional elements via otelc_kv_resize()
+  - Growth: FLT_OTEL_ATTR_INC_SIZE (4) additional elements via OTELC_REALLOC()
     when the array is full.
   - The cnt field tracks used elements; size tracks total capacity.
 
@@ -500,11 +514,10 @@ HAProxy's pool allocator for cache-friendly allocation.
 flt_otel_trash_alloc() (pool.c) provides temporary scratch buffers of
 global.tune.bufsize bytes.  When USE_TRASH_CHUNK is defined, it uses HAProxy's
 alloc_trash_chunk(); otherwise it manually allocates a buffer structure and data
-area.  Trash buffers are used for:
-
-  - Log-format evaluation in metric recording and log record emission.
-  - HTTP header name construction in flt_otel_http_header_set().
-  - Temporary string assembly in sample evaluation.
+area.  Trash buffers serve a single user, HTTP header name construction in
+flt_otel_http_header_set().  Metric recording, log-record emission and sample
+evaluation do not use them: those paths allocate their scratch buffers from
+the heap instead (OTELC_CALLOC / OTELC_MALLOC of global.tune.bufsize bytes).
 
 7.3  Scope Data Lifecycle
 
@@ -569,14 +582,15 @@ component separators.
 Two implementation paths exist based on the USE_OTEL_VARS_NAME compile flag:
 
   With USE_OTEL_VARS_NAME:
-    A binary tracking buffer (stored as a HAProxy variable) records the names
-    of all context variables.  flt_otel_ctx_loop() iterates length-prefixed
-    entries in this buffer, calling a callback for each.  This enables efficient
-    enumeration without scanning the full variable store.
+    Direct CEB tree traversal on the HAProxy variable store, matching on the
+    prefix of the name that struct var carries in this HAProxy version.  This
+    is the simpler path.
 
   Without USE_OTEL_VARS_NAME:
-    Direct CEB tree traversal on the HAProxy variable store with prefix
-    matching.  This is simpler but potentially slower for large variable sets.
+    A binary tracking buffer (stored as a HAProxy variable) records the names
+    of all context variables.  flt_otel_ctx_loop() iterates length-prefixed
+    entries in this buffer, calling a callback for each entry.  This enables
+    enumeration although the stored variables carry no scannable names.
 
 The choice is auto-detected at build time by checking whether struct var has
 a 'name' member.
@@ -593,8 +607,10 @@ flags.  This enables:
   - Additional flt_ops callbacks: deinit_per_thread, http_payload and
     http_reset.  In non-debug builds these are NULL.
 
-  - FLT_OTEL_USE_COUNTERS (config.h), which activates the per-event counters in
-    flt_otel_counters (attached[], disabled[] arrays).
+  - FLT_OTEL_USE_COUNTERS (config.h), which activates the attach and disable
+    outcome counters in flt_otel_counters, ie the attached[] and disabled[]
+    arrays.  The per-event dispatch counters (cnt.event[]) are gated directly
+    by DEBUG_OTEL.
 
   - Debug-only functions throughout the codebase, marked with [D] in
     README-func: flt_otel_scope_data_dump, flt_otel_http_headers_dump,
@@ -626,6 +642,10 @@ Its behavior depends on the logging flags:
 
 These flags are set via the "option dontlog-normal" configuration keyword or the
 "flt-otel logging" CLI command.
+
+Runtime data-path errors do not call FLT_OTEL_LOG directly: they go through
+FLT_OTEL_LOG_LIM, which adds the per-episode edge trigger and the sliding rate
+limit of section 3.3, so a recurring fault cannot flood the log servers.
 
 9.4  Counter System
 
@@ -740,9 +760,12 @@ keyword sequences to handler functions with access level requirements.
   "flt-otel disable"      ACCESS_LVL_ADMIN.  Sets flag_disabled.
   "flt-otel hard-errors"  ACCESS_LVL_ADMIN.  Sets flag_harderr.
   "flt-otel soft-errors"  ACCESS_LVL_ADMIN.  Clears flag_harderr.
+  "flt-otel reset-errors" ACCESS_LVL_ADMIN.  Clears the runtime-error tallies
+                          and the log rate-limiter state.
   "flt-otel logging"      ACCESS_LVL_ADMIN for setting; any for reading.
   "flt-otel rate"         ACCESS_LVL_ADMIN for setting; any for reading.
-  "flt-otel debug"        ACCESS_LVL_ADMIN.  DEBUG_OTEL only.
+  "flt-otel debug"        ACCESS_LVL_ADMIN for setting; any for reading.
+                          DEBUG_OTEL only.
   "flt-otel flush"        ACCESS_LVL_ADMIN.  Forces a telemetry export.
   "flt-otel instruments"  No access restriction.  Lists metric instruments.
   "flt-otel scopes"       No access restriction.  Lists scopes and groups.
@@ -761,14 +784,18 @@ filter in every proxy that has it configured.
 
 12.3  Status Report
 
-The "flt-otel status" command assembles a dynamic string via memprintf()
-containing:
+The "flt-otel status" command assembles its report via memprintf(), rendering
+the tabular parts with the column-oriented table builder (util.c), and contains:
 
   - Library versions (C++ SDK and C wrapper).
   - Debug level (DEBUG_OTEL only).
-  - Dropped diagnostic message count.
+  - The per-signal export pipeline table -- the queued, dropped, exported and
+    failed counts and the age of the last successful export -- filled in by
+    otelc_pipeline_status_get().
+  - Dropped diagnostic message count ('sdk diagnostics').
   - Per-proxy: config file, group/scope counts, instrumentation details, rate
-    limit, error mode, disabled state, logging state, analyzer bitmask, and
+    limit, error mode, disabled state, logging state, runtime-error tallies
+    (hard, soft, suppressed), the minimum idle timeout, analyzer bitmask, and
     counters (if FLT_OTEL_USE_COUNTERS).
 
 12.4  Introspection and Flush

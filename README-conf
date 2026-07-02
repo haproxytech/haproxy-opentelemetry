@@ -65,7 +65,7 @@ The complete ownership tree, from root to leaves:
   |   +-- flt_otel_conf_ph                   (ph_groups list)
   |   +-- flt_otel_conf_ph                   (ph_scopes list)
   |   +-- struct acl                         (acls list, HAProxy-owned type)
-  |   +-- struct logger                      (proxy_log.loggers, HAProxy type)
+  |   +-- struct logger                      (log.proxy.loggers, HAProxy type)
   +-- flt_otel_conf_group                    (groups list)
   |   +-- flt_otel_conf_ph                   (ph_scopes list)
   +-- flt_otel_conf_scope                    (scopes list)
@@ -79,7 +79,10 @@ The complete ownership tree, from root to leaves:
       |   +-- flt_otel_conf_sample           (baggages list)
       |   |   +-- flt_otel_conf_sample_expr  (exprs list)
       |   +-- flt_otel_conf_sample           (statuses list)
-      |       +-- flt_otel_conf_sample_expr  (exprs list)
+      |   |   +-- flt_otel_conf_sample_expr  (exprs list)
+      |   +-- flt_otel_conf_exception        (exceptions list)
+      |       +-- flt_otel_conf_sample       (message and attributes lists)
+      |           +-- flt_otel_conf_sample_expr  (exprs list)
       +-- flt_otel_conf_str                  (spans_to_finish list)
       +-- flt_otel_conf_instrument           (instruments list)
       |   +-- flt_otel_conf_sample           (samples list)
@@ -143,13 +146,23 @@ list -- it is the unique root, owned by the filter instance.
   rate_limit             Rate limit as uint32 ([0..2^32-1] maps [0..100]%).
   flag_harderr           Hard-error mode flag.
   flag_disabled          Disabled flag.
-  logging                Logging mode (0, 1, or 3).
-  proxy_log              The log server list (HAProxy proxy structure).
+  flag_data_req          Request channel needs a data filter for http_end.
+  flag_data_res          Response channel needs a data filter for http_end.
+  flag_started           Atomic claim so the OTel SDK is started once.
+  log                    Runtime-log emission state (struct flt_otel_log).
+  n_harderr              Hard-error episodes (filter disabled), for the CLI.
+  n_softerr              Soft-error occurrences (error swallowed), for the CLI.
   analyzers              Defined channel analyzers bitmask.
   idle_timeout           Minimum idle timeout across scopes (ms, 0 = off).
   acls                   ACLs declared on this tracer.
   ph_groups              List of all used groups (placeholders).
   ph_scopes              List of all used scopes (placeholders).
+
+The embedded flt_otel_log structure carries the runtime-log emission state:
+the logging mode ('type', 0, 1 or 3), the log server list ('proxy', a HAProxy
+proxy structure whose loggers list holds the configured targets), the sliding
+emission-rate window ('rate'), the per-episode latch bits ('latch') and the
+count of suppressed log lines ('suppressed').
 
 Exactly one instrumentation block is allowed per filter instance.  The parser
 stores a pointer to it in flt_otel_conf.instr.
@@ -197,11 +210,24 @@ through groups).
   events                     The set of events with key-value attributes.
   baggages                   The set of key:value baggage items.
   statuses                   Span status code and description.
+  exceptions                 Recorded exceptions (flt_otel_conf_exception).
 
 The ref_id and ctx_id fields use FLT_OTEL_CONF_STR because they are simple name
 strings without list linkage.
 
-4.6  flt_otel_conf_instrument
+4.6  flt_otel_conf_exception
+
+  FLT_OTEL_CONF_HDR(id)  Required by macro; member <id> is not used directly.
+  type                   The exception type string ('exception.type').
+  message                Optional message value (single conf_sample list).
+  attributes             Additional event attributes (conf_sample list).
+  cond                   Optional if/unless condition gating the record.
+
+This structure backs the span 'exception' keyword: at runtime its type, the
+evaluated message and the attributes are emitted via the record_exception()
+operation as a span event named 'exception'.
+
+4.7  flt_otel_conf_instrument
 
   FLT_OTEL_CONF_HDR(id)  The name of the instrument.
   idx                    Meter instrument index: UNSET (-1) before creation,
@@ -223,7 +249,7 @@ description, unit, and optional histogram bounds) and update-form (references
 an existing instrument via the ref pointer).  Update-form attributes are stored
 as flt_otel_conf_sample entries and evaluated at runtime.
 
-4.7  flt_otel_conf_log_record
+4.8  flt_otel_conf_log_record
 
   FLT_OTEL_CONF_HDR(id)  Required by macro; member <id> is not used directly.
   severity               The severity level.
@@ -248,12 +274,12 @@ At runtime the sample is evaluated, normalised to int64, scaled by the chosen
 unit, and packed into a struct timespec that becomes the event timestamp, while
 the wall-clock value is passed as the observed timestamp.
 
-4.8  flt_otel_conf_context
+4.9  flt_otel_conf_context
 
   FLT_OTEL_CONF_HDR(id)  The name of the context.
   flags                  Storage type from which the span context is extracted.
 
-4.9  flt_otel_conf_sample
+4.10  flt_otel_conf_sample
 
   FLT_OTEL_CONF_HDR(key)  The list containing sample names.
   fmt_string              Combined sample-expression arguments string.
@@ -265,8 +291,9 @@ the wall-clock value is passed as the observed timestamp.
   time                    Optional per-event timestamp (single sample).
   cond                    Optional if/unless condition gating this item.
 
-The extra field carries type-specific data: event name strings (OTELC_VALUE_DATA)
-for span events, status code integers (OTELC_VALUE_INT32) for span statuses.
+The extra field carries type-specific data: the event name strings (of type
+OTELC_VALUE_DATA) for span events, status code integers (OTELC_VALUE_INT32)
+for span statuses.
 
 When the sample value argument begins with the "%[" sequence, the parser treats
 it as a log-format string: the lf_used flag is set and the compiled result is
@@ -277,12 +304,12 @@ and trailing ']' are stripped before parse_logformat_string() is called.  At
 runtime, if the lf_used flag is true, the log-format expression is evaluated
 via build_logline() instead of the sample expression list.
 
-4.10  flt_otel_conf_sample_expr
+4.11  flt_otel_conf_sample_expr
 
   FLT_OTEL_CONF_HDR(fmt_expr)  The original expression format string.
   expr                         The sample expression (struct sample_expr).
 
-4.11  flt_otel_conf_set_var_ctx
+4.12  flt_otel_conf_set_var_ctx
 
   FLT_OTEL_CONF_HDR(name)  The HAProxy variable name.
   ref                      The referenced span or context name.
@@ -293,7 +320,7 @@ via build_logline() instead of the sample expression list.
 This structure backs the set-var-ctx directive: it captures a field of a
 referenced span or extracted context into a HAProxy variable at runtime.
 
-4.12  flt_otel_conf_unset_var
+4.13  flt_otel_conf_unset_var
 
   FLT_OTEL_CONF_HDR(id)  Required by macro; member <id> is not used directly.
   vars                   The variable names to remove (flt_otel_conf_str list).
@@ -302,7 +329,7 @@ referenced span or extracted context into a HAProxy variable at runtime.
 This structure backs the unset-var directive: it groups one or more variable
 names with an optional condition, so the whole removal is gated as a unit.
 
-4.13  Simple Types
+4.14  Simple Types
 
   flt_otel_conf_hdr   Generic header; used for simple named entries.
   flt_otel_conf_str   String holder (identical to conf_hdr in layout, but the
@@ -349,7 +376,11 @@ insertion succeed:
     LIST_INIT for exprs.  Calls lf_expr_init for lf_expr.
 
   conf_span:
-    LIST_INIT for links, attributes, events, baggages, statuses.
+    LIST_INIT for links, attributes, events, baggages, statuses, exceptions.
+    Sets kind to OTELC_SPAN_KIND_SERVER.
+
+  conf_exception:
+    LIST_INIT for message, attributes.
 
   conf_scope:
     LIST_INIT for acls, contexts, spans, spans_to_finish, instruments,
@@ -370,7 +401,7 @@ insertion succeed:
 
   conf_instr:
     Sets rate_limit to FLT_OTEL_FLOAT_U32(100.0) (100%).  Calls init_new_proxy
-    for proxy_log.  LIST_INIT for acls, ph_groups, ph_scopes.
+    for log.proxy.  LIST_INIT for acls, ph_groups, ph_scopes.
 
 Types with no custom body (hdr, str, link, ph, sample_expr, context,
 set_var_ctx) rely entirely on the zeroed OTELC_CALLOC allocation.
@@ -435,12 +466,17 @@ freed while the parent is still valid:
 
   conf_span:
     Frees ref_id and ctx_id strings.
-    Destroys links, attributes, events, baggages, and statuses lists.
+    Destroys the links, attributes, events, baggages, statuses, and exceptions
+    lists.
+
+  conf_exception:
+    Frees the type string.  Destroys the message and attributes lists and frees
+    the optional ACL condition.
 
   conf_instrument:
-    Frees description, unit, and bounds.  Destroys the samples list.
-    Destroys the attr key-value array via otelc_kv_destroy.  Frees the optional
-    ACL condition.
+    Frees description, unit, and bounds.  Destroys the samples list and the
+    attributes list (the update-form attributes, stored as conf_sample
+    entries).  Frees the optional ACL condition.
 
   conf_log_record:
     Frees event_name and span strings.  Destroys the time, attributes and
@@ -462,7 +498,7 @@ freed while the parent is still valid:
 
   conf_instr:
     Frees the config string.  Prunes and frees each ACL entry.  Frees each
-    logger entry from proxy_log.loggers.  Destroys the ph_groups and ph_scopes
+    logger entry from log.proxy.loggers.  Destroys the ph_groups and ph_scopes
     lists.
 
 Types with no custom cleanup (hdr, str, link, ph, context) only run the base
@@ -513,4 +549,4 @@ header.
   conf_unset_var   id         macro   vars
   conf_scope       id         macro   sub-lists
   conf_group       id         macro   ph_scopes
-  conf_instr       id         macro   rate_limit, proxy_log, acls, ph_groups, ph_scopes
+  conf_instr       id         macro   rate_limit, log.proxy, acls, ph_groups, ph_scopes

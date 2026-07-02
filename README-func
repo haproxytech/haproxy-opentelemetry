@@ -43,7 +43,8 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
 
   flt_otel_ops_init
       Filter init callback (flt_ops.init).  Called once per proxy to initialize
-      the OTel library via flt_otel_lib_init() and register CLI keywords.
+      the OTel library via flt_otel_lib_init() and register CLI keywords, and
+      declares HTX filtering (FLT_CFG_FL_HTX) for an HTTP-mode proxy.
 
   flt_otel_ops_deinit
       Filter deinit callback (flt_ops.deinit).  Destroys the tracer, meter and
@@ -54,9 +55,24 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
       configuration: checks for duplicate filter IDs, resolves group/scope
       placeholder references, verifies root span count, and sets analyzer bits.
 
+  flt_otel_check_cond_loc
+      Warns when a scope's 'if'/'unless' condition can never match at the
+      processing point where the scope runs; a NULL condition is ignored.
+
+  flt_otel_check_sample_list
+      Warns when a sample used by a scope cannot be evaluated at the processing
+      point where the scope runs; log-format expressions and fetches that
+      declare no location are left unchecked.
+
+  flt_otel_check_scope_loc
+      Walks every sample-bearing directive and condition of a scope and warns
+      about any fetch or condition that cannot be evaluated at the given
+      processing point.  Shared by the event-bound and group action checks.
+
   flt_otel_ops_init_per_thread
       Per-thread init callback (flt_ops.init_per_thread).  Starts the OTel
-      tracer thread and enables HTX filtering.
+      tracer, meter and logger on the first call only, guarded by an atomic
+      claim on the instrumentation's flag_started.
 
   flt_otel_ops_deinit_per_thread [D]
       Per-thread deinit callback (flt_ops.deinit_per_thread).
@@ -103,6 +119,10 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
   flt_otel_ops_channel_start_analyze
       Channel start-analyze callback.  Registers analyzers on the channel and
       runs the client/server session start event.
+
+  flt_otel_get_event
+      Looks up an event index in the flt_otel_event_data table by its analyzer
+      bit.
 
   flt_otel_ops_channel_pre_analyze
       Channel pre-analyze callback.  Maps the analyzer bit to an event index and
@@ -183,6 +203,17 @@ Event dispatching, metrics recording and scope/span execution engine.
       span is non-fatal -- the record is emitted without span correlation.
       A record whose 'if'/'unless' condition does not pass is skipped.
 
+  flt_otel_scope_run_set_var
+      Processes a scope's set-var directives: evaluates each sample expression
+      in string form and stores the result into the named HAProxy variable via
+      flt_otel_var_set_byname().
+
+  flt_otel_scope_run_set_var_ctx
+      Processes a scope's set-var-ctx directives: resolves the referenced span
+      or extracted context, renders the requested field via
+      flt_otel_ctx_field_to_str(), and stores it into the named HAProxy
+      variable.  An unresolved reference is skipped.
+
   flt_otel_scope_run_span
       Executes a single span: creates the OTel span on first call, adds links,
       baggage, attributes, events and status, then injects the context into HTTP
@@ -208,7 +239,8 @@ Runtime context, span and context lifecycle management.
 
   flt_otel_runtime_context_init
       Allocates and initializes the per-stream runtime context.  Generates a
-      UUID and stores it in the sess.otel.uuid HAProxy variable.
+      UUID and, in a build with OTEL_USE_VARS=1, stores it in the
+      sess.otel.uuid HAProxy variable.
 
   flt_otel_runtime_context_free
       Frees the runtime context: ends all active spans, destroys all extracted
@@ -292,6 +324,15 @@ sections.
       Parses a sample definition optionally followed by an 'if'/'unless' ACL
       condition, building the condition onto the parsed sample.
 
+  flt_otel_find_cond_pos
+      Locates the first 'if' or 'unless' keyword that introduces an optional
+      trailing ACL condition in an argument array.
+
+  flt_otel_parse_attach_cond
+      Builds the ACL condition found at a given argument position and stores it
+      into a destination pointer, so the gated item runs only when the
+      condition is met at runtime.
+
   flt_otel_parse_cfg_time
       Parses the value part of an optional 'time [s|ms|us|ns] <sample>' clause
       into a single-sample list, with the unit stored in the sample's extra.
@@ -307,6 +348,10 @@ sections.
   flt_otel_parse_check_scope
       Checks whether the current config parsing is within the correct HAProxy
       configuration scope (cfg_scope filtering).
+
+  flt_otel_kw_lookup
+      Scans a keyword/code mapping table for the entry whose keyword equals the
+      given string, returning the matching entry or NULL.
 
   flt_otel_parse_cfg_acl
       Parses the 'acl' keyword shared by the otel-instrumentation and otel-scope
@@ -358,11 +403,35 @@ sections.
       form may end with an optional if/unless condition gating the recorded
       measurement.
 
+  flt_otel_parse_cfg_log_record
+      Parses the "log-record" keyword: a required severity, the optional "id",
+      "event", "time", "span" and "attr" clauses in any order, the trailing
+      body expressions, and an optional if/unless condition.
+
+  flt_otel_parse_cfg_exception
+      Parses the "exception" keyword: the required type, the optional "message"
+      sample expressions, repeatable "attr" clauses and an optional if/unless
+      condition.
+
+  flt_otel_parse_cfg_set_var_ctx
+      Parses the set-var-ctx reference and field selector (a field name with an
+      optional parenthesised key, such as 'baggage(userId)'), plus an optional
+      if/unless condition.
+
+  flt_otel_parse_cfg_unset_var
+      Parses an unset-var directive: one or more validated variable names with
+      an optional if/unless condition gating their removal as a unit.
+
   flt_otel_parse_cfg_scope
       Section parser for the otel-scope block.  Handles keywords: otel-scope ID,
       span, link, attribute, event, baggage, status, exception, inject, extract,
       finish, otel-stop, instrument, log-record, idle-timeout, acl, otel-event,
       set-var, set-var-ctx, unset-var.
+
+  flt_otel_post_parse_ctx_autoname
+      Resolves a span context name that 'inject' deferred at parse time with
+      the '-' autoname: prefers the scope's event name, falls back to the span
+      name, and keeps the leading '-' so the injected headers stay bare.
 
   flt_otel_post_parse_cfg_scope
       Post-parse callback for otel-scope.  Checks that HTTP header injection is
@@ -425,6 +494,11 @@ generated by the FLT_OTEL_CONF_FUNC_INIT and FLT_OTEL_CONF_FUNC_FREE macros.
       Extended sample initialization: sets the key, extra data (event name or
       status code), concatenated value string, and expression count.
 
+  flt_otel_conf_sample_init_code
+      Allocates a conf_sample that carries only an int32 status code in its
+      extra data and holds no sample expressions; used for a span status
+      without a description.
+
   flt_otel_conf_sample_free
       Frees a conf_sample structure including its value, extra data, and all
       sample expressions.
@@ -437,10 +511,19 @@ generated by the FLT_OTEL_CONF_FUNC_INIT and FLT_OTEL_CONF_FUNC_FREE macros.
 
   flt_otel_conf_span_init
       Allocates and initializes a conf_span structure with empty lists for
-      links, attributes, events, baggages and statuses.
+      links, attributes, events, baggages, statuses and exceptions, and the
+      span kind defaulted to server.
 
   flt_otel_conf_span_free
       Frees a conf_span structure and all its child lists.
+
+  flt_otel_conf_exception_init
+      Allocates and initializes a conf_exception structure and its message and
+      attribute lists.
+
+  flt_otel_conf_exception_free
+      Frees a conf_exception structure: the type string, the message and
+      attributes lists, and the optional ACL condition.
 
   flt_otel_conf_instrument_init
       Allocates and initializes a conf_instrument structure.
@@ -455,6 +538,22 @@ generated by the FLT_OTEL_CONF_FUNC_INIT and FLT_OTEL_CONF_FUNC_FREE macros.
   flt_otel_conf_log_record_free
       Frees a conf_log_record structure: event_name, span, time, attributes and
       samples lists, plus the optional ACL condition.
+
+  flt_otel_conf_set_var_ctx_init
+      Allocates and initializes a conf_set_var_ctx structure with the target
+      variable name.
+
+  flt_otel_conf_set_var_ctx_free
+      Frees a conf_set_var_ctx structure: the ref and field_key strings and the
+      optional ACL condition.
+
+  flt_otel_conf_unset_var_init
+      Allocates and initializes a conf_unset_var structure with an empty list
+      of variable names.
+
+  flt_otel_conf_unset_var_free
+      Frees a conf_unset_var structure: its variable-name list and the optional
+      ACL condition.
 
   flt_otel_conf_scope_init
       Allocates and initializes a conf_scope structure with empty lists for
@@ -473,8 +572,8 @@ generated by the FLT_OTEL_CONF_FUNC_INIT and FLT_OTEL_CONF_FUNC_FREE macros.
 
   flt_otel_conf_instr_init
       Allocates and initializes a conf_instr structure.  Sets the default rate
-      limit to 100%, initializes the proxy_log, and creates empty ACL and
-      placeholder lists.
+      limit to 100%, initializes the runtime-log proxy (log.proxy), and creates
+      empty ACL and placeholder lists.
 
   flt_otel_conf_instr_free
       Frees a conf_instr structure including ACLs, loggers, config path, and
@@ -599,8 +698,22 @@ HTTP header manipulation for context propagation.
 src/vars.c
 ----------------------------------------------------------------------
 
-HAProxy variable integration for context propagation and storage.  Only compiled
-when USE_OTEL_VARS is defined.
+HAProxy variable integration for context propagation and storage.  The
+*_byname helpers at the top of the file are always compiled (they back the
+set-var, set-var-ctx and unset-var directives); the remainder of the file is
+compiled only when USE_OTEL_VARS is defined.
+
+  flt_otel_var_register_byname
+      Registers a HAProxy variable by its full name so it can be set at
+      runtime.
+
+  flt_otel_var_set_byname
+      Sets the named HAProxy variable to a string value; a NULL value is
+      treated as an empty string.
+
+  flt_otel_var_unset_byname
+      Removes the named HAProxy variable from the stream; a variable that is
+      not set is silently ignored.
 
   flt_otel_vars_scope_dump [D]
       Dumps all variables for a single HAProxy variable scope.
@@ -759,6 +872,10 @@ Utility and conversion functions.
   flt_otel_strtoll
       Parses a string to int64 with range validation.
 
+  flt_otel_qsort_compar_double
+      qsort() comparator ordering doubles ascending with a strict, transitive
+      comparison; near-equal values are left to the boundary duplicate check.
+
   flt_otel_sample_to_str
       Converts sample data to its string representation.  Handles bool, sint,
       IPv4, IPv6, str, and HTTP method types.
@@ -800,6 +917,38 @@ Utility and conversion functions.
       to evaluate the sample, then dispatches the result to the appropriate
       handler (attribute, event, baggage, status).
 
+  flt_otel_baggage_value
+      Scans a comma-separated W3C baggage carrier for the entry with the given
+      key and copies its value out, trimming spaces and dropping properties.
+
+  flt_otel_ctx_field_to_str
+      Renders the requested field of a referenced span or context as a string:
+      hex identifiers, the W3C traceparent form, tracestate entries and keyed
+      or keyless baggage.  A field that cannot be resolved yields an empty
+      string.
+
+  flt_otel_table_init
+      Allocates an empty aligned table; columns are appended one at a time and
+      no dimensions are fixed in advance.
+
+  flt_otel_table_add_column_n
+      Appends a column built from an array of cell values, duplicating the
+      title and cells; a NULL entry is kept as an empty cell.  A flag selects
+      left or right alignment.
+
+  flt_otel_table_add_column
+      Variadic wrapper around flt_otel_table_add_column_n(): gathers the cell
+      values up to a NULL terminator into an array and forwards them.
+
+  flt_otel_table_format
+      Lays the columns out into aligned, right-trimmed text lines: a header row
+      built from the column titles followed by the cell rows, each column
+      padded to its widest value and separated by two spaces.
+
+  flt_otel_table_free
+      Releases the table and everything it owns: duplicated titles and cells,
+      the column array, and the formatted output lines.
+
 
 src/group.c
 ----------------------------------------------------------------------
@@ -814,6 +963,11 @@ tcp-request / tcp-response rules.
   flt_otel_group_check
       Check callback (check_ptr) for the otel-group rule.  Resolves filter ID
       and group ID references against the proxy's filter configuration.
+
+  flt_otel_group_check_loc
+      Validates every scope of a group against the processing point of the
+      otel-group action, resolving the scopes by name and passing each to
+      flt_otel_check_scope_loc().
 
   flt_otel_group_release
       Release callback (release_ptr) for the otel-group rule.

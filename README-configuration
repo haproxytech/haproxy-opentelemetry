@@ -1,7 +1,7 @@
                    -----------------------------------------
                     HAProxy OTel filter configuration guide
                                 Version 1.0
-                        ( Last update: 2026-03-18 )
+                        ( Last update: 2026-07-02 )
                    -----------------------------------------
                          Author : Miroslav Zagorac
                    Contact : mzagorac at haproxy dot com
@@ -220,8 +220,11 @@ Example (from test/sa/otel.cfg):
           groups http_response_group
           groups http_after_response_group
 
+          scopes skip_health_path
+
           scopes on_stream_start
           scopes on_stream_stop
+          scopes on_idle_timeout
 
           scopes client_session_start
           scopes frontend_tcp_request
@@ -249,9 +252,10 @@ Supported keywords:
         name.  A reference that resolves to no span or extracted context --
         for instance a 'parent' on a context whose extraction found nothing --
         is an error, and the span is not created.
-      - 'link <ref>' adds an inline link to another span or context.  Only one
-        inline link fits the span's argument limit; use the standalone 'link'
-        keyword to add more.
+      - 'link <ref>' adds an inline link to another span or context.  It is
+        meant to be given once: the parser warns from the second inline link
+        onward, and the span argument limit caps how many can fit.  Use the
+        standalone 'link' keyword to add more.
       - 'kind <kind>' sets the span kind to one of the following: 'internal',
         'server' (default), 'client', 'producer' or 'consumer'.
       - If no reference is given, the span becomes a root span.
@@ -401,6 +405,12 @@ Supported keywords:
       This enables the use of OpenTelemetry contexts with external services that
       do not expect a HAProxy-specific name prefix.
 
+      Independently of 'inject', a build with OTEL_USE_VARS=1 registers the
+      HAProxy variable 'sess.otel.uuid' on every stream the filter attaches to
+      and stores the stream's runtime-context UUID in it; several examples read
+      it through 'var(sess.otel.uuid)'.  Without this build option the variable
+      does not exist and the fetch yields an empty value.
+
       Example:
         span "HAProxy session" root
             inject "otel_ctx_1" use-headers use-vars
@@ -444,8 +454,9 @@ Supported keywords:
   instrument update <name> [attr <key> <sample> ...] [{ if | unless } <condition>]
       Create or update a metric instrument.  For the create form, the 'aggr',
       'desc', 'unit', 'value' and 'bounds' keywords may be given in any order.
-      Within a scope, each name may have at most one create form and one update
-      form; a duplicate of either is a configuration error.
+      A create-form instrument name must be unique across all scopes of the
+      configuration, and each scope may hold at most one update form for a given
+      name; a duplicate of either kind is a configuration error.
 
       Supported types:
         cnt_int   - counter (uint64)
@@ -541,7 +552,8 @@ Supported keywords:
         attr <key> <sample>    - add an attribute evaluated at runtime (repeatable)
 
       The 'id' and 'event' keywords must be specified together or both omitted;
-      any other combination is a configuration error.
+      any other combination is a configuration error.  The identifier must be
+      at least 1; a zero is accepted but treated as if no 'id' was given.
 
       The 'time' keyword takes an optional unit and a single HAProxy sample
       expression.  The supported units are 's' (seconds, the default), 'ms'
@@ -739,8 +751,8 @@ Supported keywords:
       holds the stream, such as during a tarpit timeout.  See the 'instrument'
       keyword for driving a periodic gauge from it.
 
-      The on-backend-set event fires when a backend is assigned to the stream.
-      It is not called if the frontend and backend are the same.
+      The on-backend-set event fires when a backend is assigned to the stream,
+      including when the frontend and the backend are the same proxy.
 
       The on-http-headers-request and on-http-headers-response events fire after
       all HTTP headers have been parsed and analyzed.
@@ -838,7 +850,7 @@ Example (from test/sa/otel.cfg):
 
   otel-scope http_response_2
       span "HTTP response"
-          event "event_date" "hdr.date" res.hdr("date") str(" / ") res.hdr("last-modified")
+          event "event_date" time ms date(0,ms) "hdr.date" res.hdr("date") str(" / ") res.hdr("last-modified")
 
 
 4. YAML configuration file
@@ -856,11 +868,16 @@ readers, providers and signals.
 Each exporter has a user-chosen name and a 'type' that determines which
 additional options are available.  Options marked with (*) are required.
 
+The 'cpu_id' option, accepted by the OTLP exporters, the batch processors and
+the readers, pins that component's background thread to the given CPU.  The
+default of -1 leaves the thread unpinned.
+
 Supported types:
 
   otlp_grpc - Export via OTLP over gRPC.
     type (*)                          "otlp_grpc"
     thread_name                       exporter thread name (string)
+    cpu_id                            exporter thread CPU affinity (integer)
     endpoint                          OTLP/gRPC endpoint URL (string)
     use_ssl_credentials               enable SSL channel credentials (boolean)
     ssl_credentials_cacert_path       CA certificate file path (string)
@@ -879,9 +896,11 @@ Supported types:
   otlp_http - Export via OTLP over HTTP (JSON or Protobuf).
     type (*)                        "otlp_http"
     thread_name                     exporter thread name (string)
+    cpu_id                          exporter thread CPU affinity (integer)
     endpoint                        OTLP/HTTP endpoint URL (string)
     content_type                    payload format: "json" or "protobuf"
     json_bytes_mapping              binary encoding: "hexid", "utf8" or "base64"
+    use_json_name                   use protobuf JSON field names (boolean)
     debug                           enable debug output (boolean)
     timeout                         export timeout in seconds (integer)
     http_headers                    custom HTTP headers (list of key: value)
@@ -911,6 +930,7 @@ Supported types:
   otlp_file - Export to local files in OTLP format.
     type (*)                        "otlp_file"
     thread_name                     exporter thread name (string)
+    cpu_id                          exporter thread CPU affinity (integer)
     file_pattern                    output filename pattern (string)
     alias_pattern                   symlink pattern for latest file (string)
     flush_interval                  flush interval in microseconds (integer)
@@ -966,12 +986,22 @@ Supported types:
 
   trace_id_ratio_based - Sample a fraction of traces.
     type (*)                        "trace_id_ratio_based"
-    ratio                           sampling ratio, 0.0 to 1.0 (float)
+    ratio (*)                       sampling ratio, 0.0 to 1.0 (float)
 
 
   parent_based - Inherit sampling decision from parent span.
     type (*)                        "parent_based"
-    delegate                        fallback sampler name (string)
+    delegate                        root-span sampler: "always_on" (default),
+                                    "always_off" or "trace_id_ratio_based"
+                                    (the latter reads 'ratio' as above)
+    remote_sampled                  sampler for a sampled remote parent:
+                                    "always_on" (default) or "always_off"
+    remote_not_sampled              sampler for a not-sampled remote parent:
+                                    "always_on" or "always_off" (default)
+    local_sampled                   sampler for a sampled local parent:
+                                    "always_on" (default) or "always_off"
+    local_not_sampled               sampler for a not-sampled local parent:
+                                    "always_on" or "always_off" (default)
 
 
 4.3. Processors
@@ -985,12 +1015,16 @@ Supported types:
   batch - Batch spans before exporting.
     type (*)                        "batch"
     thread_name                     processor thread name (string)
+    cpu_id                          processor thread CPU affinity (integer)
     max_queue_size                  maximum queued spans (integer)
     schedule_delay                  export interval in milliseconds (integer)
+    export_timeout                  export timeout in milliseconds (integer)
     max_export_batch_size           maximum spans per export call (integer)
 
     When the queue reaches half capacity, a preemptive notification triggers
-    an early export.
+    an early export.  The 'max_queue_size' value must not be lower than the
+    'max_export_batch_size' value, and 'export_timeout' is accepted but not
+    yet used by the OpenTelemetry C++ SDK batch processor.
 
   single - Export each span individually (no batching).
     type (*)                        "single"
@@ -1003,8 +1037,11 @@ Readers define how metrics are collected and exported.  Each reader has a
 user-chosen name.
 
     thread_name                     reader thread name (string)
+    cpu_id                          reader thread CPU affinity (integer)
     export_interval                 collection interval in milliseconds (integer)
     export_timeout                  export timeout in milliseconds (integer)
+
+The 'export_timeout' value must not exceed the 'export_interval' value.
 
 
 4.5. Providers
@@ -1026,13 +1063,19 @@ Signals bind exporters, samplers, processors, readers and providers together
 for each telemetry type.  The supported signal names are "traces", "metrics"
 and "logs".
 
-    scope_name                      instrumentation scope name (string)
-    exporters                       exporter name reference (string)
+    scope_name (*)                  instrumentation scope name (string)
+    exporters                       exporter name reference (string or list)
     samplers                        sampler name reference (string, traces only)
-    processors                      processor name reference (string, traces/logs)
+    processors                      processor name reference (string or list,
+                                    traces/logs)
     readers                         reader name reference (string, metrics only)
     providers                       provider name reference (string)
     min_severity                    minimum log severity level (string, logs only)
+
+For the traces and logs signals, 'processors' may be a YAML sequence to build
+several pipelines: each processor is paired with the exporter at the same
+position in the 'exporters' sequence, and when the exporter list is shorter
+its last entry is reused for the remaining processors.
 
 The "min_severity" option controls which log records are emitted.  Only log
 records whose severity is equal to or higher than the configured minimum are
@@ -1076,8 +1119,8 @@ by the 'extract' keyword:
 
 It returns true when the context named <name> was extracted and is valid.  When
 no such context was extracted the fetch produces no sample, so a '-m found'
-match reads as false; this tells "a context arrived" apart from "none arrived".
-Unlike 'set-var-ctx', the fetch needs no special build option.
+match reads as false; this tells "a context arrived" apart from "none arrived"
+without first copying a context field into a variable with 'set-var-ctx'.
 
 Example:
 
@@ -1120,8 +1163,9 @@ subdirectory contains an OTel configuration file (otel.cfg), a YAML file
 6.1. Standalone example (sa)
 ------------------------------
 
-The most comprehensive example.  All possible events are used, with spans,
-attributes, events, links, baggage, status, metrics and groups demonstrated.
+The most comprehensive single-instance example: most of the events are used
+(the test/README-sa file lists the exact coverage), with spans, attributes,
+events, links, baggage, status, metrics and groups demonstrated.
 
 --- test/sa/otel.cfg (excerpt) -----------------------------------------
 
@@ -1136,8 +1180,10 @@ attributes, events, links, baggage, status, metrics and groups demonstrated.
         groups http_response_group
         groups http_after_response_group
 
+        scopes skip_health_path
         scopes on_stream_start
         scopes on_stream_stop
+        scopes on_idle_timeout
         scopes client_session_start
         scopes frontend_tcp_request
         ...
@@ -1168,7 +1214,7 @@ attributes, events, links, baggage, status, metrics and groups demonstrated.
         otel-event on-client-session-start
 
     otel-scope frontend_http_request
-        span "Frontend HTTP request" parent "HTTP body request" link "HAProxy session"
+        span "Frontend HTTP request" parent "HTTP body request" link "HAProxy session" kind server
             attribute "http.method" method
             attribute "http.url" url
             attribute "http.version" str("HTTP/") req.ver
@@ -1176,13 +1222,13 @@ attributes, events, links, baggage, status, metrics and groups demonstrated.
         otel-event on-frontend-http-request
 
     otel-scope server_session_start
-        span "Server session" parent "HAProxy session"
+        span "Server session" parent "HAProxy session" kind client
         link "HAProxy session" "Client session"
         finish "Process sticking rules request"
         otel-event on-server-session-start
 
     otel-scope server_session_end
-        finish *
+        finish "*res*"
         otel-event on-server-session-end
 
 ---------------------------------------------------------------------

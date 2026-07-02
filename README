@@ -1,7 +1,7 @@
                    -----------------------------------------
                       The HAProxy OpenTelemetry filter (OTel)
                                   Version 1.0
-                          ( Last update: 2026-03-18 )
+                          ( Last update: 2026-07-02 )
                    -----------------------------------------
                            Author : Miroslav Zagorac
                      Contact : mzagorac at haproxy dot com
@@ -78,6 +78,11 @@ the OpenTelemetry C Wrapper library version 2.2.0 or later (which again uses
 the OpenTelemetry C++ SDK).  This means that we must have the library installed
 on the system on which we want to compile or use HAProxy.
 
+Note that the build does not enforce this minimum version: pkg-config is asked
+only whether the library exists.  At startup the filter verifies instead that
+the linked library and the header files it was compiled against carry the same
+version string, and refuses to initialize on a mismatch.
+
 Instructions for compiling and installing the required library can be found at
 https://github.com/haproxytech/opentelemetry-c-wrapper .
 
@@ -152,7 +157,7 @@ After HAProxy is compiled, we can check if the OTel filter is enabled:
 
   % ./haproxy -vv | grep -i opentelemetry
   --- command output ----------
-  Built with OpenTelemetry support (C++ version 1.26.0, C Wrapper version 2.0.0-862).
+  Built with OpenTelemetry support (C++ version 1.26.0, C Wrapper version 2.2.0-868).
           [OTEL] opentelemetry
   --- command output ----------
 
@@ -162,7 +167,7 @@ A summary of all OTel build options:
   OTEL_DEBUG    - compile the filter in debug mode
   OTEL_INC      - force path to opentelemetry-c-wrapper include files
   OTEL_LIB      - force path to opentelemetry-c-wrapper library
-  OTEL_RUNPATH  - add opentelemetry-c-wrapper RUNPATH to executable
+  OTEL_RUNPATH  - add opentelemetry-c-wrapper RUNPATH (needs OTEL_LIB)
   OTEL_STATIC   - pass --static to pkg-config for static linking
   OTEL_USE_VARS - enable context propagation via HAProxy variables
 
@@ -240,8 +245,8 @@ supports simultaneous operation with different configurations, this limitation
 will be lifted.
 
 
-4.1 OTel scope
----------------
+4.1. OTel scope
+----------------
 
 If the filter id is defined for the OTel filter, then the OTel scope with the
 same name should be defined in the configuration file.  In the same
@@ -281,7 +286,7 @@ Only one "otel-instrumentation" section must be defined for each OTel scope.
 
 The mandatory 'config' keyword defines the YAML configuration file for the
 OpenTelemetry SDK.  This file specifies the telemetry pipeline: exporters,
-processors, samplers, providers and signals.
+processors, samplers, readers, providers and signals.
 
 Through optional keywords can be defined ACLs, logging, rate limit, and groups
 and scopes that define the tracing model.
@@ -321,7 +326,8 @@ config <file>
   The mandatory keyword associated with the OTel instrumentation configuration.
   This keyword sets the path of the YAML configuration file for the
   OpenTelemetry SDK.  The YAML file defines the complete telemetry pipeline
-  including exporters, samplers, processors, providers and signal routing.
+  including the exporters, samplers, processors, readers, providers and signal
+  routing.
 
   The YAML configuration file supports the following top-level sections:
 
@@ -399,9 +405,9 @@ no option disabled
 
 option dontlog-normal
 no option dontlog-normal
-  Enable or disable logging of normal, successful processing.  By default, this
-  option is disabled.  For this option to be considered, logging must be turned
-  on.
+  Drop the below-error log lines (warnings and informational) while keeping the
+  error-level messages.  By default, this option is disabled and all levels are
+  logged.  For this option to be considered, logging must be turned on.
 
   See also: 'log' keyword description.
 
@@ -493,15 +499,12 @@ attribute <key> <sample> ... [{ if | unless } <condition>]
 
    HAProxy sample data type | the OpenTelemetry data type
   --------------------------+----------------------------
-            NULL            |        NULL
             BOOL            |        BOOL
-            INT32           |        INT64
-            UINT32          |        UINT64
-            INT64           |        INT64
-            UINT64          |        UINT64
+            SINT            |        INT64
             IPV4            |        STRING
             IPV6            |        STRING
             STRING          |        STRING
+            METH            |        STRING
             BINARY          |        UNSUPPORTED
   --------------------------+----------------------------
 
@@ -647,13 +650,13 @@ inject <name-prefix> [use-vars] [use-headers]
   with any event.
 
   No matter which data transfer method you use, we need to specify a prefix for
-  the key element.  All alphanumerics (lowercase only) and underline character
-  can be used to construct the data name prefix.  Uppercase letters can actually
-  be used, but they will be converted to lowercase when creating the prefix.
-  The special prefix '-' can be used to generate the name automatically from the
-  scope's event name or the span name.  The generated name keeps a leading '-',
-  so by the rule below the injected headers carry only the bare propagation
-  headers, with no HAProxy-specific name prefix.
+  the key element.  Letters, digits and the characters '_', '.' and '-' can be
+  used to construct the data name prefix, with uppercase letters converted to
+  lowercase when the prefix is created.  The special prefix '-' can be used to
+  generate the name automatically from the scope's event name or the span name.
+  The generated name keeps a leading '-', so by the rule below the injected
+  headers carry only the bare propagation headers, with no HAProxy-specific
+  name prefix.
 
   When the OpenTelemetry context is transferred via the HTTP header and the
   first character of the context name is '-', the context name is excluded
@@ -691,6 +694,13 @@ inject <name-prefix> [use-vars] [use-headers]
   Thus created HTTP headers and variables are deleted when executing the
   'finish' keyword or when detaching the stream from the filter.
 
+  Independently of 'inject', a build with OTEL_USE_VARS=1 registers the HAProxy
+  variable 'sess.otel.uuid' on every stream the filter attaches to and stores
+  the stream's runtime-context UUID in it, so a configuration can read a stable
+  per-stream identifier through 'var(sess.otel.uuid)' (several test examples
+  use it as a baggage value).  Without this build option the variable does not
+  exist and the fetch yields an empty value.
+
 
 instrument <type> <name> [aggr <aggregation>] [desc <description>] [unit <unit>] value <sample> [bounds <bounds>] [{ if | unless } <condition>]
 instrument update <name> [attr <key> <sample> ...] [{ if | unless } <condition>]
@@ -713,10 +723,10 @@ instrument update <name> [attr <key> <sample> ...] [{ if | unless } <condition>]
   are sorted internally; any duplicate boundaries are then rejected.  With no
   explicit aggregation type set, histogram aggregation is applied automatically.
 
-  To update an existing instrument (previously created in another scope), use
-  'update' followed by the name of the instrument.  Optional attributes can be
-  added using the 'attr' keyword followed by a key and a sample expression
-  evaluated at runtime.
+  To update an existing instrument (a create form defined in any scope, the
+  same one included), use 'update' followed by the instrument name.  Optional
+  attributes can be added using the 'attr' keyword, followed by a key and a
+  sample expression evaluated at runtime.
 
   Supported instrument types.  The recorded <value> is applied differently by
   each one, so choose the type that matches how the measurement behaves:
@@ -800,7 +810,8 @@ log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span
     attr <key> <sample>    - add an attribute evaluated at runtime (repeatable)
 
   The 'id' and 'event' keywords must be specified together or both omitted; any
-  other combination is a configuration error.
+  other combination is a configuration error.  The identifier must be at least
+  1; a zero is accepted by the parser but treated as if no 'id' was given.
 
   The 'time' keyword takes an optional unit (one of 's' (the default), 'ms',
   'us', or 'ns') followed by a single HAProxy sample expression.  The value
@@ -1051,8 +1062,8 @@ otel-event <name> [{ if | unless } <condition>]
   the held request still completes.
 
   The on-backend-set event fires from the stream_set_backend filter callback
-  when a backend is assigned to the stream.  It is not called if the frontend
-  and the backend are the same proxy.
+  when a backend is assigned to the stream.  It also fires when the stream stays
+  on the same proxy, ie when the frontend and the backend are identical.
 
 
   --- Request channel events ---
@@ -1238,8 +1249,10 @@ span <name> [parent <ref>] [link <ref>] [root] [kind <kind>]
     span "HTTP request" parent "TCP request" link "HAProxy session"
     span "Client session" parent "otel_ctx_1"
 
-  Only one inline link can be specified per 'span' declaration.  For multiple
-  links, use the standalone 'link' keyword described above.
+  An inline link is meant to be given once per 'span' declaration: the parser
+  warns from the second one onward, and the argument limit of the 'span' line
+  caps how many can fit.  For multiple links, use the standalone 'link' keyword
+  described above.
 
   Arguments :
     name   - the name of the span being created or referenced
@@ -1248,6 +1261,8 @@ span <name> [parent <ref>] [link <ref>] [root] [kind <kind>]
              context as the span's parent
     link   - 'link <ref>' adds an inline link to another span or context
     root   - explicitly marks the span as a root span
+    kind   - 'kind <kind>' sets the span kind: internal, server (the
+             default), client, producer or consumer
 
 
 status <code> [<sample> ...] [{ if | unless } <condition>]
@@ -1447,24 +1462,24 @@ usable in these rules and in any ACL:
 
 It returns true when the span context named <name> was extracted on the current
 stream with the 'extract' keyword and is valid.  When none was extracted, the
-fetch produces no sample, so an ACL using '-m found' reads as false, letting a
-configuration act on whether an upstream context was propagated without the
-'set-var-ctx' variable hop or the OTEL_USE_VARS build option.
+fetch produces no sample, so an ACL using '-m found' reads as false, letting
+a configuration act directly on whether an upstream context was propagated,
+without first copying a context field into a variable with 'set-var-ctx'.
 
   Arguments :
     name - the name of the span context to check
 
-  The filter also exposes the raw payload byte counts accumulated on the stream:
+The filter also exposes the raw payload byte counts accumulated on the stream:
 
   otel.bytes_in  : integer
   otel.bytes_out : integer
 
-  'otel.bytes_in' counts the payload on the request channel (client to HAProxy)
-  and 'otel.bytes_out' the payload on the response channel (HAProxy to client).
-  Both grow as data is forwarded, so they are best read from a close scope --
-  on-client-session-end or on-server-session-end -- where they hold the final
-  connection totals.  They are populated in TCP mode; on an HTTP proxy they read
-  0, because an HTX buffer carries protocol framing rather than raw payload.
+'otel.bytes_in' counts the payload on the request channel (client to HAProxy)
+and 'otel.bytes_out' the payload on the response channel (HAProxy to client).
+Both grow as data is forwarded, so they are best read from a close scope --
+on-client-session-end or on-server-session-end -- where they hold the final
+connection totals.  They are populated in TCP mode; on an HTTP proxy they read
+0, because an HTX buffer carries protocol framing rather than raw payload.
 
 
 5. Examples
@@ -1476,9 +1491,13 @@ directory.  A brief description of the prepared configurations follows:
 cmp   - a configuration made for comparison purposes with other tracing
         implementations.
 
-sa    - a standalone configuration in which all possible events are used.  This
-        is the most comprehensive example demonstrating spans, attributes,
-        events, links, baggage, status and other features.
+sa    - a standalone configuration that exercises most of the events (their
+        exact coverage is listed in the test/README-sa file).  It demonstrates
+        spans, attributes, events, links, baggage, status and other features,
+        and serves as the reference for the speed tests.
+
+full  - a configuration that extends 'sa' with the remaining lifecycle events;
+        it covers every filter event except 'on-http-tarpit-request'.
 
 ctx   - a configuration similar to 'sa', with the difference that the spans are
         opened using extracted span contexts as references instead of direct
@@ -1556,13 +1575,16 @@ this:
   ---------------------------------------------------------------------
 
 In order to use any of the configurations from the test directory, we can run
-one of the pre-configured scripts:
+one of the pre-configured scripts (from within that directory, because they
+resolve the HAProxy binary and their configuration files relative to it):
 
   % ./run-sa.sh
+  % ./run-full.sh
   % ./run-ctx.sh
   % ./run-cmp.sh
   % ./run-fe-be.sh
   % ./run-tcp.sh
+  % ./run-empty.sh
 
 
 5.1. Benchmarking results
@@ -1577,8 +1599,8 @@ Testing was done with the wrk utility using 8 threads, 8 connections and a
 5-minute test duration.  Detailed results and methodology are documented in the
 test/README-test-speed file.
 
-Below is a summary of the 'sa' (standalone) configuration results, which uses
-all possible events and demonstrates the worst-case scenario:
+Below is a summary of the 'sa' (standalone) configuration results, the heaviest
+of the benchmarked scenarios and thus the worst-case figures:
 
   ---------------------------------------------------------------
    rate-limit     req/s     avg latency     overhead
@@ -1615,18 +1637,18 @@ with a change in arguments when running the same):
 
   % echo "help" | socat - UNIX-CONNECT:/tmp/haproxy.sock | grep flt-otel
   --- command output ----------
-  flt-otel debug [level]   : set the OTel filter debug level
-  flt-otel disable         : disable the OTel filter
-  flt-otel enable          : enable the OTel filter
-  flt-otel soft-errors     : disable hard-errors mode
-  flt-otel hard-errors     : enable hard-errors mode
-  flt-otel reset-errors    : reset runtime-error counters
-  flt-otel logging [state] : set logging state
-  flt-otel rate [value]    : set the rate limit
-  flt-otel status          : show the OTel filter status
-  flt-otel flush           : force-export buffered telemetry now
-  flt-otel instruments     : show configured metric instruments
-  flt-otel scopes          : show configured scopes and groups
+  flt-otel debug [level]                  : set the OTEL filter debug level (default: get current debug level)
+  flt-otel disable                        : disable the OTEL filter
+  flt-otel enable                         : enable the OTEL filter
+  flt-otel soft-errors                    : disable hard-errors mode
+  flt-otel hard-errors                    : enable hard-errors mode
+  flt-otel reset-errors                   : reset runtime-error counters
+  flt-otel logging [state]                : set logging state (default: get current logging state)
+  flt-otel rate [value]                   : set the rate limit (default: get current rate value)
+  flt-otel status                         : show the OTEL filter status
+  flt-otel flush                          : force-export buffered telemetry now
+  flt-otel instruments                    : show configured metric instruments
+  flt-otel scopes                         : show configured scopes and groups
   --- command output ----------
 
 'flt-otel debug' can only be used in case the OTel filter is compiled with the
@@ -1641,7 +1663,7 @@ the 'counters' block appear only in a debug build):
   --- command output ----------
    opentelemetry filter status
   ------------------------------------------------------------------------------
-     library:       C++ 1.26.0, C wrapper 2.0.0-862
+     library:       C++ 1.26.0, C wrapper 2.2.0-868
      debug level:   0x7f
      export pipeline
        signal   queued  dropped  exported  failed  last export
@@ -1741,7 +1763,7 @@ A filter that has no instruments configured is shown as '(no instruments)'.
 'flt-otel scopes' lists the configured scopes, each with its bound event and
 whether the configuration uses it, then the groups with their used state and
 scope count.  A debug build appends an 'events' section that reports how often
-each event was dispatched:
+each event was dispatched; events not dispatched so far are left out:
 
   % echo "flt-otel scopes" | socat - UNIX-CONNECT:/tmp/haproxy.sock
   --- command output ----------
@@ -1771,16 +1793,18 @@ has no rows.
 -------------------------------
 
 The name of the span context definition can contain only letters, numbers and
-characters '_' and '-'.  Also, all uppercase letters in the name are converted
-to lowercase.  The character '-' is converted internally to the 'D' character,
-and since a HAProxy variable is generated from that name, this should be taken
-into account if we want to use it somewhere in the HAProxy configuration.  The
-above mentioned span context is used in the 'inject' and 'extract' keywords.
+the characters '_', '.' and '-'.  Also, all uppercase letters in the name are
+converted to lowercase.  The character '-' is converted internally to the 'D'
+character; since a HAProxy variable is generated from that name, this should
+be taken into account if we want to use the variable somewhere in the HAProxy
+configuration.  The above mentioned span context is used in the 'inject' and
+'extract' keywords.
 
 An inline span link (using the 'link' keyword within a 'span' declaration) is
-limited to a single link per span declaration due to the fixed argument count
-(maximum 7 arguments).  For multiple links, use the standalone 'link' keyword
-instead.
+meant to be given once per span declaration: the parser warns from the second
+inline link onward, and the fixed argument count of the 'span' line (maximum 9
+arguments) caps how many can fit.  For multiple links, use the standalone 'link'
+keyword instead.
 
 Let's look a little at the example test/fe-be (configurations are in the
 test/fe and test/be directories, 'fe' is here the abbreviation for frontend and
