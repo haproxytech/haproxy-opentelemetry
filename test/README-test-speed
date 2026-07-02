@@ -1,7 +1,7 @@
                    -----------------------------------------
                      HAProxy OTEL filter speed test guide
                                 Version 1.0
-                          ( Last update: 2026-06-20 )
+                          ( Last update: 2026-07-02 )
                    -----------------------------------------
                          Author : Miroslav Zagorac
                    Contact : mzagorac at haproxy dot com
@@ -38,6 +38,11 @@ The script backs up the live configuration files in each test directory to
 regenerates the live files for each run by applying a sed substitution to those
 .orig backups.  The substitution adjusts the rate-limit value (or disables or
 removes the filter) before each run.
+
+In every run the otel.yml signal exporters are additionally rewired to their
+dev_null variants (ostream exporters writing to /dev/null), so the published
+numbers measure the filter's processing cost without the cost of a live OTLP
+export.
 
 
 2. Prerequisites
@@ -81,6 +86,10 @@ directory (defaults to <cfg>).  For example:
   % ./test-speed.sh cmp
   % ./test-speed.sh ctx
 
+The '-d <duration>' option overrides the test duration (in seconds) and the
+'-r <rate-limits>' option replaces the default rate-limit series described in
+section 5 with the given space-separated list.
+
 
 4. Test parameters
 -------------------
@@ -89,7 +98,8 @@ The wrk benchmarking tool is invoked with the following parameters:
 
   -t8        8 threads
   -c8        8 concurrent connections
-  -d300      5-minute test duration (300 seconds)
+  -d300      5-minute test duration (300 seconds; the script's '-d' option
+             overrides it)
   --latency  latency distribution reporting
 
 Each rate-limit level is tested sequentially.  Between runs, HAProxy is stopped
@@ -124,7 +134,8 @@ reported the traced run as faster than the baseline.
 5. Rate-limit levels
 ---------------------
 
-The script tests nine rate-limit levels in the following order:
+By default the script tests nine rate-limit levels in the following order (the
+'-r' option substitutes another series):
 
   100.0    - the filter processes every stream (worst case)
    75.0    - the filter processes 75% of streams
@@ -156,10 +167,10 @@ the 'off' baseline, expressed as a percentage:
 Four OTEL filter configurations are tested.  They differ in complexity and in
 the features they exercise:
 
-  sa     - Standalone.  Uses all possible HAProxy filter events with spans,
-           attributes, events, links, baggage, status, metrics and groups.
-           This is the most comprehensive single-instance configuration and
-           represents the worst-case scenario.
+  sa     - Standalone.  Exercises most of the HAProxy filter events with spans,
+           attributes, events, links, baggage, status, metrics and groups (the
+           exact coverage is listed in README-sa) and is the most comprehensive
+           benchmarked configuration, representing the worst-case scenario.
 
   cmp    - Comparison.  A simplified configuration made for comparison with
            other tracing implementations.  It uses a reduced span hierarchy
@@ -211,7 +222,7 @@ baseline.
      off         48,697       168.00 us      baseline
   ---------------------------------------------------------------
 
-With all possible events active, the sa configuration at 100% rate-limit shows
+With its whole event set active, the sa configuration at 100% rate-limit shows
 a 22% throughput reduction.  At 10% rate-limit the overhead drops to 3.7%, and
 at 2.5% it is barely measurable at 1.4%.  The 'disabled' and '0.0' levels show
 no measurable overhead above the baseline.
@@ -320,7 +331,7 @@ Key observations:
   - The cmp configuration, which uses a reduced span hierarchy typical of
     production deployments, adds only 1.4% overhead at a 10% rate-limit.
 
-  - The sa configuration, which exercises all possible events, stays at about
+  - The sa configuration, the heaviest benchmarked event set, stays at about
     7% overhead at a 25% rate-limit and below 4% at 10%.
 
   - The ctx configuration is the most expensive due to the inject/extract
@@ -338,4 +349,5 @@ Key observations:
     is 0.3% or less for single-instance configurations (sa, cmp, ctx).
 
   - In typical production use with a rate-limit of 10% or less, the performance
-    impact of the OTEL filter should be negligible for single-instance deployments.
+    impact of the OTEL filter should remain negligible for any single-instance
+    deployment.

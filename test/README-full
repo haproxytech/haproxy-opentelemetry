@@ -159,6 +159,5 @@ From the test/ directory:
 
   % ./run-full.sh [/path/to/haproxy] [pidfile]
 
-If no arguments are given, the script looks for the haproxy binary three
-directories up from the current working directory.  The backend origin server
-must be running on 127.0.0.1:8000.
+If no arguments are given, the script uses ../../haproxy/haproxy relative to
+test/.  The backend origin server must be running on 127.0.0.1:8000.

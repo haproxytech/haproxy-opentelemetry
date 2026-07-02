@@ -1,0 +1,82 @@
+OTLP/HTTP test tools
+=====================
+
+Two Python scripts capture and replay the OTLP/HTTP traffic produced by the
+test configurations.  Both scripts live in the test/ directory and need only
+the Python standard library.
+
+
+otlp_http-recorder.py
+---------------------
+
+A simple OTLP/HTTP receiver that records all incoming traffic to files.  It
+listens for OTLP/HTTP POST requests on /v1/traces, /v1/metrics and /v1/logs
+and appends each request (headers and body) to the output file of the matching
+signal.  JSON bodies are written verbatim, or re-emitted with indentation when
+--pretty is set; non-JSON bodies (e.g. protobuf) are written base64-encoded so
+that the log file stays text-safe.  Bodies sent with Content-Encoding: gzip are
+decompressed before recording.
+
+When --upstream is given, every received request is also forwarded (teed) to
+the configured OTLP/HTTP base URL in a background thread, so a real collector
+keeps receiving the data while it is being recorded.
+
+The server runs in the foreground or detaches as a daemon (--daemon), and it
+reacts to signals: SIGUSR1 and SIGTERM shut it down gracefully, SIGHUP closes
+and then reopens the output files (logrotate-friendly), and SIGUSR2 dumps a
+per-endpoint statistics snapshot to stderr.  A statistics summary is written
+to stderr on shutdown as well, and appended to the --stats-file when one is
+given, which makes the numbers survive daemon mode.
+
+Options:
+
+  --daemon, -d            run in the background as a daemon
+  --host, -H              IP address or hostname to bind to (default:
+                          localhost)
+  --logfile-logs, -l      output file for /v1/logs (default: <prefix>-logs)
+  --logfile-metrics, -m   output file for /v1/metrics (default:
+                          <prefix>-metrics)
+  --logfile-traces, -r    output file for /v1/traces (default:
+                          <prefix>-traces)
+  --pidfile, -i           write the running PID to this file (removed on
+                          shutdown)
+  --port, -P              TCP port to listen on (default: 4318)
+  --prefix, -x            prefix used to derive default log file names
+                          (default: _otlp_http)
+  --pretty, -p            pretty-print JSON request bodies in the log
+  --quiet, -q             suppress the per-request access log on stderr
+  --stats-file, -s        append SIGUSR2 and shutdown statistics to this file
+  --timestamp, -t         include a UTC timestamp with each recorded request
+  --upstream, -u          forward (tee) every received request to this
+                          OTLP/HTTP base URL
+
+The default port matches the OTLP/HTTP endpoint used by the test YAML files,
+so the recorder can stand in for the collector while a test runs:
+
+  % ./otlp_http-recorder.py --pretty --timestamp &
+  % ./run-sa.sh
+
+
+otlp_http-replay.py
+-------------------
+
+Replays OTLP/HTTP requests previously captured by otlp_http-recorder.py.  It
+reads one or more recorded files and POSTs each captured request to the target
+OTLP/HTTP base URL.  The headers that the HTTP client library manages (Host,
+Content-Length, Connection, Accept-Encoding) are stripped before sending, and
+Content-Encoding is stripped for records whose body was stored as plaintext
+and preserved for records whose body was stored as base64.
+
+Options:
+
+  --delay, -d             seconds to sleep between requests (default: 0)
+  --dry-run, -n           parse and report records without sending them
+  --quiet, -q             suppress per-request status lines on stderr
+  --target, -T            OTLP/HTTP base URL of the target collector
+                          (default: http://localhost:4318)
+  --timeout, -t           HTTP timeout in seconds for each request
+                          (default: 10)
+
+Example (replay a recorded trace file into a local collector):
+
+  % ./otlp_http-replay.py --delay 0.1 _otlp_http-traces
