@@ -1,15 +1,21 @@
 #!/bin/sh -u
 #
+# Copyright 2026 HAProxy Technologies, Miroslav Zagorac <mzagorac@haproxy.com>
+#
                 __=	# echo
+    SH_ARG_BACKEND=
         SH_ARG_CFG=
         SH_ARG_DIR=
        SH_ARG_RATE="100.0 75.0 50.0 25.0 10.0 2.5 0.0 disabled off"
    SH_ARG_DURATION="300"
 	   SH_NAME="$(basename "${0}")"
         SH_LOG_DIR="_logs"
+   SH_BACKEND_PATH=
+   SH_BACKEND_TYPE=
+    SH_HAPROXY_PID=
 SH_HAPROXY_PIDFILE="${SH_LOG_DIR}/haproxy.pid"
-  SH_HTTPD_PIDFILE="${SH_LOG_DIR}/thttpd.pid"
-      SH_USAGE_MSG="usage: ${SH_NAME} [-d duration] [-h] [-r rate-limits] cfg [dir]"
+SH_BACKEND_PIDFILE="${SH_LOG_DIR}/backend.pid"
+      SH_USAGE_MSG="usage: ${SH_NAME} [-b { haterm | thttpd }] [-d duration] [-h] [-r rate-limits] cfg [dir]"
 
 
 sh_exit ()
@@ -27,7 +33,7 @@ sh_exit ()
 		echo
 	}
 
-	${__} sh_httpd_stop
+	${__} sh_backend_stop
 	rmdir -p "${SH_LOG_DIR}" 2>/dev/null
 	exit ${2:-64}
 }
@@ -56,20 +62,24 @@ sh_backup_clean()
 	test "${_arg_dir}" = "fe" && sh_backup_clean "be"
 }
 
-sh_httpd_run ()
+sh_backend_run ()
 {
+	test -e "${SH_BACKEND_PIDFILE}" && return
 
-	test -e "${SH_HTTPD_PIDFILE}" && return
-
-	thttpd -p 8000 -d . -nos -nov -l /dev/null -i "${SH_HTTPD_PIDFILE}"
+	if test "${SH_BACKEND_TYPE}" = "haterm"; then
+		"${SH_BACKEND_PATH}" -L 127.0.0.1:8000 -G "maxconn 5000" >/dev/null 2>&1 &
+		echo "${!}" > "${SH_BACKEND_PIDFILE}"
+	else
+		"${SH_BACKEND_PATH}" -p 8000 -d . -nos -nov -l /dev/null -i "${SH_BACKEND_PIDFILE}"
+	fi
 }
 
-sh_httpd_stop ()
+sh_backend_stop ()
 {
-	test -e "${SH_HTTPD_PIDFILE}" || return
+	test -e "${SH_BACKEND_PIDFILE}" || return
 
-	kill -TERM "$(cat ${SH_HTTPD_PIDFILE})"
-	rm "${SH_HTTPD_PIDFILE}"
+	kill -TERM "$(cat ${SH_BACKEND_PIDFILE})"
+	rm "${SH_BACKEND_PIDFILE}"
 }
 
 sh_haproxy_run ()
@@ -103,6 +113,7 @@ sh_haproxy_run ()
 	fi
 
 	./run-${_arg_cfg}.sh "" "${SH_HAPROXY_PIDFILE}" &
+	SH_HAPROXY_PID="${!}"
 	sleep 5
 }
 
@@ -117,14 +128,22 @@ sh_haproxy_stop ()
 	fi
 
 	pkill --signal SIGUSR1 haproxy
-	wait
+	test -n "${SH_HAPROXY_PID}" && wait "${SH_HAPROXY_PID}"
+	SH_HAPROXY_PID=
 }
 
 sh_wrk_run ()
 {
 	_arg_ratio="${1}"
-	_var_cpulog="${SH_LOG_DIR}/_log-cpu-${SH_ARG_CFG}-${_arg_ratio}.log"
+	_var_cpulog="${SH_LOG_DIR}/_log-cpu-${SH_ARG_CFG}-${_arg_ratio}"
 	_var_cpupid=
+	_var_conn="256"
+	_var_thread="8"
+
+	test "${SH_BACKEND_TYPE}" = "thttpd" && {
+		_var_conn="64"
+		_var_thread="4"
+	}
 
 	echo "--- rate-limit ${_arg_ratio} --------------------------------------------------"
 
@@ -133,7 +152,7 @@ sh_wrk_run ()
 		_var_cpupid=${!}
 	}
 
-	wrk -c8 -d${SH_ARG_DURATION} -t8 --latency http://localhost:10080/index.html
+	wrk -c"${_var_conn}" -d"${SH_ARG_DURATION}" -t"${_var_thread}" --latency "http://localhost:10080/index.html?s=44"
 
 	test -n "${_var_cpupid}" && {
 		wait "${_var_cpupid}"
@@ -147,8 +166,9 @@ sh_wrk_run ()
 }
 
 
-while getopts d:hr: _var_getopt; do
+while getopts b:d:hr: _var_getopt; do
 	case "${_var_getopt}" in
+	  b)	SH_ARG_BACKEND="${OPTARG}" ;;
 	  d)	SH_ARG_DURATION="${OPTARG}" ;;
 	  h)	sh_exit "${SH_USAGE_MSG}" 0 ;;
 	  r)	SH_ARG_RATE="${OPTARG}" ;;
@@ -160,22 +180,35 @@ shift $(expr ${OPTIND} - 1)
 SH_ARG_CFG="${1:-}"
 SH_ARG_DIR="${2:-${SH_ARG_CFG}}"
 
+test -n "${SH_ARG_BACKEND}" -a "${SH_ARG_BACKEND#*/}" = "${SH_ARG_BACKEND}" && \
+	SH_ARG_BACKEND="$(command -v "${SH_ARG_BACKEND}" || echo "${SH_ARG_BACKEND}")"
+test -z "${SH_ARG_BACKEND}" && \
+	command -v haterm >/dev/null 2>&1 && SH_ARG_BACKEND="$(command -v haterm)"
+test -z "${SH_ARG_BACKEND}" && \
+	test -x "$(realpath -L "${PWD}/../../haproxy/haterm")" && SH_ARG_BACKEND="$(realpath -L "${PWD}/../../haproxy/haterm")"
+test -z "${SH_ARG_BACKEND}" && \
+	command -v thttpd >/dev/null 2>&1 && SH_ARG_BACKEND="$(command -v thttpd)"
 
-command -v thttpd >/dev/null 2>&1 || sh_exit "thttpd: command not found" 5
-command -v wrk >/dev/null 2>&1    || sh_exit "wrk: command not found" 6
+test -z "${SH_ARG_BACKEND}" && sh_exit "haterm/thttpd: command not found" 5
+test -x "${SH_ARG_BACKEND}" || sh_exit "${SH_ARG_BACKEND}: no such executable" 5
+command -v wrk >/dev/null 2>&1 || sh_exit "wrk: command not found" 6
+
+SH_BACKEND_PATH="${SH_ARG_BACKEND}"
+SH_BACKEND_TYPE="${SH_ARG_BACKEND##*/}"
+test "${SH_BACKEND_TYPE}" = "haterm" -o "${SH_BACKEND_TYPE}" = "thttpd" || sh_exit "${SH_USAGE_MSG}" 64
 
 test -z "${SH_ARG_CFG}" -o -z "${SH_ARG_DIR}" && sh_exit "${SH_USAGE_MSG}" 64
 mkdir -p "${SH_LOG_DIR}" || sh_exit "${SH_LOG_DIR}: Cannot create log directory" 1
 
 if test "${SH_ARG_CFG}" = "all"; then
-	_var_args="-r ${SH_ARG_RATE}"
-	"${0}" "${_var_args}" sa sa
-	"${0}" "${_var_args}" cmp cmp
-	"${0}" "${_var_args}" ctx ctx
-	"${0}" "${_var_args}" fe-be fe
-	"${0}" "${_var_args}" full full
-	"${0}" "${_var_args}" tcp tcp
-	"${0}" "${_var_args}" updown updown
+	set -- -b "${SH_ARG_BACKEND}" -d "${SH_ARG_DURATION}" -r "${SH_ARG_RATE}"
+	"${0}" "${@}" sa sa
+	"${0}" "${@}" cmp cmp
+	"${0}" "${@}" ctx ctx
+	"${0}" "${@}" fe-be fe
+	"${0}" "${@}" full full
+	"${0}" "${@}" tcp tcp
+	"${0}" "${@}" updown updown
 	exit 0
 elif test "${SH_ARG_CFG}" = "fe-be"; then
 	SH_ARG_DIR="fe"
@@ -186,11 +219,14 @@ test -d "${SH_ARG_DIR}"        || sh_exit "${SH_ARG_DIR}: No such directory" 3
 
 trap sh_exit INT TERM
 
-echo "Running speed test ${SH_ARG_CFG}, start at $(date +"%F %T")"
+echo "Running speed test ${SH_ARG_CFG} (backend ${SH_BACKEND_TYPE}), start at $(date +"%F %T")"
 exec 1>"${SH_LOG_DIR}/README-speed-${SH_ARG_CFG}"
 
+echo "backend: ${SH_BACKEND_TYPE}"
+echo
+
 ${__} sh_backup_make "${SH_ARG_DIR}"
-${__} sh_httpd_run
+${__} sh_backend_run
 for _var_rate in ${SH_ARG_RATE}; do
 	${__} sh_haproxy_run "${SH_ARG_CFG}" "${SH_ARG_DIR}" "${_var_rate}"
 	${__} sh_wrk_run "${_var_rate}"

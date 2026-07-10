@@ -3,6 +3,10 @@ exporters:
     type:     ostream
     filename: /dev/null
 
+  exporter_metrics_dev_null:
+    type:     ostream
+    filename: /dev/null
+
   exporter_metrics_ostream:
     type:     ostream
     filename: __updown_metrics

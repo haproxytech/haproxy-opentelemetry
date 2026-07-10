@@ -48,10 +48,23 @@ export.
 2. Prerequisites
 -----------------
 
-The following tools must be installed and available in PATH:
+The script supports the following HTTP servers as the backend origin server
+on port 8000:
 
-  - thttpd : a lightweight HTTP server used as the backend origin server.
-             It serves a small static HTML file (index.html) on port 8000.
+  - haterm : HAProxy's dummy HTTP server for benchmarks, preferred when
+             available.  It is built from the HAProxy source tree with
+             the command 'make TARGET=linux-glibc haterm' (see
+             doc/haterm.txt there) and is searched for in PATH and then
+             at ../../haproxy/haterm.  Only a build with thread support
+             is usable: a build without USE_THREAD hangs at startup
+             before binding its listening address.
+
+  - thttpd : a lightweight single-threaded HTTP server, used when haterm
+             is not found or when selected with the '-b thttpd' option.
+             It must be available in PATH and serves the small static
+             HTML file index.html.
+
+The following tool must be installed and available in PATH:
 
   - wrk    : an HTTP benchmarking tool that generates the test load.
              See https://github.com/wg/wrk
@@ -89,18 +102,23 @@ directory (defaults to <cfg>).  For example:
   % ./test-speed.sh cmp
   % ./test-speed.sh ctx
 
-The '-d <duration>' option overrides the test duration (in seconds) and the
-'-r <rate-limits>' option replaces the default rate-limit series described in
-section 5 with the given space-separated list.
+The '-b <backend>' option selects the backend origin server, either by a name
+resolved through PATH or by an explicit path to the executable; without the
+option, haterm is preferred and thttpd is the fallback.  The '-d <duration>'
+option overrides the test duration (in seconds), while the '-r <rate-limits>'
+option replaces the default rate-limit series described in section 5 with the
+given space-separated list.  Each result file records the used backend on its
+first line.
 
 
 4. Test parameters
 -------------------
 
-The wrk benchmarking tool is invoked with the following parameters:
+The wrk benchmarking tool is invoked with load parameters that depend on the
+selected backend:
 
-  -t8        8 threads
-  -c8        8 concurrent connections
+  -t8 -c256  8 threads and 256 concurrent connections (haterm backend)
+  -t4 -c64   4 threads and 64 concurrent connections (thttpd backend)
   -d300      5-minute test duration (300 seconds; the script's '-d' option
              overrides it)
   --latency  latency distribution reporting
@@ -109,31 +127,31 @@ Each rate-limit level is tested sequentially.  Between runs, HAProxy is stopped
 via SIGUSR1 and restarted with the next rate-limit configuration.  A 10-second
 pause separates consecutive runs.
 
-The backend origin server (thttpd) serves a small static HTML page (index.html,
-approximately 50 bytes) on port 8000.  HAProxy listens on port 10080 and proxies
-requests to the origin.
+The requested URL is /index.html?s=44 and produces a 44-byte response body from
+either backend: haterm generates the body from the 's' query parameter, while
+thttpd ignores the query string and serves the 44-byte static file index.html.
+HAProxy listens on port 10080 and proxies the requests to the origin server on
+port 8000.
 
-The connection concurrency (-c8) suits the HTTP configurations (sa, cmp, ctx,
-fe-be, full and updown), which reuse persistent client connections: a handful
-of connections is enough for the per-request filter work to dominate, and the
-overhead tracks the rate-limit cleanly.  It does not transfer to a workload
-that churns connections.
+haterm is the HAProxy engine itself acting as a dummy origin server.  Being
+multi-threaded and event-driven, its capacity (about 750,000 req/s measured
+directly on the reference machine) sits far above what the proxied setup can
+deliver, so the HAProxy instance under test remains the bottleneck at every
+rate-limit level.  Saturating such a fast backend requires a high connection
+concurrency, hence the -c256 default.  Both the keep-alive HTTP configurations
+and the connection-churning tcp configuration then behave as expected -- the
+'off' baseline is the ceiling, at about 290,000 req/s for the standalone (sa)
+configuration, and the filter measures as a genuine cost below it.
 
-A 'mode tcp' proxy cannot manage HTTP keep-alive, so every request opens and
-closes a fresh connection on both sides; with only a few connections in flight
-a many-core host never saturates, and throughput becomes bound by per-request
-latency and scheduling rather than by the filter.  In that regime the result
-is not a reliable measure of filter cost -- the 'off' baseline can even report
-lower throughput than a traced run, an artifact of the under-saturated load
-rather than a real effect.
-
-To benchmark such a configuration, use a realistic connection concurrency --
-for example -c200 rather than the -c8 default.  With many connections in flight
-the throughput becomes governed by per-request service time, and the expected
-ordering returns: the 'off' baseline is the ceiling and the filter measures as
-a genuine cost below it.  Tested this way the 'mode tcp' configuration showed
-about an 11% throughput reduction at full tracing, where the -c8 run had instead
-reported the traced run as faster than the baseline.
+thttpd is single-threaded: it saturates one core at roughly 45,000 to 49,000
+proxied requests per second, and every measurement is compressed against that
+backend ceiling.  Raising the connection count only queues requests in front of
+its single thread and lowers the throughput, hence the reduced -t4 -c64 load
+parameters.  Because the baseline is backend-bound, rate-limit levels whose
+cost exceeds the remaining headroom flatten near the ceiling, and the computed
+overheads understate the filter's cost relative to an unconstrained baseline.
+The thttpd backend is kept for comparison with results collected before haterm
+was introduced.
 
 
 5. Rate-limit levels
@@ -205,8 +223,8 @@ and in the features they exercise:
 
   tcp    - TCP mode.  Traces the raw connection on a 'mode tcp' proxy with a
            single session span and counts the forwarded payload.  Every request
-           opens a fresh connection, so the -c8 default under-saturates the
-           host; see the concurrency discussion in section 4.
+           opens a fresh connection, so this configuration needs a high
+           connection concurrency; see the concurrency discussion in section 4.
 
   updown - Up-down counter.  A metrics-only configuration: a udcnt_int
            instrument records a signed per-session delta on client session
@@ -221,6 +239,13 @@ the sustained request rate reported by wrk, 'avg latency' is the average
 response time, and 'overhead' is the throughput loss relative to the 'off'
 baseline.  Published tables cover the sa, cmp, ctx and fe-be configurations; a
 sweep run writes the remaining configurations' tables to the _logs directory.
+
+The published tables were collected with the thttpd backend and the earlier
+-t8 -c8 load parameters, before haterm became the default test backend.  Their
+absolute req/s values all sit close to that backend's ceiling, so the overhead
+percentages hold only relative to that ceiling and they understate the filter's
+cost against an unconstrained baseline.  The tables collected with the haterm
+backend will show higher absolute rates and larger overhead percentages.
 
 
 7.1. Standalone (sa)
