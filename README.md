@@ -254,18 +254,21 @@ current value.
 Benchmark results from the standalone (`sa`) configuration, the heaviest of the
 benchmarked scenarios (worst case):
 
-| Rate limit | Req/s  | Avg latency | Overhead |
-|------------|--------|-------------|----------|
-| 100.0%     | 38,202 | 213.08 us   | 21.6%    |
-| 50.0%      | 42,777 | 190.49 us   | 12.2%    |
-| 25.0%      | 45,302 | 180.46 us   | 7.0%     |
-| 10.0%      | 46,879 | 174.69 us   | 3.7%     |
-| 2.5%       | 47,993 | 170.58 us   | 1.4%     |
-| disabled   | 48,788 | 167.74 us   | ~0       |
-| off        | 48,697 | 168.00 us   | baseline |
+| Rate limit | Req/s   | Avg latency | Overhead |
+|-----------:|--------:|------------:|---------:|
+| 100.0%     | 68,686  | 3.73 ms     | 77.3%    |
+| 50.0%      | 107,213 | 2.44 ms     | 64.5%    |
+| 25.0%      | 149,747 | 1.84 ms     | 50.4%    |
+| 10.0%      | 205,090 | 1.42 ms     | 32.1%    |
+| 2.5%       | 266,251 | 1.01 ms     | 11.9%    |
+| disabled   | 298,250 | 0.88 ms     | 1.3%     |
+| off        | 302,051 | 0.87 ms     | baseline |
 
-With a rate limit of 10% or less, the performance impact is negligible.
-Detailed methodology and additional results are in the `test/` directory.
+These are saturation figures, measured with the haterm dummy backend at the
+machine's capacity ceiling; the `sa` configuration is moreover a deliberately
+signal-heavy stress test, and a realistic production setup produces far less
+telemetry per stream and shows a correspondingly smaller overhead.  Detailed
+methodology and additional results are in the `test/` directory.
 
 ### Test configurations
 

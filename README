@@ -1610,9 +1610,10 @@ in the test directory have been benchmarked.  The test results (with the names
 README-speed-xxx, where xxx is the name of the configuration being tested) are
 also in the test directory.
 
-Testing was done with the wrk utility using 8 threads, 8 connections and a
-5-minute test duration.  Detailed results and methodology are documented in the
-test/README-test-speed file.
+Testing was done with the wrk utility using 8 threads, 256 connections and a
+5-minute test duration, with HAProxy's haterm dummy HTTP server acting as the
+origin server.  Detailed results and methodology are documented in the file
+test/README-test-speed.
 
 Below is a summary of the 'sa' (standalone) configuration results, the heaviest
 of the benchmarked scenarios and thus the worst-case figures:
@@ -1620,13 +1621,13 @@ of the benchmarked scenarios and thus the worst-case figures:
   ---------------------------------------------------------------
    rate-limit     req/s     avg latency     overhead
   ---------------------------------------------------------------
-      100.0%     38,202       213.08 us       21.6%
-       50.0%     42,777       190.49 us       12.2%
-       25.0%     45,302       180.46 us        7.0%
-       10.0%     46,879       174.69 us        3.7%
-        2.5%     47,993       170.58 us        1.4%
-     disabled    48,788       167.74 us          ~0
-     off         48,697       168.00 us      baseline
+      100.0%     68,686         3.73 ms        77.3%
+       50.0%    107,213         2.44 ms        64.5%
+       25.0%    149,747         1.84 ms        50.4%
+       10.0%    205,090         1.42 ms        32.1%
+        2.5%    266,251         1.01 ms        11.9%
+     disabled   298,250         0.88 ms         1.3%
+     off        302,051         0.87 ms     baseline
   ---------------------------------------------------------------
 
 The 'off' baseline is measured with the 'filter opentelemetry' directive
@@ -1634,9 +1635,15 @@ commented out, so the filter is not loaded at all.  The 'disabled' level has
 the filter loaded but disabled via 'option disabled', so the initialization
 overhead is included but no events are processed.
 
-As the table shows, with the rate limit set to 25% the overhead is about 7%.
-At 10% the overhead drops to 3.7%.  In typical production use with a rate limit
-of 10% or less, the performance impact should be negligible.
+As the table shows, the overhead is substantial under full-load tracing and
+falls with the rate limit: about 50% at a 25% rate limit, 32% at 10% and 12%
+at 2.5%.  These are saturation figures measured at the capacity ceiling of the
+machine; a deployment running below that ceiling mainly pays the per-request
+latency cost instead.
+
+The sa configuration is itself a deliberately signal-heavy stress test; any
+realistic production configuration produces far less telemetry per stream and
+shows a correspondingly smaller overhead at any rate limit.
 
 
 6. OTel CLI

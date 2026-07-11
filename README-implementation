@@ -844,8 +844,8 @@ The debug level is a bitmask that can be adjusted at runtime via the CLI.
 
 All runners are POSIX shell scripts (/bin/sh) meant to be run from the test/
 directory.  The run-*.sh runners accept an optional HAProxy binary path and
-log to test/_logs/; test-speed.sh takes [-d duration] [-r rate-limits] and a
-configuration name instead.
+log to test/_logs/; test-speed.sh takes [-b backend] [-d duration]
+[-r rate-limits] and a configuration name instead.
 
   run-test-config.sh  Single-instance runner: derives the configuration
                 directory from the name it is invoked under (run-<dir>.sh).

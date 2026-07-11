@@ -21,6 +21,9 @@ SUMMARY
   7.2.    Comparison (cmp)
   7.3.    Context propagation (ctx)
   7.4.    Frontend / backend (fe-be)
+  7.5.    Full event coverage (full)
+  7.6.    TCP mode (tcp)
+  7.7.    Up-down counter (updown)
   8.    Summary
 
 
@@ -138,10 +141,11 @@ multi-threaded and event-driven, its capacity (about 750,000 req/s measured
 directly on the reference machine) sits far above what the proxied setup can
 deliver, so the HAProxy instance under test remains the bottleneck at every
 rate-limit level.  Saturating such a fast backend requires a high connection
-concurrency, hence the -c256 default.  Both the keep-alive HTTP configurations
-and the connection-churning tcp configuration then behave as expected -- the
-'off' baseline is the ceiling, at about 290,000 req/s for the standalone (sa)
-configuration, and the filter measures as a genuine cost below it.
+concurrency, hence the -c256 default.  The 'off' baseline thereby becomes the
+real ceiling, at about 300,000 req/s for the standalone (sa) configuration,
+and the filter measures as a genuine cost below it.  Since haterm keeps its
+connections alive, even the tcp configuration works over long-lived tunnels
+rather than opening a fresh connection per request.
 
 thttpd is single-threaded: it saturates one core at roughly 45,000 to 49,000
 proxied requests per second, and every measurement is compressed against that
@@ -152,6 +156,15 @@ cost exceeds the remaining headroom flatten near the ceiling, and the computed
 overheads understate the filter's cost relative to an unconstrained baseline.
 The thttpd backend is kept for comparison with results collected before haterm
 was introduced.
+
+All published figures were measured on the following test system:
+
+  - CPU     : AMD Ryzen 7 8845HS (8 cores, 16 threads, max 5.1 GHz)
+  - memory  : 96 GiB
+  - OS      : Linux, kernel 6.17.0
+  - HAProxy : version 3.5-dev2, used for both the tested instance and the
+              haterm origin server
+  - wrk     : version 4.1.0
 
 
 5. Rate-limit levels
@@ -222,9 +235,10 @@ and in the features they exercise:
            events, covering every filter event except on-http-tarpit-request.
 
   tcp    - TCP mode.  Traces the raw connection on a 'mode tcp' proxy with a
-           single session span and counts the forwarded payload.  Every request
-           opens a fresh connection, so this configuration needs a high
-           connection concurrency; see the concurrency discussion in section 4.
+           single session span and counts the forwarded payload.  The span
+           opens once per connection and, with the keep-alive haterm backend,
+           is amortized over all the requests a connection carries; see the
+           results in section 7.6.
 
   updown - Up-down counter.  A metrics-only configuration: a udcnt_int
            instrument records a signed per-session delta on client session
@@ -237,15 +251,26 @@ and in the features they exercise:
 The tables below summarize the benchmarking results.  The 'req/s' column shows
 the sustained request rate reported by wrk, 'avg latency' is the average
 response time, and 'overhead' is the throughput loss relative to the 'off'
-baseline.  Published tables cover the sa, cmp, ctx and fe-be configurations; a
-sweep run writes the remaining configurations' tables to the _logs directory.
+baseline.  A table is published for every benchmarked configuration; values
+inside the run-to-run scatter are shown as '~0'.
 
-The published tables were collected with the thttpd backend and the earlier
--t8 -c8 load parameters, before haterm became the default test backend.  Their
-absolute req/s values all sit close to that backend's ceiling, so the overhead
-percentages hold only relative to that ceiling and they understate the filter's
-cost against an unconstrained baseline.  The tables collected with the haterm
-backend will show higher absolute rates and larger overhead percentages.
+The tables were collected with the haterm backend, using the -t8 -c256 load
+parameters and 5-minute runs on a fully saturated 16-CPU machine.  They are
+not comparable with the results collected earlier through the thttpd backend,
+whose single-threaded ceiling compressed all measurements and understated the
+filter's cost.  Note that these are saturation figures: the overhead states
+how much of the peak request rate full-load tracing consumes, and it exceeds
+the impact seen at traffic levels below the capacity ceiling.
+
+Keep in mind that these configurations are stress tests rather than deployment
+templates: almost all of them produce a deliberately excessive signal volume.
+The sa, full and ctx configurations open several spans with attributes, events,
+links, baggage and metrics on nearly every filter event of every stream, which
+no real deployment has any reason to do.  A production setup would typically
+record a single span pair around the request and the response with a handful
+of attributes -- less work per stream than even the cmp configuration -- and it
+would then sample with a modest rate-limit, keeping the real cost far below
+the published figures.
 
 
 7.1. Standalone (sa)
@@ -254,21 +279,22 @@ backend will show higher absolute rates and larger overhead percentages.
   ---------------------------------------------------------------
    rate-limit     req/s     avg latency     overhead
   ---------------------------------------------------------------
-      100.0%     38,202       213.08 us       21.6%
-       75.0%     40,223       202.18 us       17.4%
-       50.0%     42,777       190.49 us       12.2%
-       25.0%     45,302       180.46 us        7.0%
-       10.0%     46,879       174.69 us        3.7%
-        2.5%     47,993       170.58 us        1.4%
-        0.0%     48,726       167.96 us          ~0
-     disabled    48,788       167.74 us          ~0
-     off         48,697       168.00 us      baseline
+      100.0%     68,686         3.73 ms        77.3%
+       75.0%     81,488         3.17 ms        73.0%
+       50.0%    107,213         2.44 ms        64.5%
+       25.0%    149,747         1.84 ms        50.4%
+       10.0%    205,090         1.42 ms        32.1%
+        2.5%    266,251         1.01 ms        11.9%
+        0.0%    299,388         0.88 ms         0.9%
+     disabled   298,250         0.88 ms         1.3%
+     off        302,051         0.87 ms     baseline
   ---------------------------------------------------------------
 
-With its whole event set active, the sa configuration at 100% rate-limit shows
-a 22% throughput reduction.  At 10% rate-limit the overhead drops to 3.7%, and
-at 2.5% it is barely measurable at 1.4%.  The 'disabled' and '0.0' levels show
-no measurable overhead above the baseline.
+With its whole event set active, the sa configuration at 100% rate-limit costs
+77% of the peak request rate, and the average latency rises from 0.87 ms to
+3.73 ms.  The cost falls steadily with the rate-limit -- 32% at 10% and 12% at
+2.5% -- while the '0.0' and 'disabled' levels stay within about one percent of
+the baseline.
 
 
 7.2. Comparison (cmp)
@@ -277,20 +303,21 @@ no measurable overhead above the baseline.
   ---------------------------------------------------------------
    rate-limit     req/s     avg latency     overhead
   ---------------------------------------------------------------
-      100.0%     44,780       182.58 us        7.6%
-       75.0%     45,362       180.10 us        6.4%
-       50.0%     46,279       176.59 us        4.6%
-       25.0%     47,061       173.57 us        2.9%
-       10.0%     47,793       170.85 us        1.4%
-        2.5%     48,410       169.11 us        0.2%
-        0.0%     48,586       168.09 us          ~0
-     disabled    48,510       168.57 us          ~0
-     off         48,488       168.64 us      baseline
+      100.0%    143,291         1.80 ms        53.0%
+       75.0%    166,504         1.59 ms        45.4%
+       50.0%    195,512         1.41 ms        35.9%
+       25.0%    230,052         1.22 ms        24.6%
+       10.0%    262,225         1.04 ms        14.1%
+        2.5%    291,758         0.91 ms         4.4%
+        0.0%    302,844         0.86 ms         0.8%
+     disabled   304,185         0.86 ms           ~0
+     off        305,166         0.86 ms     baseline
   ---------------------------------------------------------------
 
 The simplified cmp configuration shows significantly lower overhead than sa at
-every rate-limit level.  At 100% rate-limit the overhead is 7.6%, at 10% it is
-1.4%, and below 2.5% it becomes indistinguishable from the baseline.
+every rate-limit level: 53% at 100% rate-limit, 14% at 10% and 4.4% at 2.5%.
+Attaching the filter without processing any telemetry ('0.0') costs 0.8%, and
+the 'disabled' level is indistinguishable from the baseline.
 
 
 7.3. Context propagation (ctx)
@@ -299,22 +326,21 @@ every rate-limit level.  At 100% rate-limit the overhead is 7.6%, at 10% it is
   ---------------------------------------------------------------
    rate-limit     req/s     avg latency     overhead
   ---------------------------------------------------------------
-      100.0%     30,032       270.35 us       38.0%
-       75.0%     33,490       242.56 us       30.9%
-       50.0%     37,679       215.92 us       22.2%
-       25.0%     42,449       192.36 us       12.4%
-       10.0%     45,458       180.08 us        6.2%
-        2.5%     47,546       171.64 us        1.9%
-        0.0%     48,313       168.86 us        0.3%
-     disabled    48,620       168.36 us          ~0
-     off         48,446       168.73 us      baseline
+      100.0%     49,998         5.12 ms        83.6%
+       75.0%     62,079         4.12 ms        79.6%
+       50.0%     82,588         3.10 ms        72.9%
+       25.0%    123,494         2.11 ms        59.4%
+       10.0%    185,332         1.49 ms        39.1%
+        2.5%    258,145         1.07 ms        15.2%
+        0.0%    301,631         0.87 ms         0.9%
+     disabled   302,066         0.87 ms         0.8%
+     off        304,454         0.86 ms     baseline
   ---------------------------------------------------------------
 
 The ctx configuration is the most expensive due to the inject/extract cycle on
-every scope execution.  At 100% rate-limit the overhead reaches 38%.  However,
-the cost scales linearly with the rate-limit: at 10% the overhead is 6.2%, and
-at 2.5% it drops to 1.9%.  The filter attachment overhead (0.0% vs off) is
-negligible at 0.3%.
+every scope execution: 84% at 100% rate-limit and still 39% at 10%.  Only near
+the 2.5% rate-limit does the cost fall toward single digits, while the filter
+attachment overhead ('0.0') remains at 0.9%.
 
 
 7.4. Frontend / backend (fe-be)
@@ -323,31 +349,103 @@ negligible at 0.3%.
   ---------------------------------------------------------------
    rate-limit     req/s     avg latency     overhead
   ---------------------------------------------------------------
-      100.0%     34,012       238.75 us       19.1%
-       75.0%     35,462       230.08 us       15.7%
-       50.0%     36,811       222.33 us       12.5%
-       25.0%     38,493       210.95 us        8.5%
-       10.0%     39,735       206.15 us        5.5%
-        2.5%     40,423       202.35 us        3.9%
-        0.0%     40,842       200.88 us        2.9%
-     disabled    42,113       194.91 us          ~0
-     off         42,062       194.37 us      baseline
+      100.0%     67,719         3.79 ms        62.9%
+       75.0%     77,117         3.32 ms        57.8%
+       50.0%     90,086         2.84 ms        50.7%
+       25.0%    112,488         2.27 ms        38.4%
+       10.0%    137,040         1.86 ms        25.0%
+        2.5%    156,012         1.64 ms        14.6%
+        0.0%    166,262         1.53 ms         9.0%
+     disabled   181,294         1.40 ms         0.7%
+     off        182,638         1.39 ms     baseline
   ---------------------------------------------------------------
 
 The fe-be configuration involves two HAProxy instances in series, so the
-absolute baseline (off) is already lower at 42,062 req/s due to the extra
+absolute baseline (off) is already lower at 182,638 req/s due to the extra
 network hop.  The rate-limit is varied only on the frontend; the backend
 always has the filter loaded with hard-errors enabled.
 
-This explains the 2.9% overhead at rate-limit 0.0: even though the frontend
+This explains the 9.0% overhead at rate-limit 0.0: even though the frontend
 never traces, the backend filter still attaches to every stream, attempts to
 extract context from the HTTP headers, fails (because the frontend did not
 inject any context), and the hard-errors option stops further processing.
 This per-stream attach/extract/error cycle accounts for the residual cost.
 
 When both instances have the filter disabled (disabled level), the overhead
-is within measurement noise, consistent with the single-instance
-configurations.
+drops to 0.7%, consistent with the single-instance configurations.
+
+
+7.5. Full event coverage (full)
+--------------------------------
+
+  ---------------------------------------------------------------
+   rate-limit     req/s     avg latency     overhead
+  ---------------------------------------------------------------
+      100.0%     52,616         4.86 ms        82.8%
+       75.0%     63,738         4.01 ms        79.1%
+       50.0%     85,361         3.02 ms        72.0%
+       25.0%    128,246         2.07 ms        58.0%
+       10.0%    184,966         1.50 ms        39.4%
+        2.5%    251,750         1.10 ms        17.5%
+        0.0%    299,886         0.88 ms         1.7%
+     disabled   301,403         0.87 ms         1.2%
+     off        305,206         0.86 ms     baseline
+  ---------------------------------------------------------------
+
+The full configuration extends sa with the remaining lifecycle events, and it
+costs correspondingly more at every level: 83% at 100% rate-limit, 39% at 10%
+and 18% at 2.5%, close to the ctx figures.  The attachment overhead ('0.0') of
+1.7% is the largest among the single-instance configurations, and it matches
+the larger per-stream event set.
+
+
+7.6. TCP mode (tcp)
+--------------------
+
+  ---------------------------------------------------------------
+   rate-limit     req/s     avg latency     overhead
+  ---------------------------------------------------------------
+      100.0%    336,033       721.91 us         5.1%
+       75.0%    345,857       702.26 us         2.4%
+       50.0%    343,517       706.68 us         3.0%
+       25.0%    357,053       662.83 us        -0.8%
+       10.0%    351,205       686.46 us         0.8%
+        2.5%    356,290       682.02 us        -0.6%
+        0.0%    364,624       651.41 us        -2.9%
+     disabled   369,502       634.14 us        -4.3%
+     off        354,184       676.34 us     baseline
+  ---------------------------------------------------------------
+
+The tcp configuration has the highest absolute baseline (354,184 req/s), as a
+'mode tcp' proxy performs no HTTP processing.  Its single session span opens
+once per connection, and because the haterm backend keeps connections alive,
+that work is amortized over the whole keep-alive tunnel.  The measurable cost
+is therefore about 5% at 100% rate-limit, with all the other levels inside the
+run-to-run scatter -- including readings nominally faster than the baseline,
+which appear as negative overheads in the table.
+
+
+7.7. Up-down counter (updown)
+------------------------------
+
+  ---------------------------------------------------------------
+   rate-limit     req/s     avg latency     overhead
+  ---------------------------------------------------------------
+      100.0%    261,685         1.10 ms        13.8%
+       75.0%    270,673         1.02 ms        10.8%
+       50.0%    278,482         0.98 ms         8.2%
+       25.0%    287,652         0.94 ms         5.2%
+       10.0%    293,626         0.91 ms         3.2%
+        2.5%    300,193         0.88 ms         1.1%
+        0.0%    302,066         0.87 ms           ~0
+     disabled   303,746         0.86 ms           ~0
+     off        303,479         0.86 ms     baseline
+  ---------------------------------------------------------------
+
+The metrics-only updown configuration is the cheapest HTTP-mode setup: 14% at
+100% rate-limit, 3.2% at 10% and about 1% at 2.5%.  A single up-down counter
+instrument without spans or context propagation leaves the request path almost
+untouched at the lower sampling rates.
 
 
 8. Summary
@@ -356,41 +454,55 @@ configurations.
 The table below shows each benchmarked configuration's overhead at selected
 rate-limit levels:
 
-  ---------------------------------------------------
-   rate-limit    sa      cmp      ctx     fe-be
-  ---------------------------------------------------
-      100.0%   21.6%    7.6%    38.0%    19.1%
-       25.0%    7.0%    2.9%    12.4%     8.5%
-       10.0%    3.7%    1.4%     6.2%     5.5%
-        2.5%    1.4%    0.2%     1.9%     3.9%
-  ---------------------------------------------------
+  -------------------------------------------------------------------------
+   rate-limit       sa      cmp      ctx    fe-be     full      tcp   updown
+  -------------------------------------------------------------------------
+      100.0%    77.3%    53.0%    83.6%    62.9%    82.8%     5.1%    13.8%
+       25.0%    50.4%    24.6%    59.4%    38.4%    58.0%       ~0     5.2%
+       10.0%    32.1%    14.1%    39.1%    25.0%    39.4%       ~0     3.2%
+        2.5%    11.9%     4.4%    15.2%    14.6%    17.5%       ~0     1.1%
+  -------------------------------------------------------------------------
 
 Key observations:
 
-  - The overhead scales approximately linearly with the rate-limit value.
-    Reducing the rate-limit from 100% to 10% eliminates the vast majority
-    of the cost in all configurations.
+  - Full tracing is expensive under saturation: depending on the configuration,
+    the 100% rate-limit costs between 53% and 84% of the peak request rate on
+    an HTTP proxy.
+
+  - The overhead falls with the rate-limit, but more slowly than the rate
+    itself: at a 10% rate-limit the sa configuration still loses 32% of its
+    peak rate.  The rate-limit budgets the tracing work, it does not scale
+    the cost proportionally.
 
   - The cmp configuration, which uses a reduced span hierarchy typical of
-    production deployments, adds only 1.4% overhead at a 10% rate-limit.
+    production deployments, is the cheapest span-producing HTTP setup at
+    every rate-limit level.
 
-  - The sa configuration, the heaviest benchmarked event set, stays at about
-    7% overhead at a 25% rate-limit and below 4% at 10%.
+  - The ctx and full configurations are the heaviest: context inject/extract
+    on every scope and the extended event set each add a comparable surcharge
+    over sa.
 
-  - The ctx configuration is the most expensive due to the inject/extract
-    context propagation on every scope.  It is designed as a stress test for
-    the propagation mechanism rather than a practical production template.
+  - The fe-be configuration keeps a 9% residual cost even at rate-limit 0.0
+    because the backend instance attaches, attempts a context extract and
+    fails on every stream regardless of the frontend rate-limit.
 
-  - The fe-be configuration carries a higher fixed cost because two HAProxy
-    instances are involved and the backend filter processes context extraction
-    regardless of the frontend rate-limit setting.
+  - The tcp configuration's session span is amortized over the keep-alive
+    connections, so its cost stays inside the measurement scatter at all but
+    the highest rate-limits.
 
-  - Loading the filter but disabling it via 'option disabled' adds no measurable
-    overhead in any configuration.
+  - The metrics-only updown configuration costs 13.8% at full sampling and
+    about 3% at a 10% rate-limit.
 
-  - The filter attachment cost without any telemetry processing (rate-limit 0.0)
-    is 0.3% or less for single-instance configurations (sa, cmp, ctx).
+  - Attaching the filter without any telemetry work (rate-limit 0.0) costs at
+    most 1.7%, and the 'disabled' level at most 1.3%, in any single-instance
+    configuration.
 
-  - In typical production use with a rate-limit of 10% or less, the performance
-    impact of the OTEL filter should remain negligible for any single-instance
-    deployment.
+  - These are saturation figures from a fully loaded machine.  A deployment
+    running below the capacity ceiling mainly pays the per-request latency
+    cost instead, e.g. 0.87 ms against 3.73 ms at 100% rate-limit in the sa
+    configuration.
+
+  - The benchmarked configurations are intentionally signal-heavy stress
+    tests, not deployment templates.  A production configuration records
+    much less telemetry per stream and, combined with a modest rate-limit,
+    stays far below these overheads.
