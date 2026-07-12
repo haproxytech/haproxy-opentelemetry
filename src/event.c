@@ -220,6 +220,12 @@ static int flt_otel_scope_run_instrument(struct stream *s, struct filter *f, uin
 
 	OTELC_FUNC("%p, %p, %u, %p, %p, %p:%p", s, f, dir, scope, meter, OTELC_DPTR_ARGS(err));
 
+	if (meter == NULL) {
+		FLT_OTEL_ERR("scope '%s' uses metric instruments but the metrics signal is not configured", scope->id);
+
+		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+	}
+
 	list_for_each_entry(conf_instr, &(scope->instruments), list) {
 		if (conf_instr->type == OTELC_METRIC_INSTRUMENT_UPDATE) {
 			/* Do nothing. */
@@ -338,6 +344,12 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 	int                              retval = FLT_OTEL_RET_OK;
 
 	OTELC_FUNC("%p, %p, %u, %p, %p, %p, %p:%p", s, f, dir, scope, logger, ts, OTELC_DPTR_ARGS(err));
+
+	if (logger == NULL) {
+		FLT_OTEL_ERR("scope '%s' uses log records but the logs signal is not configured", scope->id);
+
+		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+	}
 
 	list_for_each_entry(conf_log, &(scope->log_records), list) {
 		struct flt_otel_conf_sample      *sample;
@@ -536,6 +548,12 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 
 	if (span == NULL)
 		OTELC_RETURN_INT(retval);
+
+	if (conf->instr->tracer == NULL) {
+		FLT_OTEL_ERR("span '%s' is used but the traces signal is not configured", span->id);
+
+		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+	}
 
 	/* Create the OTel span on first invocation. */
 	if (span->span == NULL) {

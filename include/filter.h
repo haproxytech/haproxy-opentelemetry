@@ -20,6 +20,9 @@ enum FLT_OTEL_RET_enum {
 	FLT_OTEL_RET_OK     = 1,
 };
 
+/* The context name state leaves the signal with a usable configuration. */
+#define FLT_OTEL_NSTATE_USABLE(s)   ((s) != OTELC_CTX_NAME_ABSENT)
+
 /* Dump or iterate a named configuration list for debugging. */
 #define FLT_OTEL_DBG_LIST(d,m,p,t,v,f)                               \
 	do {                                                         \

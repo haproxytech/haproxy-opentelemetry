@@ -174,16 +174,23 @@ static void flt_otel_log_handler_cb(otelc_log_level_t level __maybe_unused, cons
  *   Initializes the OpenTelemetry C wrapper library for the instrumentation
  *   specified by <instr>.  It verifies the library version, constructs the
  *   absolute configuration path from <instr>->config, calls otelc_init(), and
- *   creates the tracer, meter and logger instances.  On success, it registers
- *   the memory and thread ID callbacks via otelc_ext_init().
+ *   checks how the context name resolved against each signal section: a name
+ *   that matches nothing in a present section fails the initialization, the
+ *   legacy flat layout and the 'default' fallback get a warning, and a signal
+ *   whose section is absent is skipped.  The tracer, meter and logger instances
+ *   are created only for the signals that are configured.  On success, it
+ *   registers the memory and thread ID callbacks via otelc_ext_init().
  *
  * RETURN VALUE
  *   Returns 0 on success, or FLT_OTEL_RET_ERROR on failure.
  */
 static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
 {
-	char cwd[PATH_MAX], path[PATH_MAX], *path_ptr = path;
-	int  rc, retval = FLT_OTEL_RET_ERROR;
+#define OTELC_SIGNAL_DEF(a,b)   b,
+	static const char *const sig_name[] = { OTELC_SIGNAL_DEFINES }; /* Indexed by otelc_signal_t. */
+#undef OTELC_SIGNAL_DEF
+	char cwd[PATH_MAX], path[PATH_MAX], *path_ptr = path, errbuf[256];
+	int  i, nstate[OTELC_SIGNAL_MAX], rc, retval = FLT_OTEL_RET_ERROR;
 
 	OTELC_FUNC("%p, %p:%p", instr, OTELC_DPTR_ARGS(err));
 
@@ -226,37 +233,74 @@ static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
 		OTELC_RETURN_INT(retval);
 	}
 
-	instr->tracer = otelc_tracer_create(instr->ctx, err);
-	if (instr->tracer == NULL) {
-		if (*err == NULL)
-			FLT_OTEL_ERR("%s", "failed to initialize OpenTelemetry tracer");
+	/*
+	 * Check how the context name resolved against each signal section.
+	 * A failed query or a section that matches nothing aborts the
+	 * initialization, while the legacy flat layout and the fallback to
+	 * the 'default' entry only get a warning.  An absent section is no
+	 * error: its signal is simply not created.
+	 */
+	for (i = 0; i < OTELC_SIGNAL_MAX; i++) {
+		nstate[i] = otelc_ctx_nstate_get(instr->ctx, i, errbuf, sizeof(errbuf));
+		if (nstate[i] == OTELC_RET_ERROR) {
+			FLT_OTEL_ERR("failed to get the '%s' signal name state: %s", sig_name[i], errbuf);
 
-		OTELC_RETURN_INT(retval);
+			OTELC_RETURN_INT(retval);
+		}
+		else if ((nstate[i] == OTELC_CTX_NAME_NOT_FOUND) || (nstate[i] == OTELC_CTX_NAME_UNSET_NOT_FOUND)) {
+			FLT_OTEL_ERR("'%s' signal: %s", sig_name[i], errbuf);
+
+			OTELC_RETURN_INT(retval);
+		}
+		else if ((nstate[i] == OTELC_CTX_NAME_DEFAULT) || (nstate[i] == OTELC_CTX_NAME_FLAT) || (nstate[i] == OTELC_CTX_NAME_UNSET_FLAT)) {
+			FLT_OTEL_WARNING("'%s' signal: %s", sig_name[i], errbuf);
+		}
 	}
 
-	instr->meter = otelc_meter_create(instr->ctx, err);
-	if (instr->meter == NULL) {
-		if (*err == NULL)
-			FLT_OTEL_ERR("%s", "failed to initialize OpenTelemetry meter");
+	/*
+	 * Create an instance only for the signals whose configuration the
+	 * name state marks as usable; a skipped signal handle stays NULL and
+	 * the scope directives that reference it fail with an error.
+	 */
+	if (FLT_OTEL_NSTATE_USABLE(nstate[OTELC_SIGNAL_TRACES])) {
+		instr->tracer = otelc_tracer_create(instr->ctx, err);
+		if (instr->tracer == NULL) {
+			if (*err == NULL)
+				FLT_OTEL_ERR("%s", "failed to initialize OpenTelemetry tracer");
 
-		OTELC_RETURN_INT(retval);
+			OTELC_RETURN_INT(retval);
+		}
 	}
 
-	instr->logger = otelc_logger_create(instr->ctx, err);
-	if (instr->logger == NULL) {
-		if (*err == NULL)
-			FLT_OTEL_ERR("%s", "failed to initialize OpenTelemetry logger");
-	} else {
+	if (FLT_OTEL_NSTATE_USABLE(nstate[OTELC_SIGNAL_METRICS])) {
+		instr->meter = otelc_meter_create(instr->ctx, err);
+		if (instr->meter == NULL) {
+			if (*err == NULL)
+				FLT_OTEL_ERR("%s", "failed to initialize OpenTelemetry meter");
+
+			OTELC_RETURN_INT(retval);
+		}
+	}
+
+	if (FLT_OTEL_NSTATE_USABLE(nstate[OTELC_SIGNAL_LOGS])) {
+		instr->logger = otelc_logger_create(instr->ctx, err);
+		if (instr->logger == NULL) {
+			if (*err == NULL)
+				FLT_OTEL_ERR("%s", "failed to initialize OpenTelemetry logger");
+
+			OTELC_RETURN_INT(retval);
+		}
+	}
+
 #if defined(USE_THREAD) && defined(DEBUG_OTEL)
-		flt_otel_tid[tid].id         = pthread_self();
-		flt_otel_tid[tid].registered = true;
-		HA_ATOMIC_STORE(&flt_otel_thread_id_offset, 1000);
+	flt_otel_tid[tid].id         = pthread_self();
+	flt_otel_tid[tid].registered = true;
+	HA_ATOMIC_STORE(&flt_otel_thread_id_offset, 1000);
 #endif
-		otelc_ext_init(flt_otel_mem_malloc, flt_otel_mem_free, flt_otel_thread_id);
-		otelc_log_set_handler(flt_otel_log_handler_cb, NULL, false);
+	otelc_ext_init(flt_otel_mem_malloc, flt_otel_mem_free, flt_otel_thread_id);
+	otelc_log_set_handler(flt_otel_log_handler_cb, NULL, false);
 
-		retval = 0;
-	}
+	retval = 0;
 
 	OTELC_RETURN_INT(retval);
 }
@@ -1204,8 +1248,8 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
  *
  * DESCRIPTION
  *   Per-thread filter initialization called after thread creation.  It starts
- *   the OTel tracer, meter and logger providers of the instrumentation; a
- *   start is not idempotent and must run exactly once, so an atomic claim
+ *   the OTel tracer, meter and logger providers that were created; a start
+ *   is not idempotent and must run exactly once, so an atomic claim
  *   guarantees it runs on one thread only, while the other threads return
  *   success without repeating it.
  *
@@ -1234,17 +1278,21 @@ static int flt_otel_ops_init_per_thread(struct proxy *p, struct flt_conf *fconf)
 	 * once; threads that lose the claim are done here.
 	 */
 	if (HA_ATOMIC_BTS(&(conf->instr->flag_started), 0) == 0) {
-		retval = OTELC_OPS(conf->instr->tracer, start);
-		if (retval == OTELC_RET_ERROR)
-			FLT_OTEL_ALERT("%s", conf->instr->tracer->err);
+		retval = FLT_OTEL_RET_OK;
 
-		if (retval != OTELC_RET_ERROR) {
+		if (conf->instr->tracer != NULL) {
+			retval = OTELC_OPS(conf->instr->tracer, start);
+			if (retval == OTELC_RET_ERROR)
+				FLT_OTEL_ALERT("%s", conf->instr->tracer->err);
+		}
+
+		if ((retval != OTELC_RET_ERROR) && (conf->instr->meter != NULL)) {
 			retval = OTELC_OPS(conf->instr->meter, start);
 			if (retval == OTELC_RET_ERROR)
 				FLT_OTEL_ALERT("%s", conf->instr->meter->err);
 		}
 
-		if (retval != OTELC_RET_ERROR) {
+		if ((retval != OTELC_RET_ERROR) && (conf->instr->logger != NULL)) {
 			retval = OTELC_OPS(conf->instr->logger, start);
 			if (retval == OTELC_RET_ERROR)
 				FLT_OTEL_ALERT("%s", conf->instr->logger->err);
