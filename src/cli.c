@@ -477,7 +477,10 @@ static int flt_otel_cli_parse_status(char **args, char *payload, struct appctx *
 			n_scopes++;
 
 		(void)memprintf(&msg, "%s\n%s   proxy %s, filter %s\n", msg, nl, px->id, conf->id);
-		(void)memprintf(&msg, "%s     configuration: %s\n", msg, conf->cfg_file);
+		if (conf->sec_name == NULL)
+			(void)memprintf(&msg, "%s     configuration: %s\n", msg, conf->cfg_file);
+		else
+			(void)memprintf(&msg, "%s     configuration: %s [%s]\n", msg, conf->cfg_file, conf->sec_name);
 		(void)memprintf(&msg, "%s     groups/scopes: %d/%d\n\n", msg, n_groups, n_scopes);
 		(void)memprintf(&msg, "%s       instrumentation %s\n", msg, conf->instr->id);
 		(void)memprintf(&msg, "%s       configuration: %s\n", msg, conf->instr->config);

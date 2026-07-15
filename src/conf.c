@@ -1082,6 +1082,7 @@ void flt_otel_conf_free(struct flt_otel_conf **ptr)
 
 	OTELC_SFREE((*ptr)->id);
 	OTELC_SFREE((*ptr)->cfg_file);
+	OTELC_SFREE((*ptr)->sec_name);
 	flt_otel_conf_instr_free(&((*ptr)->instr));
 	FLT_OTEL_LIST_DESTROY(group, &((*ptr)->groups));
 	FLT_OTEL_LIST_DESTROY(scope, &((*ptr)->scopes));

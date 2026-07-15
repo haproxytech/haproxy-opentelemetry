@@ -226,7 +226,7 @@ proxy section (frontend / listen / backend):
 
    frontend otel-test
      ...
-     filter opentelemetry [id <id>] config <file>
+     filter opentelemetry [id <id>] config <file> [<name>]
      ...
 
 If no filter id is specified, 'otel-filter' is used as default.  The 'config'
@@ -235,6 +235,9 @@ configuration file.  This file defines the OTel scopes, groups and
 instrumentation sections (see section 4.1).  The YAML configuration for the
 OpenTelemetry SDK is a separate file, referenced by the 'config' keyword inside
 the "otel-instrumentation" section (see section 4.2).
+
+An optional section name after the file path selects the top-level OTel scope
+to use; it defaults to the filter id, so several filters may share one scope.
 
 Note: the parser does not limit the number of OTel filters; it only requires
 each filter id to be unique.  Since the wrapper version 3.0.0, every filter

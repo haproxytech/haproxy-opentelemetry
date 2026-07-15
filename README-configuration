@@ -62,11 +62,16 @@ configuration, in a proxy section (frontend / listen / backend):
 
   frontend my-frontend
     ...
-    filter opentelemetry [id <id>] config <otel-cfg-file>
+    filter opentelemetry [id <id>] config <otel-cfg-file> [<name>]
     ...
 
 If no filter id is specified, 'otel-filter' is used as default.  The 'config'
 parameter is mandatory and specifies the path to the OTel configuration file.
+An optional section name may follow the file path: it selects the top-level
+OTel scope of the configuration file to use (see section 3.1) and defaults to
+the filter id.  Since filter ids must be unique, the section name is what lets
+several filters read the same OTel scope: each filter keeps its own id and names
+one shared scope instead of holding a private copy of it per filter id.
 
 Note: the parser does not limit the number of OTel filters; it only requires
 each filter id to be unique.  Since the wrapper version 3.0.0, every filter
@@ -112,11 +117,12 @@ and zero or more "otel-group" sections.
 3.1. OTel scope (top-level)
 -----------------------------
 
-The file is organized into top-level OTel scopes, each identified by a filter
-id enclosed in square brackets.  The filter id must match the id specified in
-the HAProxy 'filter opentelemetry' directive.
+The file is organized into top-level OTel scopes, each identified by a name
+enclosed in square brackets.  A filter uses the scope whose name matches the
+section name given after the configuration file on its 'filter opentelemetry'
+line, or, when no section name is given there, its own filter id.
 
-  [<filter-id>]
+  [<name>]
       otel-instrumentation <name>
           ...
 
@@ -136,6 +142,12 @@ file:
   [my-second-filter]
       otel-instrumentation instr2
           ...
+
+A single OTel scope can also serve several filter instances at once: each filter
+declares its own id and names the shared scope on its filter line:
+
+  filter opentelemetry id flt-1 config otel.cfg my-first-filter
+  filter opentelemetry id flt-2 config otel.cfg my-first-filter
 
 Several OTel scopes may coexist in a single configuration file, each declared
 filter selecting and running one of them.  Since the wrapper version 3.0.0,

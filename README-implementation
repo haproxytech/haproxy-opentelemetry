@@ -125,7 +125,7 @@ compiled inside vars.c.
 Configuration parsing is driven by parser.c.  The filter is declared in the
 HAProxy configuration with:
 
-  filter opentelemetry [id <id>] config <file>
+  filter opentelemetry [id <id>] config <file> [<name>]
 
 The flt_otel_parse() function (parser.c) handles the "filter" line, creates an
 flt_otel_conf structure, and delegates to parse_cfg() which loads the referenced
@@ -139,6 +139,10 @@ the section types:
 After each section is fully parsed, a post-parse function validates the section
 (e.g., flt_otel_post_parse_cfg_scope() checks that context injection is only
 used on events that support it).
+
+An optional trailing name on the filter line selects the [<name>] section of
+the file: flt_otel_parse_check_scope() compares it, or the filter id when it
+is absent, against HAProxy's cfg_scope while the file is parsed.
 
 4.1  Instrumentation Section
 

@@ -141,13 +141,15 @@ Add the filter to a HAProxy proxy section (frontend/listen/backend):
 ```
 frontend my-frontend
     ...
-    filter opentelemetry [id <id>] config <file>
+    filter opentelemetry [id <id>] config <file> [<name>]
     ...
 ```
 
-If no filter id is specified, `otel-filter` is used as default.  Any number of
-filters may be declared, on one proxy or across proxies, and every instance
-runs with its own library context.
+If no filter id is specified, `otel-filter` is used as default.  An optional
+section name may follow the file: it selects the `[<name>]` section of the OTel
+configuration file and defaults to the filter id, so several filters can share
+one section.  Any number of filters may be declared, on one proxy or across
+proxies, and every instance runs with its own library context.
 
 #### OTel configuration file structure
 

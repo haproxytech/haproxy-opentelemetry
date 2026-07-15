@@ -625,8 +625,9 @@ static int flt_otel_parse_cfg_file(char **ptr, const char *file, int line, char 
  *
  * DESCRIPTION
  *   Checks whether the current configuration parsing is within the correct
- *   HAProxy cfg_scope filter.  When cfg_scope is set and does not match the
- *   current filter ID, the configuration line is skipped.
+ *   HAProxy cfg_scope section.  The section name set on the filter line is
+ *   matched first; when it is not set, the filter ID is used.  When cfg_scope
+ *   is set and does not match that name, the configuration line is skipped.
  *
  * RETURN VALUE
  *   Returns TRUE in case the configuration is not in the currently
@@ -634,10 +635,11 @@ static int flt_otel_parse_cfg_file(char **ptr, const char *file, int line, char 
  */
 static bool flt_otel_parse_check_scope(void)
 {
-	bool retval = 0;
+	const char *name = (flt_otel_current_config->sec_name != NULL) ? flt_otel_current_config->sec_name : flt_otel_current_config->id;
+	bool        retval = 0;
 
-	if ((cfg_scope != NULL) && (flt_otel_current_config->id != NULL) && (strcmp(flt_otel_current_config->id, cfg_scope) != 0)) {
-		OTELC_DBG(INFO, "cfg_scope: '%s', id: '%s'", cfg_scope, flt_otel_current_config->id);
+	if ((cfg_scope != NULL) && (name != NULL) && (strcmp(name, cfg_scope) != 0)) {
+		OTELC_DBG(INFO, "cfg_scope: '%s', name: '%s'", cfg_scope, name);
 
 		retval = 1;
 	}
@@ -2582,7 +2584,9 @@ static int flt_otel_post_parse_cfg_scope(void)
  *   Parses the OTel filter configuration file.  Backs up the current HAProxy
  *   section parsers, registers temporary otel-instrumentation, otel-group, and
  *   otel-scope section parsers, loads and parses the file, then restores the
- *   original sections.
+ *   original sections.  When a section name is set on the filter line, only
+ *   the matching top-level section of the file is parsed; a name that matches
+ *   nothing fails with an error.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -2653,6 +2657,10 @@ static int flt_otel_parse_cfg(struct flt_otel_conf *conf, const char *flt_name, 
 	cfg_unregister_sections();
 	cfg_restore_sections(&backup_sections);
 
+	/* A section name that matched nothing leaves the filter without instrumentation. */
+	if (!(retval & ERR_CODE) && (conf->sec_name != NULL) && (conf->instr == NULL))
+		FLT_OTEL_PARSE_ERR(err, "'%s' : no instrumentation found in section '%s'", conf->cfg_file, conf->sec_name);
+
 	flt_otel_current_config = NULL;
 
 	OTELC_RETURN_INT(retval);
@@ -2677,7 +2685,9 @@ static int flt_otel_parse_cfg(struct flt_otel_conf *conf, const char *flt_name, 
  * DESCRIPTION
  *   Main filter parser entry point, registered for the "opentelemetry" filter
  *   keyword.  Parses the filter ID and configuration file path from the HAProxy
- *   configuration line.  If no filter ID is specified, the default ID is used.
+ *   configuration line.  An optional section name may follow the configuration
+ *   file path; it selects the named section of that file and defaults to the
+ *   filter ID.  If no filter ID is specified, the default ID is used.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -2722,9 +2732,20 @@ static int flt_otel_parse(char **args, int *cur_arg, struct proxy *px, struct fl
 		}
 		else if (FLT_OTEL_PARSE_KEYWORD(pos, FLT_OTEL_OPT_CONFIG)) {
 			retval = flt_otel_parse_keyword(&(conf->cfg_file), args, *cur_arg, pos, err, "configuration file");
+			pos++;
+
+			/*
+			 * A trailing token that is not a filter keyword names
+			 * the configuration file section to use instead of
+			 * the filter ID.
+			 */
+			if (!(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(pos + 1) && !FLT_OTEL_PARSE_KEYWORD(pos + 1, FLT_OTEL_OPT_FILTER_ID) && !FLT_OTEL_PARSE_KEYWORD(pos + 1, FLT_OTEL_OPT_CONFIG)) {
+				retval = flt_otel_parse_strdup(&(conf->sec_name), NULL, args[pos + 1], err, args[*cur_arg]);
+				pos++;
+			}
+
 			if (!(retval & ERR_CODE))
 				retval = flt_otel_parse_cfg(conf, args[*cur_arg], err);
-			pos++;
 		}
 		else {
 			FLT_OTEL_PARSE_ERR(err, "'%s' : unknown keyword '%s'", args[*cur_arg], args[pos]);
@@ -2750,7 +2771,7 @@ static int flt_otel_parse(char **args, int *cur_arg, struct proxy *px, struct fl
 
 		*cur_arg = pos;
 
-		OTELC_DBG(INFO, "filter set: id '%s', config '%s'", conf->id, conf->cfg_file);
+		OTELC_DBG(INFO, "filter set: id '%s', config '%s', section '%s'", conf->id, conf->cfg_file, OTELC_STR_ARG(conf->sec_name));
 		FLT_OTEL_DBG_CONF("- conf ", (typeof(conf))fconf->conf);
 	}
 

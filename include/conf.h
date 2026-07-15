@@ -113,9 +113,9 @@
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%s %p }", (p), \
 	                 FLT_OTEL_CONF_HDR_ARGS(p, id), flt_otel_list_dump(&((p)->vars)), (p)->cond)
 
-#define FLT_OTEL_DBG_CONF(h,p)                                    \
-	OTELC_DBG(DEBUG, h "%p:{ %p '%s' '%s' %p %s %s }", (p),   \
-	          (p)->proxy, (p)->id, (p)->cfg_file, (p)->instr, \
+#define FLT_OTEL_DBG_CONF(h,p)                                                   \
+	OTELC_DBG(DEBUG, h "%p:{ %p '%s' '%s' '%s' %p %s %s }", (p),             \
+	          (p)->proxy, (p)->id, (p)->cfg_file, (p)->sec_name, (p)->instr, \
 	          flt_otel_list_dump(&((p)->groups)), flt_otel_list_dump(&((p)->scopes)))
 
 /* Anonymous struct containing a string pointer and its length. */
@@ -395,6 +395,7 @@ struct flt_otel_conf {
 	struct proxy               *proxy;    /* Proxy owning the filter. */
 	char                       *id;       /* The OpenTelemetry filter id. */
 	char                       *cfg_file; /* The OpenTelemetry filter configuration file name. */
+	char                       *sec_name; /* The configuration file section name (NULL = the filter id). */
 	struct flt_otel_conf_instr *instr;    /* The OpenTelemetry instrumentation settings. */
 	struct list                 groups;   /* List of all available groups. */
 	struct list                 scopes;   /* List of all available scopes. */

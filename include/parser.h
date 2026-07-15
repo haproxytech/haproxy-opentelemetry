@@ -6,7 +6,7 @@
 #define FLT_OTEL_SCOPE                        "OTEL"
 
 /*
- * filter FLT_OTEL_OPT_NAME FLT_OTEL_OPT_FILTER_ID <FLT_OTEL_OPT_FILTER_ID_DEFAULT> FLT_OTEL_OPT_CONFIG <file>
+ * filter FLT_OTEL_OPT_NAME FLT_OTEL_OPT_FILTER_ID <FLT_OTEL_OPT_FILTER_ID_DEFAULT> FLT_OTEL_OPT_CONFIG <file> [<name>]
  */
 #define FLT_OTEL_OPT_NAME                     "opentelemetry"
 #define FLT_OTEL_OPT_FILTER_ID                "id"
