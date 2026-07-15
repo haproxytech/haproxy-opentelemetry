@@ -1,7 +1,7 @@
                    -----------------------------------------
                       The HAProxy OpenTelemetry filter (OTel)
                                   Version 1.0
-                          ( Last update: 2026-07-02 )
+                          ( Last update: 2026-07-15 )
                    -----------------------------------------
                            Author : Miroslav Zagorac
                      Contact : mzagorac at haproxy dot com
@@ -74,13 +74,13 @@ supports all HAProxy versions from 3.4 onward; the sources are available at
 https://github.com/haproxy/haproxy/ .
 
 To communicate with an OpenTelemetry compatible backend, the OTel filter uses
-the OpenTelemetry C Wrapper library version 2.2.0 or later (which again uses
-the OpenTelemetry C++ SDK).  This means that we must have the library installed
+version 2.2.1 of the OpenTelemetry C Wrapper library (which in turn uses the
+OpenTelemetry C++ SDK).  This means that we must have the library installed
 on the system on which we want to compile or use HAProxy.
 
-Note that the build does not enforce this minimum version: pkg-config is asked
-only whether the library exists.  At startup the filter verifies instead that
-the linked library and the header files it was compiled against carry the same
+Note that the build does not enforce this version: pkg-config is asked only
+whether the library exists.  At startup the filter verifies instead that the
+linked library and the header files that it was compiled against carry the same
 version string, and refuses to initialize on a mismatch.
 
 Instructions for compiling and installing the required library can be found at
@@ -157,7 +157,7 @@ After HAProxy is compiled, we can check if the OTel filter is enabled:
 
   % ./haproxy -vv | grep -i opentelemetry
   --- command output ----------
-  Built with OpenTelemetry support (C++ version 1.26.0, C Wrapper version 2.2.0-868).
+  Built with OpenTelemetry support (C++ version 1.26.0, C Wrapper version 2.2.1-875).
           [OTEL] opentelemetry
   --- command output ----------
 
@@ -1678,7 +1678,7 @@ the 'counters' block appear only in a debug build):
   --- command output ----------
    opentelemetry filter status
   ------------------------------------------------------------------------------
-     library:       C++ 1.26.0, C wrapper 2.2.0-868
+     library:       C++ 1.26.0, C wrapper 2.2.1-875
      debug level:   0x7f
      export pipeline
        signal   queued  dropped  exported  failed  last export
