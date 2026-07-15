@@ -1,7 +1,7 @@
                    -----------------------------------------
                     HAProxy OTel filter configuration guide
-                                Version 1.0
-                        ( Last update: 2026-07-02 )
+                               Version 1.0.0
+                        ( Last update: 2026-07-15 )
                    -----------------------------------------
                          Author : Miroslav Zagorac
                    Contact : mzagorac at haproxy dot com
