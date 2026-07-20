@@ -72,6 +72,13 @@ The following tool must be installed and available in PATH:
   - wrk    : an HTTP benchmarking tool that generates the test load.
              See https://github.com/wg/wrk
 
+An optional tool is used when present:
+
+  - socat  : queries the 'flt-otel scopes', 'flt-otel instruments' and
+             'flt-otel status' CLI commands before each HAProxy stop; the
+             output is appended to the per-level HAProxy log described in
+             section 3.  Without socat the dump is silently skipped.
+
 
 3. Running the test
 --------------------
@@ -112,6 +119,13 @@ option overrides the test duration (in seconds), while the '-r <rate-limits>'
 option replaces the default rate-limit series described in section 5 with the
 given space-separated list.  Each result file records the used backend on its
 first line.
+
+Each rate-limit level also writes the HAProxy output of its run to the log file
+_logs/_log-haproxy-<cfg>-<ratio>; the fe-be configuration logs its instances
+separately, with the -fe and -be suffixes appended to that name.  Before the
+instance is stopped, the output of the 'flt-otel scopes', 'flt-otel instruments'
+and 'flt-otel status' CLI commands is appended to the log, preserving the filter
+state and counters of the finished level.
 
 
 4. Test parameters

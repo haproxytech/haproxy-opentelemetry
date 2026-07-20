@@ -13,6 +13,7 @@
    SH_BACKEND_PATH=
    SH_BACKEND_TYPE=
     SH_HAPROXY_PID=
+    SH_HAPROXY_LOG=
 SH_HAPROXY_PIDFILE="${SH_LOG_DIR}/haproxy.pid"
 SH_BACKEND_PIDFILE="${SH_LOG_DIR}/backend.pid"
       SH_USAGE_MSG="usage: ${SH_NAME} [-b { haterm | thttpd }] [-d duration] [-h] [-r rate-limits] cfg [dir]"
@@ -78,7 +79,7 @@ sh_backend_stop ()
 {
 	test -e "${SH_BACKEND_PIDFILE}" || return
 
-	kill -TERM "$(cat ${SH_BACKEND_PIDFILE})"
+	kill -TERM "$(cat "${SH_BACKEND_PIDFILE}")"
 	rm "${SH_BACKEND_PIDFILE}"
 }
 
@@ -112,18 +113,45 @@ sh_haproxy_run ()
 		fi
 	fi
 
-	./run-${_arg_cfg}.sh "" "${SH_HAPROXY_PIDFILE}" &
+	SH_HAPROXY_LOG="${SH_LOG_DIR}/_log-haproxy-${_arg_cfg}-${_arg_ratio}"
+
+	"./run-${_arg_cfg}.sh" "" "${SH_HAPROXY_PIDFILE}" "${SH_HAPROXY_LOG}" &
 	SH_HAPROXY_PID="${!}"
 	sleep 5
 }
 
+sh_otel_dump ()
+{
+	_arg_socket="${1}"
+	_arg_logfile="${2}"
+	_loop_cmd=
+
+	command -v socat >/dev/null 2>&1 || return
+	test -S "${_arg_socket}" || return
+
+	for _loop_cmd in "flt-otel scopes" "flt-otel instruments" "flt-otel status"; do
+		echo "--- ${_loop_cmd} --------------------------------------------------" >> "${_arg_logfile}"
+		echo "${_loop_cmd}" | socat - "UNIX-CONNECT:${_arg_socket}" >> "${_arg_logfile}" 2>&1
+	done
+}
+
 sh_haproxy_stop ()
 {
+	# The socket paths are set in the global sections of the test
+	# haproxy.cfg files.
+	#
+	if test "${SH_ARG_CFG}" = "fe-be"; then
+		sh_otel_dump "/tmp/haproxy-fe.sock" "${SH_HAPROXY_LOG}-fe"
+		sh_otel_dump "/tmp/haproxy-be.sock" "${SH_HAPROXY_LOG}-be"
+	else
+		sh_otel_dump "/tmp/haproxy.sock" "${SH_HAPROXY_LOG}"
+	fi
+
 	# HAProxy does not create a pidfile if it is not running in daemon mode,
 	# this is not used but is left regardless.
 	#
 	if test -e "${SH_HAPROXY_PIDFILE}"; then
-		kill -TERM "$(cat ${SH_HAPROXY_PIDFILE})"
+		kill -TERM "$(cat "${SH_HAPROXY_PIDFILE}")"
 		rm "${SH_HAPROXY_PIDFILE}"
 	fi
 
