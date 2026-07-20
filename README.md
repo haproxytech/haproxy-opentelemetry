@@ -310,6 +310,7 @@ Detailed documentation is available in the following files:
 - [README-implementation](README-implementation) -- component architecture
 - [README-func](README-func) -- function reference
 - [README-misc](README-misc) -- miscellaneous notes
+- [ChangeLog](ChangeLog) -- release notes
 
 ### Copyright
 

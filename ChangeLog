@@ -1,0 +1,82 @@
+ChangeLog
+=========
+
+Release notes are grouped by the filter version.  Entries summarise individual
+commits, with directly related commits folded into a single bullet, and the
+git log keeps the full descriptions.
+
+
+Version 1.0.0 (initial release, 2026-01-27 .. 2026-07-15)
+---------------------------------------------------------
+
+Initial public release of the HAProxy OpenTelemetry filter, a stream filter
+that emits traces, metrics and logs from HAProxy through the OpenTelemetry C
+wrapper library.  A section-based configuration file defines the telemetry model
+(scopes, groups, spans, metric instruments and log records driven by stream
+events), while a YAML file configures the SDK pipeline.  The filter runs on
+HTTP and TCP proxies, samples streams through a rate limit, propagates span
+contexts over the HTTP headers or HAProxy variables, and is managed at runtime
+through the CLI.  Requires the OTel C wrapper version 2.2.1 and HAProxy 3.4
+or later.
+
+Filter
+
+  * MEDIUM: Built the filter core: the skeleton, the configuration and
+    utility layer, the section parser with its event model and post-parse
+    checks, the memory pools, the runtime scope layer, and the filter
+    callbacks with the event dispatcher.
+  * MEDIUM: Wired the OTel C wrapper integration and the scope execution
+    with span management; the SDK starts once through an atomic claim.
+  * MEDIUM: Added span context propagation through carrier interfaces, over
+    HTTP headers or HAProxy variables, with prefix-based variable scanning
+    and an automatic inject context name.
+  * MEDIUM: Added the group action for rule-based scope execution from the
+    HAProxy TCP/HTTP rules.
+  * MEDIUM: Extended tracing to TCP-mode proxies, counting the forwarded
+    payload through the otel.bytes_in and otel.bytes_out sample fetches.
+  * MEDIUM: Logged runtime errors and warnings per instance, edge-triggered
+    and rate-limited, so a recurring fault does not flood syslog.
+  * MINOR: Added span links with attributes, the span 'kind', per-event
+    timestamps, exceptions, and several conditional status lines per span.
+  * MINOR: Added the metric instruments (counter, histogram, up-down
+    counter and gauge) with the create/update value-binding model.
+  * MINOR: Added the log-record signal with severities, an explicit 'time'
+    option and the wall-clock observed time.
+  * MINOR: Bound the keyword values to sample expressions with log-format
+    support across attributes, instruments and log records.
+  * MINOR: Gated the scope directives on an optional if/unless condition
+    through a shared helper.
+  * MINOR: Added the set-var, set-var-ctx and unset-var scope directives
+    and the by-name variable helpers.
+  * MINOR: Added the 'otel-stop' keyword, the on-http-tarpit-request scope
+    event, the idle-timeout handling and the 'otel.context' sample fetch.
+  * MINOR: Added the CLI management commands: enable/disable, error modes,
+    rate limit, logging, reset-errors, flush, and the status, instruments
+    and scopes introspection built on a column-oriented table builder that
+    shows the export-pipeline state.
+  * MINOR: Validated the configuration at load: fetch and condition
+    validity at the scope's event, location checks for scopes and group
+    actions, and warnings for the documented limitations.
+  * BUG: Hardened the runtime paths: the idle timer no longer clobbers the
+    stream analyse timeout and runs off the stream task expiry, injection
+    failures do not leak, header removal and variable registration
+    tolerate NULL, and the string buffers are bounds-checked.
+
+Build
+
+  * BUILD: Built as a standalone addon: the Makefile.mk fragment plugs
+    into the HAProxy build through EXTRA_MAKE, with OTEL_STATIC for static
+    linking, a clean-target hook and a .gitignore.
+
+Tests and documentation
+
+  * MINOR: Added the test and benchmark suite: the per-configuration
+    runners unified into one symlinked script, the speed-test harness with
+    option parsing and system CPU sampling, the OTLP/HTTP recorder and
+    replay helpers, and the sa, full, cmp, ctx, fe/be, tcp, updown, err
+    and empty configurations.
+  * DOC: Added the manuals: the README, the configuration guide, the
+    implementation review, the design patterns document, the README.md
+    overview and the test guides with benchmark results; documented the
+    best-effort delivery and the single-filter-instance limitation.
+  * DOC: Required the OTel C wrapper version 2.2.1.
