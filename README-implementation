@@ -143,7 +143,7 @@ used on events that support it).
 4.1  Instrumentation Section
 
   otel-instrumentation <name>
-      config <file>
+      config <file> [context]
       log <target>
       debug-level <value>
       rate-limit <value>

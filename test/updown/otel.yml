@@ -53,20 +53,23 @@ providers:
 
 signals:
   traces:
-    scope_name: "HAProxy OTEL - traces"
-    exporters:  exporter_traces_dev_null
-    samplers:   sampler_traces
-    processors: processor_traces_single
-    providers:  provider_traces
+    default:
+      scope_name: "HAProxy OTEL - traces"
+      exporters:  exporter_traces_dev_null
+      samplers:   sampler_traces
+      processors: processor_traces_single
+      providers:  provider_traces
 
   metrics:
-    scope_name: "HAProxy OTEL - metrics"
-    exporters:  exporter_metrics_ostream
-    readers:    reader_metrics
-    providers:  provider_metrics
+    default:
+      scope_name: "HAProxy OTEL - metrics"
+      exporters:  exporter_metrics_ostream
+      readers:    reader_metrics
+      providers:  provider_metrics
 
   logs:
-    scope_name: "HAProxy OTEL - logs"
-    exporters:  exporter_logs_dev_null
-    processors: processor_logs_single
-    providers:  provider_logs
+    default:
+      scope_name: "HAProxy OTEL - logs"
+      exporters:  exporter_logs_dev_null
+      processors: processor_logs_single
+      providers:  provider_logs

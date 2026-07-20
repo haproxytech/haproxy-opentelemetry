@@ -156,8 +156,10 @@ Syntax:
 
 Keywords (mandatory):
 
-  config <file>
-      Path to the YAML configuration file for the OpenTelemetry SDK.
+  config <file> [context]
+      Path to the YAML configuration file for the OpenTelemetry SDK and, as an
+      optional second argument, the name of the signals context to select within
+      that file.  Without the argument, the 'default' context is served.
 
 Keywords (optional):
 
@@ -1059,6 +1061,18 @@ service.instance.id and service.namespace.
 Signals bind exporters, samplers, processors, readers and providers together
 for each telemetry type.  The supported signal names are "traces", "metrics"
 and "logs".
+
+Under each signal name, the bindings are grouped into one or more named signals
+contexts; the 'config' keyword of the "otel-instrumentation" section selects
+the context that serves the filter, and the name 'default' is used when the
+keyword names no context:
+
+    traces:
+      default:
+        scope_name: ...
+
+The flat layout without the context level, written for the wrapper 2.x releases,
+is still accepted.
 
     scope_name (*)                  instrumentation scope name (string)
     exporters                       exporter name reference (string or list)

@@ -218,7 +218,7 @@ static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
 		}
 	}
 
-	instr->ctx = otelc_init(path_ptr, NULL, err);
+	instr->ctx = otelc_init(path_ptr, instr->ctx_name, err);
 	if (instr->ctx == NULL) {
 		if (*err == NULL)
 			FLT_OTEL_ERR("%s", "failed to initialize tracing library");

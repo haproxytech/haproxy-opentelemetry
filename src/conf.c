@@ -998,6 +998,7 @@ FLT_OTEL_CONF_FUNC_FREE(instr, id,
 	FLT_OTEL_DBG_CONF_INSTR("- conf_instr free ", *ptr);
 
 	OTELC_SFREE((*ptr)->config);
+	OTELC_SFREE((*ptr)->ctx_name);
 	OTELC_DBG(DEBUG, "- deleting acls list %s", flt_otel_list_dump(&((*ptr)->acls)));
 	list_for_each_entry_safe(acl, aclback, &((*ptr)->acls), list) {
 		(void)prune_acl(acl);

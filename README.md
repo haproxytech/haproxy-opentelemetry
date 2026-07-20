@@ -183,11 +183,12 @@ providers:
 
 signals:
   traces:
-    scope_name: "HAProxy OTel"
-    exporters:  my_exporter
-    samplers:   my_sampler
-    processors: my_processor
-    providers:  my_provider
+    default:
+      scope_name: "HAProxy OTel"
+      exporters:  my_exporter
+      samplers:   my_sampler
+      processors: my_processor
+      providers:  my_provider
 ```
 
 #### Supported YAML exporters

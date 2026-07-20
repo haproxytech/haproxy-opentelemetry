@@ -602,7 +602,7 @@ static int flt_otel_parse_cfg_file(char **ptr, const char *file, int line, char 
 
 	if (!FLT_OTEL_ARG_ISVALID(1))
 		FLT_OTEL_PARSE_ERR(err, "'%s' : no %s specified", flt_otel_current_instr->id, err_msg);
-	else if (alertif_too_many_args(1, file, line, args, &retval))
+	else if (alertif_too_many_args(2, file, line, args, &retval))
 		retval |= ERR_ABORT | ERR_ALERT;
 	else if (access(args[1], R_OK) == -1)
 		FLT_OTEL_PARSE_ERR(err, "'%s' : %s", args[1], strerror(errno));
@@ -753,6 +753,8 @@ static int flt_otel_parse_cfg_instr(const char *file, int line, char **args, int
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_INSTR_CONFIG) {
 		retval = flt_otel_parse_cfg_file(&(flt_otel_current_instr->config), file, line, args, &err, "configuration file");
+		if (!(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(2))
+			retval = flt_otel_parse_strdup(&(flt_otel_current_instr->ctx_name), NULL, args[2], &err, args[0]);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_INSTR_GROUPS) {
 		for (i = 1; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++)

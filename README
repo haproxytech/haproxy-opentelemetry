@@ -317,12 +317,13 @@ acl <aclname> <criterion> [flags] [operator] <value> ...
   Manual.
 
 
-config <file>
+config <file> [context]
   The mandatory keyword associated with the OTel instrumentation configuration.
   This keyword sets the path of the YAML configuration file for the
-  OpenTelemetry SDK.  The YAML file defines the complete telemetry pipeline
-  including the exporters, samplers, processors, readers, providers and signal
-  routing.
+  OpenTelemetry SDK and, optionally, the name of the signals context to select
+  within that file.  Without the argument, the wrapper serves the 'default'
+  context.  The YAML file defines the complete telemetry pipeline including
+  the exporters, samplers, processors, readers, providers and signal routing.
 
   The YAML configuration file supports the following top-level sections:
 
@@ -355,10 +356,13 @@ config <file>
 
   'signals' - binds the above components together for each signal type (traces,
   metrics, logs), specifying which exporter, sampler, processor, reader and
-  provider to use.
+  provider to use.  Under each signal type, the bindings are grouped into named
+  signals contexts, and the optional [context] argument selects the one that
+  serves the filter ('default' when absent).
 
   Arguments :
     file - the path of the YAML configuration file
+    context - the name of the signals context to select ('default' if absent)
 
 
 debug-level <value>
@@ -1575,11 +1579,12 @@ this:
 
   signals:
     traces:
-      scope_name: "HAProxy OTel"
-      exporters:  my_exporter
-      samplers:   my_sampler
-      processors: my_processor
-      providers:  my_provider
+      default:
+        scope_name: "HAProxy OTel"
+        exporters:  my_exporter
+        samplers:   my_sampler
+        processors: my_processor
+        providers:  my_provider
   ---------------------------------------------------------------------
 
 In order to use any of the configurations from the test directory, we can run
