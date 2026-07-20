@@ -6,6 +6,49 @@ commits, with directly related commits folded into a single bullet, and the
 git log keeps the full descriptions.
 
 
+Version 2.0.0 (2026-07-20)
+--------------------------
+
+Requires the OTel C wrapper version 3.0.0 and adapts the filter to its library
+context API; the filter no longer compiles against the 2.x wrapper releases.
+Several filter instances, each holding its own library context, now operate
+simultaneously in one HAProxy process, and the old single active configuration
+limitation is gone.
+
+The 'config' keyword takes an optional signals context name that selects one
+of the named contexts of the YAML configuration, and the filter line takes an
+optional section name so filters with distinct ids can share one section of
+the OTel configuration file.  The tracer, meter and logger are created only
+for the signals the YAML document provides: an absent signal section is skipped,
+the legacy flat layout and the 'default' fallback get a warning, and a context
+name that matches nothing fails the startup.
+
+The benchmarks moved to HAProxy's haterm dummy server as the default backend
+and all speed-test results were re-collected at saturating load; the speed test
+now also preserves each level's filter CLI state in a per-level HAProxy runner
+log.
+
+  * MINOR: Adapted the filter to the OTel C wrapper 3.0.0 API: the library
+    context threads through init, create, statistics and deinit, the CLI
+    keywords register once per process, and the YAML configuration closes
+    after the per-thread start.
+  * MINOR: Added the optional signals context argument to the 'config'
+    keyword and wrapped the test YAML signals under a 'default' context.
+  * MINOR: Added haterm as the default speed-test backend behind a new '-b'
+    option, with the wrk load parameters set per backend type.
+  * DOC: Published the haterm-collected benchmark results for every test
+    configuration, together with the test system specification.
+  * MINOR: Created only the signals the YAML configuration provides; the
+    span, instrument and log-record processors report an unconfigured
+    signal instead of dereferencing a NULL handle.
+  * MINOR: Added the optional section name argument to the filter line,
+    shown by the CLI status next to the configuration file name.
+  * MINOR: Dumped the 'flt-otel scopes', 'flt-otel instruments' and
+    'flt-otel status' CLI output into the per-level runner log before each
+    HAProxy stop; the runners take the log file as a third argument.
+  * VERSION: Bumped the filter version to 2.0.0.
+
+
 Version 1.0.0 (initial release, 2026-01-27 .. 2026-07-15)
 ---------------------------------------------------------
 
