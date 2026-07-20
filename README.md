@@ -27,6 +27,9 @@ observability framework.
 - **HTTP and TCP proxies** -- runs on both HTTP-mode and TCP-mode proxies; on a
   TCP proxy it traces the connection lifecycle and counts the forwarded payload
   through the `otel.bytes_in` and `otel.bytes_out` sample fetches.
+- **Multiple filter instances** -- several filters, each with its own id and
+  configuration, run simultaneously in one HAProxy process; they may share a
+  section of the OTel configuration file or use separate files.
 - **Rate limiting** -- percentage-based sampling (0.0--100.0) for controlling
   overhead.
 - **ACL integration** -- fine-grained conditional execution at instrumentation,
@@ -41,7 +44,9 @@ observability framework.
 
 The filter requires the
 [OpenTelemetry C Wrapper](https://github.com/haproxytech/opentelemetry-c-wrapper)
-library version 2.2.1, which wraps the OpenTelemetry C++ SDK.
+library version
+[3.0.0](https://github.com/haproxytech/opentelemetry-c-wrapper/tree/v3.0.0),
+which wraps the OpenTelemetry C++ SDK.
 
 It supports all [HAProxy](https://github.com/haproxy/haproxy/) versions from
 3.4 onward.
@@ -103,7 +108,7 @@ PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 TARGET=linux-glibc EXTRA_MAKE="../ha
 If the filter is built in, the output contains:
 
 ```
-Built with OpenTelemetry support (C++ version 1.26.0, C Wrapper version 2.2.1-875).
+Built with OpenTelemetry support (C++ version 1.26.0, C Wrapper version 3.0.0-963).
 	[OTEL] opentelemetry
 ```
 
@@ -140,7 +145,9 @@ frontend my-frontend
     ...
 ```
 
-If no filter id is specified, `otel-filter` is used as default.
+If no filter id is specified, `otel-filter` is used as default.  Any number of
+filters may be declared, on one proxy or across proxies, and every instance
+runs with its own library context.
 
 #### OTel configuration file structure
 

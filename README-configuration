@@ -1,7 +1,7 @@
                    -----------------------------------------
                     HAProxy OTel filter configuration guide
                                Version 1.0.0
-                        ( Last update: 2026-07-15 )
+                        ( Last update: 2026-07-20 )
                    -----------------------------------------
                          Author : Miroslav Zagorac
                    Contact : mzagorac at haproxy dot com
@@ -69,12 +69,9 @@ If no filter id is specified, 'otel-filter' is used as default.  The 'config'
 parameter is mandatory and specifies the path to the OTel configuration file.
 
 Note: the parser does not limit the number of OTel filters; it only requires
-each filter id to be unique.  The OTel C wrapper, however, supports a single
-active configuration, so only one filter instance is operational per HAProxy
-process.  Declaring several distinct filters is thus unsupported for now: the
-parser accepts them, but the extra instances will not work.  Once the wrapper
-supports simultaneous operation with different configurations, this limitation
-will be lifted.
+each filter id to be unique.  Since the wrapper version 3.0.0, every filter
+instance holds its own library context, so several filters, each with its own
+configuration, may operate simultaneously in one HAProxy process.
 
 Example (from test/sa/haproxy.cfg):
 
@@ -140,12 +137,10 @@ file:
       otel-instrumentation instr2
           ...
 
-Although several OTel scopes may coexist in a single configuration file, only
-one is operational at a time.  The parser does not prevent declaring multiple
-filters -- it only requires their ids to be unique -- but the OTel C wrapper
-supports a single active configuration, so just one filter instance runs per
-HAProxy process.  Once the OTel C wrapper supports simultaneous operation with
-different configurations, this restriction will be lifted.
+Several OTel scopes may coexist in a single configuration file, each declared
+filter selecting and running one of them.  Since the wrapper version 3.0.0,
+every filter instance holds its own library context, so several filters may
+operate simultaneously in one HAProxy process, each with its own scope.
 
 
 3.2. "otel-instrumentation" section

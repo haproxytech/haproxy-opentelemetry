@@ -784,6 +784,9 @@ static struct cli_kw_list cli_kws = { { }, {
 	{ /* END */ }
 }};
 
+/* Set once the CLI keywords have been registered (one registration per process). */
+static bool flt_otel_cli_registered = false;
+
 
 /***
  * NAME
@@ -797,6 +800,9 @@ static struct cli_kw_list cli_kws = { { }, {
  *
  * DESCRIPTION
  *   Registers the OTel filter CLI keywords with the HAProxy CLI subsystem.
+ *   Every filter instance calls this function from its init callback, while
+ *   the keyword list must be appended only once per process; the first call
+ *   registers it and the later calls return without doing anything.
  *   The keywords include commands for enable/disable, error mode, logging,
  *   rate limit, status display, telemetry flush, instrument and scope
  *   introspection, and (when DEBUG_OTEL is defined) debug level management.
@@ -808,8 +814,13 @@ void flt_otel_cli_init(void)
 {
 	OTELC_FUNC("");
 
+	if (flt_otel_cli_registered)
+		OTELC_RETURN();
+
 	/* Register CLI keywords. */
 	cli_register_kw(&cli_kws);
+
+	flt_otel_cli_registered = true;
 
 	OTELC_RETURN();
 }

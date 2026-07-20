@@ -218,14 +218,15 @@ static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
 		}
 	}
 
-	if (otelc_init(path_ptr, err) == OTELC_RET_ERROR) {
+	instr->ctx = otelc_init(path_ptr, NULL, err);
+	if (instr->ctx == NULL) {
 		if (*err == NULL)
 			FLT_OTEL_ERR("%s", "failed to initialize tracing library");
 
 		OTELC_RETURN_INT(retval);
 	}
 
-	instr->tracer = otelc_tracer_create(err);
+	instr->tracer = otelc_tracer_create(instr->ctx, err);
 	if (instr->tracer == NULL) {
 		if (*err == NULL)
 			FLT_OTEL_ERR("%s", "failed to initialize OpenTelemetry tracer");
@@ -233,7 +234,7 @@ static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
 		OTELC_RETURN_INT(retval);
 	}
 
-	instr->meter = otelc_meter_create(err);
+	instr->meter = otelc_meter_create(instr->ctx, err);
 	if (instr->meter == NULL) {
 		if (*err == NULL)
 			FLT_OTEL_ERR("%s", "failed to initialize OpenTelemetry meter");
@@ -241,7 +242,7 @@ static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
 		OTELC_RETURN_INT(retval);
 	}
 
-	instr->logger = otelc_logger_create(err);
+	instr->logger = otelc_logger_create(instr->ctx, err);
 	if (instr->logger == NULL) {
 		if (*err == NULL)
 			FLT_OTEL_ERR("%s", "failed to initialize OpenTelemetry logger");
@@ -471,6 +472,7 @@ static int flt_otel_ops_init(struct proxy *p, struct flt_conf *fconf)
 static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 {
 	struct flt_otel_conf **conf = (fconf == NULL) ? NULL : (typeof(conf))&(fconf->conf);
+	struct otelc_ctx      *otel_ctx = NULL;
 	struct otelc_tracer   *otel_tracer = NULL;
 	struct otelc_meter    *otel_meter = NULL;
 	struct otelc_logger   *otel_logger = NULL;
@@ -485,7 +487,7 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 		OTELC_RETURN();
 
 #ifdef DEBUG_OTEL
-	otelc_statistics(buffer, sizeof(buffer));
+	otelc_statistics(((*conf)->instr != NULL) ? (*conf)->instr->meter : NULL, buffer, sizeof(buffer));
 	OTELC_DBG(INFO, "%s", buffer);
 
 #  ifdef FLT_OTEL_USE_COUNTERS
@@ -506,6 +508,7 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 	 * objects released at runtime.
 	 */
 	if ((*conf)->instr != NULL) {
+		otel_ctx    = (*conf)->instr->ctx;
 		otel_tracer = (*conf)->instr->tracer;
 		otel_meter  = (*conf)->instr->meter;
 		otel_logger = (*conf)->instr->logger;
@@ -514,7 +517,7 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 	flt_otel_conf_free(conf);
 	OTELC_MEMINFO();
 	flt_otel_pool_destroy();
-	otelc_deinit(&otel_tracer, &otel_meter, &otel_logger);
+	otelc_deinit(&otel_ctx, &otel_tracer, &otel_meter, &otel_logger);
 
 	OTELC_RETURN();
 }
@@ -1201,9 +1204,10 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
  *
  * DESCRIPTION
  *   Per-thread filter initialization called after thread creation.  It starts
- *   the OTel tracer, meter and logger providers, which are process-global and
- *   not idempotent; an atomic claim guarantees the start runs on one thread
- *   only, while the other threads return success without repeating it.
+ *   the OTel tracer, meter and logger providers of the instrumentation; a
+ *   start is not idempotent and must run exactly once, so an atomic claim
+ *   guarantees it runs on one thread only, while the other threads return
+ *   success without repeating it.
  *
  * RETURN VALUE
  *   Returns a negative value if an error occurs, any other value otherwise.
@@ -1224,10 +1228,10 @@ static int flt_otel_ops_init_per_thread(struct proxy *p, struct flt_conf *fconf)
 #endif
 
 	/*
-	 * The OTel SDK installs process-global tracer, meter and logger
-	 * providers and is not idempotent, while this callback runs on every
-	 * worker thread.  Atomically claim the start so the providers are
-	 * brought up exactly once; threads that lose the claim are done here.
+	 * Starting the instrumentation's tracer, meter and logger providers
+	 * is not idempotent, while this callback runs on every worker thread.
+	 * Atomically claim the start so the providers are brought up exactly
+	 * once; threads that lose the claim are done here.
 	 */
 	if (HA_ATOMIC_BTS(&(conf->instr->flag_started), 0) == 0) {
 		retval = OTELC_OPS(conf->instr->tracer, start);
@@ -1245,6 +1249,12 @@ static int flt_otel_ops_init_per_thread(struct proxy *p, struct flt_conf *fconf)
 			if (retval == OTELC_RET_ERROR)
 				FLT_OTEL_ALERT("%s", conf->instr->logger->err);
 		}
+
+		/*
+		 * Close the YAML configuration so we no longer have access to
+		 * the file system.
+		 */
+		otelc_close_cfg(conf->instr->ctx);
 	} else {
 		retval = FLT_OTEL_RET_OK;
 	}
