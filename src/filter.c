@@ -479,7 +479,9 @@ static int flt_otel_ops_init(struct proxy *p, struct flt_conf *fconf)
 	flt_otel_cli_init();
 
 	/*
-	 * Initialize the OpenTelemetry library.
+	 * Initialize the OpenTelemetry library.  conf->instr is guaranteed
+	 * non-NULL here because flt_otel_ops_check() rejects a filter with no
+	 * instrumentation, and HAProxy runs that .check callback before .init.
 	 */
 	retval = flt_otel_lib_init(conf->instr, &err);
 	if (retval != FLT_OTEL_RET_ERROR)
@@ -489,6 +491,16 @@ static int flt_otel_ops_init(struct proxy *p, struct flt_conf *fconf)
 
 		FLT_OTEL_ERR_FREE(err);
 	}
+
+	/*
+	 * On failure flt_otel_lib_init() may have created the OTel context and
+	 * some of the tracer, meter and logger handles before a later step
+	 * failed.  A failing .init aborts startup via a POST_CHECK error, which
+	 * exits without running the deinit callback, so release the partial
+	 * state now; otelc_deinit() tolerates and clears NULL handles.
+	 */
+	if (retval == FLT_OTEL_RET_ERROR)
+		otelc_deinit(&(conf->instr->ctx), &(conf->instr->tracer), &(conf->instr->meter), &(conf->instr->logger));
 
 	OTELC_RETURN_INT(retval);
 }
@@ -1266,6 +1278,11 @@ static int flt_otel_ops_init_per_thread(struct proxy *p, struct flt_conf *fconf)
 	if (conf == NULL)
 		OTELC_RETURN_INT(retval);
 
+	/*
+	 * conf->instr is valid from here on: flt_otel_ops_check() rejects a
+	 * filter with no instrumentation, and HAProxy runs that .check callback
+	 * before the init callbacks.
+	 */
 #if defined(USE_THREAD) && defined(DEBUG_OTEL)
 	flt_otel_tid[tid].id         = pthread_self();
 	flt_otel_tid[tid].registered = true;
