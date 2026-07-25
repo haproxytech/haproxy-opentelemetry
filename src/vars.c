@@ -1141,6 +1141,7 @@ struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, co
 	struct otelc_text_map *retptr = NULL;
 	char                   norm_prefix[BUFSIZ], otel_name[BUFSIZ];
 	int                    prefix_len, i;
+	bool                   flag_abort = false;
 
 	OTELC_FUNC("%p, \"%s\", \"%s\", %u, %p:%p", s, OTELC_STR_ARG(scope), OTELC_STR_ARG(prefix), opt, OTELC_DPTR_ARGS(err));
 
@@ -1154,7 +1155,7 @@ struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, co
 
 	/* Read-lock and collect all variables matching the prefix into a text map. */
 	vars_rdlock(vars);
-	for (i = 0; i < VAR_NAME_ROOTS; i++) {
+	for (i = 0; (i < VAR_NAME_ROOTS) && !flag_abort; i++) {
 		struct ceb_node *node = cebu64_imm_first(&(vars->name_root[i]));
 
 		for ( ; node != NULL; node = cebu64_imm_next(&(vars->name_root[i]), node)) {
@@ -1174,6 +1175,8 @@ struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, co
 			if (otel_name_len == FLT_OTEL_RET_ERROR) {
 				FLT_OTEL_ERR("failed to reverse variable name, buffer too small");
 
+				flag_abort = true;
+
 				break;
 			}
 
@@ -1190,6 +1193,8 @@ struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, co
 				if (retptr == NULL) {
 					FLT_OTEL_ERR("failed to create map data");
 
+					flag_abort = true;
+
 					break;
 				}
 			}
@@ -1198,6 +1203,8 @@ struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, co
 				FLT_OTEL_ERR("failed to add map data");
 
 				otelc_text_map_destroy(&retptr);
+
+				flag_abort = true;
 
 				break;
 			}
