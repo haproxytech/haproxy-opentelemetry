@@ -1082,6 +1082,39 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	}
 
 	/*
+	 * Header-based inject and extract need an HTX stream, which a
+	 * non-HTTP proxy never provides.  For a used scope whose event
+	 * fires on such a proxy, reject the header operations rather than
+	 * letting them silently do nothing at runtime.
+	 */
+	if (p->mode != PR_MODE_HTTP)
+		list_for_each_entry(conf_scope, &(conf->scopes), list) {
+			struct flt_otel_conf_span    *conf_span;
+			struct flt_otel_conf_context *conf_ctx;
+
+			if (!conf_scope->flag_used || flt_otel_event_data[conf_scope->event].flag_http_only)
+				continue;
+
+			list_for_each_entry(conf_span, &(conf_scope->spans), list)
+				if (conf_span->ctx_flags & FLT_OTEL_CTX_USE_HEADERS) {
+					FLT_OTEL_ALERT("''%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : 'inject use-headers' needs an HTTP-mode proxy'", conf->id, conf_scope->id);
+
+					retval++;
+
+					break;
+				}
+
+			list_for_each_entry(conf_ctx, &(conf_scope->contexts), list)
+				if (conf_ctx->flags & FLT_OTEL_CTX_USE_HEADERS) {
+					FLT_OTEL_ALERT("''%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : 'extract use-headers' needs an HTTP-mode proxy'", conf->id, conf_scope->id);
+
+					retval++;
+
+					break;
+				}
+		}
+
+	/*
 	 * Unused scopes or a number of root spans other than one do not
 	 * necessarily have to be errors, but it is good to print it when
 	 * starting HAProxy.

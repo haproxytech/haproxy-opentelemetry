@@ -106,6 +106,13 @@ struct otelc_text_map *flt_otel_http_headers_get(struct channel *chn, const char
 		OTELC_RETURN_PTR(retptr);
 
 	/*
+	 * The buffer only holds HTX on an HTTP stream; a raw TCP channel has
+	 * no headers to read and reading it as HTX would walk garbage.
+	 */
+	if (IS_HTX_STRM(chn_strm(chn)) == 0)
+		OTELC_RETURN_PTR(retptr);
+
+	/*
 	 * The keyword 'inject' allows you to define the name of the OpenTelemetry
 	 * context without using a prefix.  In that case all HTTP headers are
 	 * transferred because it is not possible to separate them from the
@@ -222,6 +229,17 @@ int flt_otel_http_header_set(struct channel *chn, const char *prefix, const char
 
 	if ((chn == NULL) || (!OTELC_STR_IS_VALID(prefix) && !OTELC_STR_IS_VALID(name)))
 		OTELC_RETURN_INT(retval);
+
+	/*
+	 * The buffer only holds HTX on an HTTP stream; a raw TCP channel has
+	 * no headers to modify and reading it as HTX would walk garbage.  A
+	 * non-HTX stream has nothing to set, so report success.
+	 */
+	if (IS_HTX_STRM(chn_strm(chn)) == 0) {
+		retval = 0;
+
+		OTELC_RETURN_INT(retval);
+	}
 
 	htx = htxbuf(&(chn->buf));
 
