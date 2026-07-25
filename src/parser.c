@@ -1643,7 +1643,8 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
 				FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
 			else if (log->event_id != 0)
 				FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
-			else if (!flt_otel_strtoll(args[++i], &(log->event_id), 0, LLONG_MAX, err))
+			/* Id 0 is the 'omit' sentinel; accept only >= 1. */
+			else if (!flt_otel_strtoll(args[++i], &(log->event_id), 1, LLONG_MAX, err))
 				retval |= ERR_ABORT | ERR_ALERT;
 		}
 		else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_EVENT)) {
@@ -2413,6 +2414,11 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 
 	FLT_OTEL_PARSE_IFERR_ALERT();
 
+	/*
+	 * Every parse error above carries ERR_ABORT, which makes parse_cfg()
+	 * stop after this line, so freeing the half-built scope here cannot
+	 * leave a later directive dereferencing it.
+	 */
 	if ((retval & ERR_CODE) && (flt_otel_current_scope != NULL)) {
 		flt_otel_conf_scope_free(&flt_otel_current_scope);
 
@@ -2561,6 +2567,10 @@ static int flt_otel_post_parse_cfg_scope(void)
 	if (retval & ERR_CODE)
 		flt_otel_conf_scope_free(&flt_otel_current_scope);
 
+	/*
+	 * Clear the per-section state so the next otel-scope starts fresh; a
+	 * span must not carry over and misattach directives across scopes.
+	 */
 	flt_otel_current_scope = NULL;
 	flt_otel_current_span  = NULL;
 
