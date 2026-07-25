@@ -1007,8 +1007,8 @@ FLT_OTEL_CONF_FUNC_FREE(instr, id,
 	}
 	OTELC_DBG(DEBUG, "- deleting log.proxy.loggers list %s", flt_otel_list_dump(&((*ptr)->log.proxy.loggers)));
 	list_for_each_entry_safe(logger, loggerback, &((*ptr)->log.proxy.loggers), list) {
-		LIST_DELETE(&(logger->list));
-		ha_free(&logger);
+		LIST_DEL_INIT(&(logger->list));
+		free_logger(logger);
 	}
 	FLT_OTEL_LIST_DESTROY(ph_group, &((*ptr)->ph_groups));
 	FLT_OTEL_LIST_DESTROY(ph_scope, &((*ptr)->ph_scopes));
