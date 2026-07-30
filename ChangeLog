@@ -6,6 +6,21 @@ commits, with directly related commits folded into a single bullet, and the
 git log keeps the full descriptions.
 
 
+Version 2.0.2 (2026-07-30)
+--------------------------
+
+Adapts the filter to the HAProxy 3.5 global proxy list, which has replaced the
+singly linked 'proxies_list' with the doubly linked 'main_proxies'.  The three
+iteration sites now go through a single macro whose form Makefile.mk selects
+from the list type that it detects in the HAProxy headers, so the filter still
+compiles against HAProxy 3.4 as well.
+
+  * BUILD: Adapted the proxy list iteration to HAProxy 3.5 behind a macro
+    that Makefile.mk selects from the detected list type, so the 3.4 build
+    keeps working.
+  * VERSION: Bumped the filter version to 2.0.2.
+
+
 Version 2.0.1 (2026-07-30)
 --------------------------
 
