@@ -1,7 +1,7 @@
                    -----------------------------------------
                       The HAProxy OpenTelemetry filter (OTel)
-                                 Version 2.0.0
-                          ( Last update: 2026-07-20 )
+                                 Version 2.0.1
+                          ( Last update: 2026-07-30 )
                    -----------------------------------------
                            Author : Miroslav Zagorac
                      Contact : mzagorac at haproxy dot com
@@ -74,7 +74,7 @@ supports all HAProxy versions from 3.4 onward; the sources are available at
 https://github.com/haproxy/haproxy/ .
 
 To communicate with an OpenTelemetry compatible backend, the OTel filter uses
-version 3.0.0 of the OpenTelemetry C Wrapper library (which in turn uses the
+version 3.1.0 of the OpenTelemetry C Wrapper library (which in turn uses the
 OpenTelemetry C++ SDK).  This means that we must have the library installed
 on the system on which we want to compile or use HAProxy.
 
@@ -157,7 +157,7 @@ After HAProxy is compiled, we can check if the OTel filter is enabled:
 
   % ./haproxy -vv | grep -i opentelemetry
   --- command output ----------
-  Built with OpenTelemetry support (C++ version 1.26.0, C Wrapper version 3.0.0-963).
+  Built with OpenTelemetry support (C++ version 1.26.0, C Wrapper version 3.1.0-977).
           [OTEL] opentelemetry
   --- command output ----------
 
@@ -1688,7 +1688,7 @@ the 'counters' block appear only in a debug build):
   --- command output ----------
    opentelemetry filter status
   ------------------------------------------------------------------------------
-     library:       C++ 1.26.0, C wrapper 3.0.0-963
+     library:       C++ 1.26.0, C wrapper 3.1.0-977
      debug level:   0x7f
      export pipeline
        signal   queued  dropped  exported  failed  last export

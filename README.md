@@ -45,7 +45,7 @@ observability framework.
 The filter requires the
 [OpenTelemetry C Wrapper](https://github.com/haproxytech/opentelemetry-c-wrapper)
 library version
-[3.0.0](https://github.com/haproxytech/opentelemetry-c-wrapper/tree/v3.0.0),
+[3.1.0](https://github.com/haproxytech/opentelemetry-c-wrapper/tree/v3.1.0),
 which wraps the OpenTelemetry C++ SDK.
 
 It supports all [HAProxy](https://github.com/haproxy/haproxy/) versions from
@@ -108,7 +108,7 @@ PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 TARGET=linux-glibc EXTRA_MAKE="../ha
 If the filter is built in, the output contains:
 
 ```
-Built with OpenTelemetry support (C++ version 1.26.0, C Wrapper version 3.0.0-963).
+Built with OpenTelemetry support (C++ version 1.26.0, C Wrapper version 3.1.0-977).
 	[OTEL] opentelemetry
 ```
 

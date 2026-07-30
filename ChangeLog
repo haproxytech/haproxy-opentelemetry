@@ -6,6 +6,38 @@ commits, with directly related commits folded into a single bullet, and the
 git log keeps the full descriptions.
 
 
+Version 2.0.1 (2026-07-30)
+--------------------------
+
+Requires the OTel C wrapper version 3.1.0 and otherwise only fixes bugs.  The
+main one crashed HAProxy on the span context propagation over the HTTP headers
+on a TCP proxy: a scope bound to a non-HTTP event ran the header walk on a raw
+channel, where the HTX view holds garbage once the buffer carries data.  The
+header get and set operations now bail out when the stream is not HTX, and the
+configuration check rejects a header inject or extract whose event fires on a
+non-HTTP proxy.
+
+The remaining fixes cover the startup and the teardown paths.  A failed library
+initialization no longer leaks the created OTel context, the instrumentation
+loggers are released with free_logger() instead of a bare ha_free, a log-record
+'id 0' is reported as out of range rather than silently ignored, and a map error
+stops the whole variable extraction scan.
+
+  * BUG/MINOR: Freed the partial state after a failed library init, which
+    aborts startup without running the deinit callback.
+  * BUG/MINOR: Rejected a log-record event id of zero, the wrapper's 'omit'
+    sentinel, which was accepted but did nothing.
+  * BUG/MEDIUM: Guarded the HTTP header operations on a non-HTX channel and
+    rejected a header inject or extract on a non-HTTP proxy at the check.
+  * MINOR: Aborted the variable extraction scan fully on error, instead of
+    leaving the inner name-bucket loop only.
+  * BUG/MINOR: Freed the instrumentation loggers with free_logger(), which
+    releases the members that a bare ha_free left behind.
+  * DOC: Required the OTel C wrapper version 3.1.0 and refreshed the sample
+    version strings of the build and CLI status outputs.
+  * VERSION: Bumped the filter version to 2.0.1.
+
+
 Version 2.0.0 (2026-07-20)
 --------------------------
 
