@@ -84,6 +84,14 @@ OTEL_DEFINE += -DUSE_OTEL_VARS_NAME
 endif
 endif
 
+# Auto-detect the type of the global proxy list.  HAProxy 3.5 converted the
+# singly linked 'proxies_list' into the doubly linked 'main_proxies', while
+# 3.4 still carries the old one.
+OTEL_HAS_MAIN_PROXIES := $(shell grep -q 'extern struct list main_proxies' include/haproxy/proxy.h 2>/dev/null && echo 1)
+ifneq ($(OTEL_HAS_MAIN_PROXIES),)
+OTEL_DEFINE += -DUSE_OTEL_MAIN_PROXIES
+endif
+
 OTEL_CFLAGS := $(OTEL_CFLAGS) -I$(OTEL_DIR)/include $(OTEL_DEFINE)
 
 # OTEL is no longer part of haproxy's use_opts list, so $(collect_opts_flags)

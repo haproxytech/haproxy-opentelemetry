@@ -846,7 +846,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	 * no duplicate filters can be found that are not defined in the same
 	 * configuration sections.
 	 */
-	for (px = proxies_list; px != NULL; px = px->next) {
+	FLT_OTEL_PROXIES_LIST_FOREACH(px) {
 		struct flt_conf *fconf_tmp;
 
 		OTELC_DBG(DEBUG, "check proxy '%s'", px->id);

@@ -13,13 +13,20 @@
 	FLT_OTEL_HTTP_METH_DEF(TRACE)   \
 	FLT_OTEL_HTTP_METH_DEF(CONNECT)
 
+/* Iterate over the global list of visible proxies. */
+#ifdef USE_OTEL_MAIN_PROXIES
+#  define FLT_OTEL_PROXIES_LIST_FOREACH(px)   list_for_each_entry((px), &main_proxies, el)
+#else
+#  define FLT_OTEL_PROXIES_LIST_FOREACH(px)   for ((px) = proxies_list; (px) != NULL; (px) = (px)->next)
+#endif
+
 /* Iterate over all OTel filter configurations across all proxies. */
 #define FLT_OTEL_PROXIES_LIST_START()                                           \
 	do {                                                                    \
 		struct flt_conf *fconf;                                         \
 		struct proxy    *px;                                            \
 		                                                                \
-		for (px = proxies_list; px != NULL; px = px->next)              \
+		FLT_OTEL_PROXIES_LIST_FOREACH(px)                               \
 			list_for_each_entry(fconf, &(px->filter_configs), list) \
 				if (fconf->id == otel_flt_id) {                 \
 					struct flt_otel_conf *conf = fconf->conf;

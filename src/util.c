@@ -62,7 +62,7 @@ void flt_otel_filters_dump(void)
 
 	OTELC_FUNC("");
 
-	for (px = proxies_list; px != NULL; px = px->next) {
+	FLT_OTEL_PROXIES_LIST_FOREACH(px) {
 		OTELC_DBG(DEBUG, "proxy '%s'", px->id);
 
 		list_for_each_entry(fconf, &(px->filter_configs), list)
