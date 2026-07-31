@@ -2764,7 +2764,7 @@ static int flt_otel_parse(char **args, int *cur_arg, struct proxy *px, struct fl
 
 	/* If the OpenTelemetry filter ID is not set, use default name. */
 	if (!(retval & ERR_CODE) && (conf->id == NULL)) {
-		ha_warning("parsing : " FLT_OTEL_FMT_TYPE FLT_OTEL_FMT_NAME "'no filter id set, using default id '%s'\n", FLT_OTEL_OPT_FILTER_ID_DEFAULT);
+		ha_warning("parsing : " FLT_OTEL_FMT_TYPE FLT_OTEL_FMT_NAME "'no filter id set, using default id '%s''\n", FLT_OTEL_OPT_FILTER_ID_DEFAULT);
 
 		retval = flt_otel_parse_strdup(&(conf->id), NULL, FLT_OTEL_OPT_FILTER_ID_DEFAULT, err, args[*cur_arg]);
 	}
