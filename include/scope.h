@@ -36,11 +36,12 @@
 	          FLT_OTEL_DBG_SCOPE_DATA_KV_ARGS((p)->baggage), FLT_OTEL_DBG_SCOPE_DATA_KV_ARGS((p)->attributes),    \
 	          flt_otel_list_dump(&((p)->events)), flt_otel_list_dump(&((p)->links)))
 
-#define FLT_OTEL_DBG_RUNTIME_CONTEXT(h,p)                                                     \
-	OTELC_DBG(DEBUG, h "%p:{ %p %p '%s' %hhu %hhu 0x%02hhx 0x%08x %u %d %s %s }", (p),    \
-	          (p)->stream, (p)->filter, (p)->uuid, (p)->flag_harderr, (p)->flag_disabled, \
-	          (p)->logging, (p)->analyzers, (p)->idle_timeout, (p)->idle_exp,             \
-	          flt_otel_list_dump(&((p)->spans)), flt_otel_list_dump(&((p)->contexts)))
+#define FLT_OTEL_DBG_RUNTIME_CONTEXT(h,p)                                                       \
+	OTELC_DBG(DEBUG, h "%p:{ %p %p '%s' %hhu %hhu %hhu 0x%02hhx 0x%08x %u %d %s %s }", (p), \
+	          (p)->stream, (p)->filter, (p)->uuid, (p)->flag_harderr, (p)->flag_disabled,   \
+	          (p)->flag_ctx_valid, (p)->logging, (p)->analyzers, (p)->idle_timeout,         \
+	          (p)->idle_exp, flt_otel_list_dump(&((p)->spans)),                             \
+	          flt_otel_list_dump(&((p)->contexts)))
 
 /* Anonymous struct containing a const string pointer and its length. */
 #define FLT_OTEL_CONST_STR_HDR(p)    \
@@ -119,6 +120,7 @@ struct flt_otel_runtime_context {
 	char           uuid[40];      /* Randomly generated UUID. */
 	bool           flag_harderr;  /* [0 1] */
 	bool           flag_disabled; /* [0 1] */
+	bool           flag_ctx_valid; /* [0 1] */
 	uint8_t        logging;       /* [0 1 3] */
 	uint           analyzers;     /* Executed channel analyzers. */
 	uint           idle_timeout;  /* Idle timeout interval in milliseconds (0 = off). */

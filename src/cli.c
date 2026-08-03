@@ -974,13 +974,14 @@ static int flt_otel_cli_parse_status(char **args, char *payload, struct appctx *
  *   SDK diagnostics count is sent first, followed by one report block per
  *   OTel filter instance.  Each block includes the proxy name, configuration
  *   file path, group and scope counts, instrumentation ID, tracer, meter and
- *   logger state, rate limit, error mode, disabled state, logging state,
- *   runtime-error counters, idle timeout, and analyzer bits.  When DEBUG_OTEL
- *   is enabled, the current debug level is also included.  Blocks are emitted
- *   through the applet output buffer; when the buffer is full the function
- *   returns 0 and resumes from the interrupted block on the next call, so the
- *   dump never blocks the thread and its size is not limited by the buffer.
- *   A target given to the command restricts the dump to the named instance.
+ *   logger state, rate limit, hard-error mode, disabled state, require-context
+ *   state, logging state, runtime-error counters, idle timeout, and analyzer
+ *   bits.  When DEBUG_OTEL is enabled, the debug level is included.  Blocks
+ *   are emitted through the applet output buffer; when the buffer is full the
+ *   function returns 0 and resumes from the interrupted block on the next call,
+ *   so the dump never blocks the thread and its size is not limited by the
+ *   buffer.  A target given to the command restricts the dump to the named
+ *   instance.
  *
  * RETURN VALUE
  *   Returns 1 when the dump is finished, or 0 when the output buffer is full
@@ -1085,6 +1086,7 @@ static int flt_otel_cli_io_status(struct appctx *appctx)
 		(void)chunk_appendf(&trash, "       rate limit:    %.2f %%\n", FLT_OTEL_U32_FLOAT(_HA_ATOMIC_LOAD(&(conf->instr->rate_limit))));
 		(void)chunk_appendf(&trash, "       hard errors:   %s\n", FLT_OTEL_STR_FLAG_YN(_HA_ATOMIC_LOAD(&(conf->instr->flag_harderr))));
 		(void)chunk_appendf(&trash, "       disabled:      %s\n", FLT_OTEL_STR_FLAG_YN(_HA_ATOMIC_LOAD(&(conf->instr->flag_disabled))));
+		(void)chunk_appendf(&trash, "       require ctx:   %s\n", FLT_OTEL_STR_FLAG_YN(conf->instr->flag_reqctx));
 		(void)chunk_appendf(&trash, "       logging:       %s\n", FLT_OTEL_CLI_LOGGING_STATE(_HA_ATOMIC_LOAD(&(conf->instr->log.type))));
 		(void)chunk_appendf(&trash, "       runtime err:   hard %" PRIu64 ", soft %" PRIu64 " (suppressed %u)\n", _HA_ATOMIC_LOAD(&(conf->instr->n_harderr)), _HA_ATOMIC_LOAD(&(conf->instr->n_softerr)), _HA_ATOMIC_LOAD(&(conf->instr->log.suppressed)));
 		(void)chunk_appendf(&trash, "       idle timeout:  %u ms\n", conf->instr->idle_timeout);

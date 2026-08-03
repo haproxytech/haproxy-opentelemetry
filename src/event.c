@@ -4,7 +4,7 @@
 
 
 /* Event data table built from the X-macro list. */
-#define FLT_OTEL_EVENT_DEF(a,b,c,d,e,f,g)   { AN_##b##_##a, OTELC_STRINGIFY_ARG(AN_##b##_##a), SMP_OPT_DIR_##b, SMP_VAL_FE_##c, SMP_VAL_BE_##d, e, f, g },
+#define FLT_OTEL_EVENT_DEF(a,b,c,d,e,f,g,h)   { AN_##b##_##a, OTELC_STRINGIFY_ARG(AN_##b##_##a), SMP_OPT_DIR_##b, SMP_VAL_FE_##c, SMP_VAL_BE_##d, e, f, g, h },
 const struct flt_otel_event_data flt_otel_event_data[FLT_OTEL_EVENT_MAX] = { FLT_OTEL_EVENT_DEFINES };
 #undef FLT_OTEL_EVENT_DEF
 
@@ -847,7 +847,9 @@ static int flt_otel_scope_run_set_var_ctx(struct stream *s, struct filter *f, ui
  *   (resolving links, evaluating sample expressions for attributes, events,
  *   baggage and status), calls flt_otel_scope_run_span() for each, processes
  *   metric instruments, emits log records, then marks and finishes completed
- *   spans.
+ *   spans.  With 'require-context' set on the instrumentation, the scope's
+ *   outputs are held back until a valid upstream context has been extracted,
+ *   and a scope whose extracts all miss disables the filter for the stream.
  *
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
@@ -921,7 +923,8 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 
 	/* Extract and initialize OpenTelemetry propagation contexts. */
 	list_for_each_entry(conf_ctx, &(conf_scope->contexts), list) {
-		struct otelc_text_map *text_map = NULL;
+		struct otelc_text_map         *text_map = NULL;
+		struct flt_otel_scope_context *scope_ctx;
 
 		OTELC_DBG(INFO, "run context '%s' -> '%s'", conf_scope->id, conf_ctx->id);
 		FLT_OTEL_DBG_CONF_CONTEXT("run context ", conf_ctx);
@@ -938,10 +941,21 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 #endif
 
 		if (text_map != NULL) {
-			if (flt_otel_scope_context_init(f->ctx, conf->instr->tracer, conf_ctx->id, conf_ctx->id_len, text_map, dir, err) == NULL)
+			scope_ctx = flt_otel_scope_context_init(f->ctx, conf->instr->tracer, conf_ctx->id, conf_ctx->id_len, text_map, dir, err);
+			if (scope_ctx == NULL)
 				retval = FLT_OTEL_RET_ERROR;
 
 			otelc_text_map_destroy(&text_map);
+
+			/*
+			 * With 'require-context', a valid extracted span
+			 * context marks the stream as carrying an upstream
+			 * trace; an extracted context whose span context is
+			 * not valid (the carrier held no trace headers) is
+			 * the same as no context at all.
+			 */
+			if ((scope_ctx != NULL) && conf->instr->flag_reqctx && (OTELC_OPS(scope_ctx->context, is_valid) == 1))
+				FLT_OTEL_RT_CTX(f->ctx)->flag_ctx_valid = 1;
 		}
 		else if ((err != NULL) && (*err != NULL)) {
 			retval = FLT_OTEL_RET_ERROR;
@@ -955,6 +969,29 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 			 */
 			OTELC_DBG(NOTICE, "no context found for '%s'", conf_ctx->id);
 		}
+	}
+
+	/*
+	 * With 'require-context', a scope that carries extracts and found
+	 * no valid upstream context in any of them establishes that the
+	 * stream is not being traced: disable the filter for it, so that
+	 * it never originates a trace of its own.  Until a valid upstream
+	 * context has been extracted, the scope's outputs are suppressed:
+	 * a scope running before the extract, or after a stream aborted
+	 * ahead of the request headers, must not produce any telemetry.
+	 */
+	if (conf->instr->flag_reqctx && !FLT_OTEL_RT_CTX(f->ctx)->flag_ctx_valid) {
+		if (!LIST_ISEMPTY(&(conf_scope->contexts))) {
+			OTELC_DBG(INFO, "session disabled (require-context)");
+
+			FLT_OTEL_RT_CTX(f->ctx)->flag_disabled = 1;
+
+#ifdef FLT_OTEL_USE_COUNTERS
+			_HA_ATOMIC_ADD(conf->cnt.disabled + 0, 1);
+#endif
+		}
+
+		OTELC_RETURN_INT(retval);
 	}
 
 	/* Set HAProxy variables from sample expressions. */

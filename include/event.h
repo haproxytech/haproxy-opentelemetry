@@ -48,61 +48,61 @@
  * The following table is derived from the definitions AN_REQ_* and AN_RES_*
  * found in the HAProxy include file include/haproxy/channel-t.h.
  */
-#define FLT_OTEL_EVENT_DEFINES                                                                                   \
-	/* Stream lifecycle pseudo-events (an_bit = 0, not tied to a channel analyzer) */                        \
-	FLT_OTEL_EVENT_DEF(              NONE,    ,        ,        , 0, 0, "")                                  \
-	FLT_OTEL_EVENT_DEF(      STREAM_START,    ,        ,        , 0, 0, "on-stream-start")                   \
-	FLT_OTEL_EVENT_DEF(       STREAM_STOP,    ,        ,        , 0, 0, "on-stream-stop")                    \
-	FLT_OTEL_EVENT_DEF( CLIENT_SESS_START, REQ, HRQ_HDR,        , 1, 0, "on-client-session-start")           \
-	FLT_OTEL_EVENT_DEF(      IDLE_TIMEOUT,    ,        ,        , 0, 0, "on-idle-timeout")                   \
-	FLT_OTEL_EVENT_DEF(       BACKEND_SET,    ,        ,        , 0, 0, "on-backend-set")                    \
-	                                                                                                         \
-	/* Request analyzers */                                                                                  \
-/*	FLT_OTEL_EVENT_DEF(      FLT_START_FE, REQ,        ,        ,  ,  , "on-filter-start") */                \
-	FLT_OTEL_EVENT_DEF(        INSPECT_FE, REQ, REQ_CNT,        , 1, 0, "on-frontend-tcp-request")           \
-	FLT_OTEL_EVENT_DEF(         WAIT_HTTP, REQ,        ,        , 1, 1, "on-http-wait-request")              \
-	FLT_OTEL_EVENT_DEF(         HTTP_BODY, REQ,        ,        , 1, 1, "on-http-body-request")              \
-	FLT_OTEL_EVENT_DEF(   HTTP_PROCESS_FE, REQ, HRQ_HDR,        , 1, 1, "on-frontend-http-request")          \
-	FLT_OTEL_EVENT_DEF(   SWITCHING_RULES, REQ, SET_BCK,        , 1, 0, "on-switching-rules-request")        \
-/*	FLT_OTEL_EVENT_DEF(      FLT_START_BE, REQ,        ,        ,  ,  , "") */                               \
-	FLT_OTEL_EVENT_DEF(        INSPECT_BE, REQ, REQ_CNT, REQ_CNT, 1, 0, "on-backend-tcp-request")            \
-	FLT_OTEL_EVENT_DEF(   HTTP_PROCESS_BE, REQ, HRQ_HDR, HRQ_HDR, 1, 1, "on-backend-http-request")           \
-	FLT_OTEL_EVENT_DEF(       HTTP_TARPIT, REQ,        ,        , 1, 1, "on-http-tarpit-request")            \
-	FLT_OTEL_EVENT_DEF(         SRV_RULES, REQ,        , SET_SRV, 1, 0, "on-process-server-rules-request")   \
-	FLT_OTEL_EVENT_DEF(        HTTP_INNER, REQ,        ,        , 1, 1, "on-http-process-request")           \
-	FLT_OTEL_EVENT_DEF(   PRST_RDP_COOKIE, REQ,        ,        , 1, 0, "on-tcp-rdp-cookie-request")         \
-	FLT_OTEL_EVENT_DEF(    STICKING_RULES, REQ,        , SET_SRV, 1, 0, "on-process-sticking-rules-request") \
-/*	FLT_OTEL_EVENT_DEF(     FLT_HTTP_HDRS, REQ,        ,        ,  ,  , "") */                               \
-/*	FLT_OTEL_EVENT_DEF(    HTTP_XFER_BODY, REQ,        ,        ,  ,  , "") */                               \
-/*	FLT_OTEL_EVENT_DEF(          WAIT_CLI, REQ,        ,        ,  ,  , "") */                               \
-/*	FLT_OTEL_EVENT_DEF(     FLT_XFER_DATA, REQ,        ,        ,  ,  , "") */                               \
-/*	FLT_OTEL_EVENT_DEF(           FLT_END, REQ,        ,        ,  ,  , "") */                               \
-	FLT_OTEL_EVENT_DEF(      HTTP_HEADERS, REQ, HRQ_HDR, HRQ_HDR, 1, 1, "on-http-headers-request")           \
-	FLT_OTEL_EVENT_DEF(          HTTP_END, REQ,        ,        , 0, 1, "on-http-end-request")               \
-	FLT_OTEL_EVENT_DEF(   CLIENT_SESS_END, REQ,        ,        , 0, 0, "on-client-session-end")             \
-	FLT_OTEL_EVENT_DEF(SERVER_UNAVAILABLE, REQ,        ,        , 0, 0, "on-server-unavailable")             \
-	                                                                                                         \
-	/* Response analyzers */                                                                                 \
-	FLT_OTEL_EVENT_DEF( SERVER_SESS_START, RES,        , SRV_CON, 0, 0, "on-server-session-start")           \
-/*	FLT_OTEL_EVENT_DEF(      FLT_START_FE, RES,        ,        ,  ,  , "") */                               \
-/*	FLT_OTEL_EVENT_DEF(      FLT_START_BE, RES,        ,        ,  ,  , "") */                               \
-	FLT_OTEL_EVENT_DEF(           INSPECT, RES, RES_CNT, RES_CNT, 0, 0, "on-tcp-response")                   \
-	FLT_OTEL_EVENT_DEF(         WAIT_HTTP, RES,        ,        , 1, 1, "on-http-wait-response")             \
-	FLT_OTEL_EVENT_DEF(       STORE_RULES, RES,        , STO_RUL, 1, 0, "on-process-store-rules-response")   \
-	FLT_OTEL_EVENT_DEF(   HTTP_PROCESS_BE, RES, HRS_HDR, HRS_HDR, 1, 1, "on-http-response")                  \
-	FLT_OTEL_EVENT_DEF(      HTTP_HEADERS, RES, HRS_HDR, HRS_HDR, 1, 1, "on-http-headers-response")          \
-	FLT_OTEL_EVENT_DEF(          HTTP_END, RES,        ,        , 0, 1, "on-http-end-response")              \
-	FLT_OTEL_EVENT_DEF(        HTTP_REPLY, RES,        ,        , 0, 1, "on-http-reply")                     \
-/*	FLT_OTEL_EVENT_DEF(   HTTP_PROCESS_FE, RES,        ,        ,  ,  , "") */                               \
-/*	FLT_OTEL_EVENT_DEF(     FLT_HTTP_HDRS, RES,        ,        ,  ,  , "") */                               \
-/*	FLT_OTEL_EVENT_DEF(    HTTP_XFER_BODY, RES,        ,        ,  ,  , "") */                               \
-/*	FLT_OTEL_EVENT_DEF(          WAIT_CLI, RES,        ,        ,  ,  , "") */                               \
-/*	FLT_OTEL_EVENT_DEF(     FLT_XFER_DATA, RES,        ,        ,  ,  , "") */                               \
-/*	FLT_OTEL_EVENT_DEF(           FLT_END, RES,        ,        ,  ,  , "") */                               \
-	FLT_OTEL_EVENT_DEF(   SERVER_SESS_END, RES,        ,        , 0, 0, "on-server-session-end")
+#define FLT_OTEL_EVENT_DEFINES                                                                                      \
+	/* Stream lifecycle pseudo-events (an_bit = 0, not tied to a channel analyzer) */                           \
+	FLT_OTEL_EVENT_DEF(              NONE,    ,        ,        , 0, 0, 0, "")                                  \
+	FLT_OTEL_EVENT_DEF(      STREAM_START,    ,        ,        , 0, 0, 0, "on-stream-start")                   \
+	FLT_OTEL_EVENT_DEF(       STREAM_STOP,    ,        ,        , 0, 0, 1, "on-stream-stop")                    \
+	FLT_OTEL_EVENT_DEF( CLIENT_SESS_START, REQ, HRQ_HDR,        , 1, 0, 0, "on-client-session-start")           \
+	FLT_OTEL_EVENT_DEF(      IDLE_TIMEOUT,    ,        ,        , 0, 0, 0, "on-idle-timeout")                   \
+	FLT_OTEL_EVENT_DEF(       BACKEND_SET,    ,        ,        , 0, 0, 1, "on-backend-set")                    \
+	                                                                                                            \
+	/* Request analyzers */                                                                                     \
+/*	FLT_OTEL_EVENT_DEF(      FLT_START_FE, REQ,        ,        ,  ,  ,  , "on-filter-start") */                \
+	FLT_OTEL_EVENT_DEF(        INSPECT_FE, REQ, REQ_CNT,        , 1, 0, 0, "on-frontend-tcp-request")           \
+	FLT_OTEL_EVENT_DEF(         WAIT_HTTP, REQ,        ,        , 1, 1, 0, "on-http-wait-request")              \
+	FLT_OTEL_EVENT_DEF(         HTTP_BODY, REQ,        ,        , 1, 1, 1, "on-http-body-request")              \
+	FLT_OTEL_EVENT_DEF(   HTTP_PROCESS_FE, REQ, HRQ_HDR,        , 1, 1, 1, "on-frontend-http-request")          \
+	FLT_OTEL_EVENT_DEF(   SWITCHING_RULES, REQ, SET_BCK,        , 1, 0, 1, "on-switching-rules-request")        \
+/*	FLT_OTEL_EVENT_DEF(      FLT_START_BE, REQ,        ,        ,  ,  ,  , "") */                               \
+	FLT_OTEL_EVENT_DEF(        INSPECT_BE, REQ, REQ_CNT, REQ_CNT, 1, 0, 1, "on-backend-tcp-request")            \
+	FLT_OTEL_EVENT_DEF(   HTTP_PROCESS_BE, REQ, HRQ_HDR, HRQ_HDR, 1, 1, 1, "on-backend-http-request")           \
+	FLT_OTEL_EVENT_DEF(       HTTP_TARPIT, REQ,        ,        , 1, 1, 1, "on-http-tarpit-request")            \
+	FLT_OTEL_EVENT_DEF(         SRV_RULES, REQ,        , SET_SRV, 1, 0, 1, "on-process-server-rules-request")   \
+	FLT_OTEL_EVENT_DEF(        HTTP_INNER, REQ,        ,        , 1, 1, 1, "on-http-process-request")           \
+	FLT_OTEL_EVENT_DEF(   PRST_RDP_COOKIE, REQ,        ,        , 1, 0, 1, "on-tcp-rdp-cookie-request")         \
+	FLT_OTEL_EVENT_DEF(    STICKING_RULES, REQ,        , SET_SRV, 1, 0, 1, "on-process-sticking-rules-request") \
+/*	FLT_OTEL_EVENT_DEF(     FLT_HTTP_HDRS, REQ,        ,        ,  ,  ,  , "") */                               \
+/*	FLT_OTEL_EVENT_DEF(    HTTP_XFER_BODY, REQ,        ,        ,  ,  ,  , "") */                               \
+/*	FLT_OTEL_EVENT_DEF(          WAIT_CLI, REQ,        ,        ,  ,  ,  , "") */                               \
+/*	FLT_OTEL_EVENT_DEF(     FLT_XFER_DATA, REQ,        ,        ,  ,  ,  , "") */                               \
+/*	FLT_OTEL_EVENT_DEF(           FLT_END, REQ,        ,        ,  ,  ,  , "") */                               \
+	FLT_OTEL_EVENT_DEF(      HTTP_HEADERS, REQ, HRQ_HDR, HRQ_HDR, 1, 1, 1, "on-http-headers-request")           \
+	FLT_OTEL_EVENT_DEF(          HTTP_END, REQ,        ,        , 0, 1, 1, "on-http-end-request")               \
+	FLT_OTEL_EVENT_DEF(   CLIENT_SESS_END, REQ,        ,        , 0, 0, 1, "on-client-session-end")             \
+	FLT_OTEL_EVENT_DEF(SERVER_UNAVAILABLE, REQ,        ,        , 0, 0, 1, "on-server-unavailable")             \
+	                                                                                                            \
+	/* Response analyzers */                                                                                    \
+	FLT_OTEL_EVENT_DEF( SERVER_SESS_START, RES,        , SRV_CON, 0, 0, 1, "on-server-session-start")           \
+/*	FLT_OTEL_EVENT_DEF(      FLT_START_FE, RES,        ,        ,  ,  ,  , "") */                               \
+/*	FLT_OTEL_EVENT_DEF(      FLT_START_BE, RES,        ,        ,  ,  ,  , "") */                               \
+	FLT_OTEL_EVENT_DEF(           INSPECT, RES, RES_CNT, RES_CNT, 0, 0, 1, "on-tcp-response")                   \
+	FLT_OTEL_EVENT_DEF(         WAIT_HTTP, RES,        ,        , 1, 1, 1, "on-http-wait-response")             \
+	FLT_OTEL_EVENT_DEF(       STORE_RULES, RES,        , STO_RUL, 1, 0, 1, "on-process-store-rules-response")   \
+	FLT_OTEL_EVENT_DEF(   HTTP_PROCESS_BE, RES, HRS_HDR, HRS_HDR, 1, 1, 1, "on-http-response")                  \
+	FLT_OTEL_EVENT_DEF(      HTTP_HEADERS, RES, HRS_HDR, HRS_HDR, 1, 1, 1, "on-http-headers-response")          \
+	FLT_OTEL_EVENT_DEF(          HTTP_END, RES,        ,        , 0, 1, 1, "on-http-end-response")              \
+	FLT_OTEL_EVENT_DEF(        HTTP_REPLY, RES,        ,        , 0, 1, 1, "on-http-reply")                     \
+/*	FLT_OTEL_EVENT_DEF(   HTTP_PROCESS_FE, RES,        ,        ,  ,  ,  , "") */                               \
+/*	FLT_OTEL_EVENT_DEF(     FLT_HTTP_HDRS, RES,        ,        ,  ,  ,  , "") */                               \
+/*	FLT_OTEL_EVENT_DEF(    HTTP_XFER_BODY, RES,        ,        ,  ,  ,  , "") */                               \
+/*	FLT_OTEL_EVENT_DEF(          WAIT_CLI, RES,        ,        ,  ,  ,  , "") */                               \
+/*	FLT_OTEL_EVENT_DEF(     FLT_XFER_DATA, RES,        ,        ,  ,  ,  , "") */                               \
+/*	FLT_OTEL_EVENT_DEF(           FLT_END, RES,        ,        ,  ,  ,  , "") */                               \
+	FLT_OTEL_EVENT_DEF(   SERVER_SESS_END, RES,        ,        , 0, 0, 1, "on-server-session-end")
 
 enum FLT_OTEL_EVENT_enum {
-#define FLT_OTEL_EVENT_DEF(a,b,c,d,e,f,g)   FLT_OTEL_EVENT_##b##_##a,
+#define FLT_OTEL_EVENT_DEF(a,b,c,d,e,f,g,h)   FLT_OTEL_EVENT_##b##_##a,
 	FLT_OTEL_EVENT_DEFINES
 	FLT_OTEL_EVENT_MAX
 #undef FLT_OTEL_EVENT_DEF
@@ -136,6 +136,7 @@ struct flt_otel_event_data {
 	uint        smp_val_be;       /* BE fetch-validity location bits. */
 	bool        flag_http_inject; /* Span context injection allowed. */
 	bool        flag_http_only;   /* Event fires only on an HTTP-mode proxy. */
+	bool        flag_context;     /* Incoming trace context is readable here. */
 	const char *name;             /* Filter event name. */
 };
 

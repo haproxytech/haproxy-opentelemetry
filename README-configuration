@@ -1,7 +1,7 @@
                    -----------------------------------------
                     HAProxy OTel filter configuration guide
                                Version 2.0.2
-                        ( Last update: 2026-07-30 )
+                        ( Last update: 2026-08-03 )
                    -----------------------------------------
                          Author : Miroslav Zagorac
                    Contact : mzagorac at haproxy dot com
@@ -206,6 +206,11 @@ Keywords (optional):
   option hard-errors / no option hard-errors
       Stop all filter processing in a stream after the first error.  Default:
       disabled (errors are non-fatal).
+
+  option require-context / no option require-context
+      Suppress all telemetry for a stream until a valid upstream trace context
+      is extracted from it; a stream that never yields a valid one stays silent.
+      Default: disabled (a context-less stream starts a new trace).
 
   rate-limit <value>
       Percentage of streams for which the filter is activated.  Floating-point

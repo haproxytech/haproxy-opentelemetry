@@ -794,6 +794,9 @@ static int flt_otel_parse_cfg_instr(const char *file, int line, char **args, int
 			else
 				flt_otel_current_instr->log.type |= FLT_OTEL_LOGGING_NOLOGNORM;
 		}
+		else if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_PARSE_OPTION_REQCTX)) {
+			flt_otel_current_instr->flag_reqctx = (kw_mod == KWM_NO) ? 0 : 1;
+		}
 		else
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid option '%s'", args[0], args[1]);
 	}

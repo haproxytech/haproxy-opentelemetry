@@ -45,6 +45,7 @@
 #define FLT_OTEL_PARSE_OPTION_HARDERR         "hard-errors"
 #define FLT_OTEL_PARSE_OPTION_DISABLED        "disabled"
 #define FLT_OTEL_PARSE_OPTION_NOLOGNORM       "dontlog-normal"
+#define FLT_OTEL_PARSE_OPTION_REQCTX          "require-context"
 
 /*
  * A description of the macro arguments can be found in the structure
@@ -58,7 +59,7 @@
 	FLT_OTEL_PARSE_INSTR_DEF(     GROUPS, 0, NONE, 2, 0, "groups",               " <name> ...")                                                                       \
 	FLT_OTEL_PARSE_INSTR_DEF(     SCOPES, 0, NONE, 2, 0, "scopes",               " <name> ...")                                                                       \
 	FLT_OTEL_PARSE_INSTR_DEF( RATE_LIMIT, 0, NONE, 2, 2, "rate-limit",           " <value>")                                                                          \
-	FLT_OTEL_PARSE_INSTR_DEF(     OPTION, 0, NONE, 2, 2, "option",               " { disabled | dontlog-normal | hard-errors }")                                      \
+	FLT_OTEL_PARSE_INSTR_DEF(     OPTION, 0, NONE, 2, 2, "option",               " { disabled | dontlog-normal | hard-errors | require-context }")                    \
 	FLT_OTEL_PARSE_INSTR_DEF(DEBUG_LEVEL, 0, NONE, 2, 2, "debug-level",          " <value>")
 
 #define FLT_OTEL_PARSE_GROUP_DEFINES                                             \

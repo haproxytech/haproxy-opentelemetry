@@ -794,9 +794,9 @@ int flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt_
  *   checks are performed: duplicate filter IDs across all proxies, presence of
  *   an instrumentation section and its configuration file, duplicate group and
  *   scope names, empty groups, group-to-scope and instrumentation-to-group/scope
- *   cross-references, unused scopes, root span count, analyzer bits, and
- *   create-form instrument name uniqueness and update-form instrument
- *   resolution.
+ *   cross-references, unused scopes, require-context event eligibility, root
+ *   span count, analyzer bits, and create-form instrument name uniqueness and
+ *   update-form instrument resolution.
  *
  * RETURN VALUE
  *   Returns the number of encountered errors.
@@ -808,7 +808,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	struct flt_otel_conf_group *conf_group;
 	struct flt_otel_conf_scope *conf_scope;
 	struct flt_otel_conf_ph    *ph_group, *ph_scope;
-	int                         retval = 0, scope_unused_cnt = 0, span_root_cnt = 0, span_cnt = 0;
+	int                         retval = 0, scope_unused_cnt = 0, span_root_cnt = 0, span_cnt = 0, ctx_extract_cnt = 0;
 
 	OTELC_FUNC("%p, %p", p, fconf);
 
@@ -1044,6 +1044,24 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 			else if (conf_scope->event == FLT_OTEL_EVENT_RES_HTTP_END)
 				conf->instr->flag_data_res = 1;
 
+			/* Count the extract-bearing used scopes. */
+			if (!LIST_ISEMPTY(&(conf_scope->contexts)))
+				ctx_extract_cnt++;
+
+			/*
+			 * With 'require-context' a scope must not run before
+			 * the request headers, and so any propagated context,
+			 * can be read.  A group-driven scope (no event) fires
+			 * at its action's rule location instead and is gated
+			 * at runtime by the valid-context check, so only the
+			 * event-bound scopes are rejected here.
+			 */
+			if (conf->instr->flag_reqctx && (conf_scope->event != FLT_OTEL_EVENT__NONE) && !flt_otel_event_data[conf_scope->event].flag_context) {
+				FLT_OTEL_ALERT("''%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' uses event '%s' that runs before the request context can be read with 'require-context' set'", conf->id, conf_scope->id, flt_otel_event_data[conf_scope->event].name);
+
+				retval++;
+			}
+
 			/*
 			 * The event's fetch-validity location, the union of its
 			 * FE and BE checkpoints.  The filter observes the whole
@@ -1128,6 +1146,17 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 		FLT_OTEL_WARNING("''%s' : no span is marked as the root span'", conf->id);
 	else if (span_root_cnt > 1)
 		FLT_OTEL_WARNING("''%s' : multiple spans are marked as the root span'", conf->id);
+
+	/*
+	 * With 'require-context' at least one used scope must carry an
+	 * 'extract' context, otherwise no stream could ever establish a
+	 * valid upstream context and the filter would stay silent.
+	 */
+	if (conf->instr->flag_reqctx && (ctx_extract_cnt == 0)) {
+		FLT_OTEL_ALERT("''%s' : 'require-context' is set but no used " FLT_OTEL_PARSE_SECTION_SCOPE_ID " has an 'extract' context'", conf->id);
+
+		retval++;
+	}
 
 	OTELC_DBG(DEBUG, "- defined instruments ----------");
 

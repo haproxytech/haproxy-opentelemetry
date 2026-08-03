@@ -309,6 +309,7 @@ otel-instrumentation <name>
       - [no] option disabled
       - [no] option dontlog-normal
       - [no] option hard-errors
+      - [no] option require-context
       - rate-limit
       - scopes
 
@@ -422,6 +423,22 @@ no option hard-errors
   for the stream in which the error occurred.  If the 'hard-errors' option is
   enabled, the operation error prohibits all further processing of events and
   groups in the stream in which the error occurred.
+
+
+option require-context
+no option require-context
+  By default, a stream that carries no incoming context starts a new trace,
+  with its first span becoming the trace root.  With this option enabled, a
+  stream produces no telemetry at all -- no trace, no metric and no log record
+  -- until a configured 'extract' finds a valid upstream context: a scope that
+  runs before the extract emits nothing, and a scope carrying extracts none of
+  which yields a valid context disables the filter for the whole stream.  At
+  least one used scope must therefore hold an 'extract', and an 'otel-scope'
+  bound to an event that runs before the request headers become readable is
+  rejected at configuration time; group-driven scopes fire at their action's
+  rule location instead and are simply gated at run time.  Enable this option
+  on a downstream HAProxy that should only continue a trace propagated from
+  upstream, never originate one of its own.
 
 
 rate-limit <value>
@@ -1852,8 +1869,7 @@ test/fe and test/be directories, 'fe' is here the abbreviation for frontend and
 'be' for backend).  In case we have the 'rate-limit' set to a value less than
 100.0, then distributed tracing will not be started with each new HTTP request.
 It also means that the span context will not be delivered (via the HTTP header)
-to the backend HAProxy process.  The 'rate-limit' on the backend HAProxy must be
-set to 100.0, but because the frontend HAProxy does not send a span context
-every time, all such cases will cause an error to be reported on the backend
-server.  Therefore, the 'hard-errors' option must be set on the backend server,
-so that processing on that stream is stopped as soon as the first error occurs.
+to the backend HAProxy process.  Set 'option require-context' on the backend,
+leaving its 'rate-limit' at 100.0, so that it continues every trace propagated
+to it and produces no telemetry for a request that carries none, rather than
+starting a new, disconnected trace.
