@@ -181,6 +181,68 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
 
 /***
  * NAME
+ *   flt_otel_scope_instrument_create - lazy metric instrument creation
+ *
+ * SYNOPSIS
+ *   static int flt_otel_scope_instrument_create(struct flt_otel_conf *conf, struct otelc_meter *meter, struct flt_otel_conf_instrument *conf_instr)
+ *
+ * ARGUMENTS
+ *   conf       - the OTel filter configuration
+ *   meter      - the OTel meter instance
+ *   conf_instr - the create-form instrument configuration entry
+ *
+ * DESCRIPTION
+ *   Creates the meter instrument defined by <conf_instr> on its first use.
+ *   The instrument index is claimed with HA_ATOMIC_CAS so that only one
+ *   thread performs the creation: the winning thread registers the
+ *   bucket-bounds view (if any) and the instrument via <meter>, then stores
+ *   the resulting index, or OTELC_METRIC_INSTRUMENT_UNSET on failure; a
+ *   losing thread returns immediately and its caller waits out the PENDING
+ *   index.  A view or instrument whose creation fails is reported through
+ *   the rate-limited runtime log.
+ *
+ * RETURN VALUE
+ *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
+ */
+static int flt_otel_scope_instrument_create(struct flt_otel_conf *conf, struct otelc_meter *meter, struct flt_otel_conf_instrument *conf_instr)
+{
+	int64_t expected = OTELC_METRIC_INSTRUMENT_UNSET;
+	int     rc, retval = FLT_OTEL_RET_OK;
+
+	OTELC_FUNC("%p, %p, %p", conf, meter, conf_instr);
+
+	/*
+	 * Use CAS to ensure only one thread performs the creation in a
+	 * multi-threaded environment.
+	 */
+	if (!HA_ATOMIC_CAS(&(conf_instr->idx), &expected, OTELC_METRIC_INSTRUMENT_PENDING))
+		OTELC_RETURN_INT(retval);
+
+	/*
+	 * The view must be created before the instrument,
+	 * otherwise bucket boundaries cannot be set.
+	 */
+	if ((conf_instr->bounds != NULL) && (conf_instr->bounds_num > 0))
+		if (OTELC_OPS(meter, add_view, conf_instr->id, conf_instr->description, conf_instr->id, conf_instr->unit, conf_instr->type, conf_instr->aggr_type, conf_instr->bounds, conf_instr->bounds_num) == OTELC_RET_ERROR)
+			FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, "failed to add view for instrument '%s'", conf_instr->id);
+
+	rc = OTELC_OPS(meter, create_instrument, conf_instr->id, conf_instr->description, conf_instr->unit, conf_instr->type, NULL);
+	if (rc == OTELC_RET_ERROR) {
+		FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, "failed to create instrument '%s'", conf_instr->id);
+
+		HA_ATOMIC_STORE(&(conf_instr->idx), OTELC_METRIC_INSTRUMENT_UNSET);
+
+		retval = FLT_OTEL_RET_ERROR;
+	} else {
+		HA_ATOMIC_STORE(&(conf_instr->idx), rc);
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_scope_run_instrument - metric instrument processor
  *
  * SYNOPSIS
@@ -196,18 +258,17 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
  *
  * DESCRIPTION
  *   Processes all metric instruments configured in <scope>.  Runs in two
- *   passes: the first pass lazily creates create-form instruments via <meter>
- *   on first use, using HA_ATOMIC_CAS on the instrument index to guarantee
- *   thread-safe one-time initialization.  The second pass iterates over
+ *   passes: the first pass lazily creates the scope's create-form instruments
+ *   via flt_otel_scope_instrument_create().  The second pass iterates over
  *   update-form instruments and records measurements via
- *   flt_otel_scope_run_instrument_record().  An instrument another thread is
- *   creating right now (PENDING index) is waited for until that creation
- *   completes rather than skipped, so a concurrent first use does not lose
- *   its measurement; one not created at all (UNSET index) is skipped.  A
+ *   flt_otel_scope_run_instrument_record(); a bound create-form entry whose
+ *   scope has not run yet is created from its definition on the spot, and an
+ *   instrument another thread is creating right now (PENDING index) is waited
+ *   for until that creation completes rather than skipped, so no measurement
+ *   is lost; only an instrument whose creation failed is skipped.  A
  *   measurement is recorded only when both the create-form and update-form
  *   'if'/'unless' conditions pass; creation itself produces no data point and
- *   is never gated.  A view or instrument whose creation fails is reported
- *   through the rate-limited runtime log.
+ *   is never gated.
  *
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
@@ -231,41 +292,15 @@ static int flt_otel_scope_run_instrument(struct stream *s, struct filter *f, uin
 			/* Do nothing. */
 		}
 		else if (HA_ATOMIC_LOAD(&(conf_instr->idx)) == OTELC_METRIC_INSTRUMENT_UNSET) {
-			int64_t expected = OTELC_METRIC_INSTRUMENT_UNSET;
-			int     rc;
-
 			OTELC_DBG(INFO, "create instrument '%s' -> '%s'", scope->id, conf_instr->id);
 			FLT_OTEL_DBG_CONF_INSTRUMENT("", conf_instr);
 
 			/*
-			 * Create form: use this instrument directly.  Lazily
-			 * create the instrument on first use.  Use CAS to
-			 * ensure only one thread performs the creation in a
-			 * multi-threaded environment.
+			 * Create form: use this instrument directly, lazily
+			 * created on first use.
 			 */
-			if (!HA_ATOMIC_CAS(&(conf_instr->idx), &expected, OTELC_METRIC_INSTRUMENT_PENDING))
-				continue;
-
-			/*
-			 * The view must be created before the instrument,
-			 * otherwise bucket boundaries cannot be set.
-			 */
-			if ((conf_instr->bounds != NULL) && (conf_instr->bounds_num > 0))
-				if (OTELC_OPS(meter, add_view, conf_instr->id, conf_instr->description, conf_instr->id, conf_instr->unit, conf_instr->type, conf_instr->aggr_type, conf_instr->bounds, conf_instr->bounds_num) == OTELC_RET_ERROR)
-					FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, "failed to add view for instrument '%s'", conf_instr->id);
-
-			rc = OTELC_OPS(meter, create_instrument, conf_instr->id, conf_instr->description, conf_instr->unit, conf_instr->type, NULL);
-			if (rc == OTELC_RET_ERROR) {
-				FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, "failed to create instrument '%s'", conf_instr->id);
-
-				HA_ATOMIC_STORE(&(conf_instr->idx), OTELC_METRIC_INSTRUMENT_UNSET);
-
+			if (flt_otel_scope_instrument_create(conf, meter, conf_instr) == FLT_OTEL_RET_ERROR)
 				retval = FLT_OTEL_RET_ERROR;
-
-				continue;
-			} else {
-				HA_ATOMIC_STORE(&(conf_instr->idx), rc);
-			}
 		}
 	}
 
@@ -277,27 +312,39 @@ static int flt_otel_scope_run_instrument(struct stream *s, struct filter *f, uin
 			FLT_OTEL_DBG_CONF_INSTRUMENT("", conf_instr);
 
 			/*
-			 * If another thread is creating this instrument
-			 * (PENDING index), yield until it finishes rather than
-			 * dropping the measurement.  The creating thread always
-			 * resolves PENDING (stores the index, or UNSET on
-			 * failure), so this ends as soon as creation does.
-			 */
-			if (instr != NULL)
-				while (HA_ATOMIC_LOAD(&(instr->idx)) == OTELC_METRIC_INSTRUMENT_PENDING)
-					ha_thread_relax();
-
-			/*
-			 * Update form: record a measurement using an existing
+			 * Update form: record a measurement using the bound
 			 * create-form instrument.
 			 */
 			if (instr == NULL) {
 				OTELC_DBG(WARNING, "WARNING: invalid reference instrument '%s'", conf_instr->id);
 
 				retval = FLT_OTEL_RET_ERROR;
+
+				continue;
 			}
-			else if (HA_ATOMIC_LOAD(&(instr->idx)) < 0) {
-				OTELC_DBG(WARNING, "WARNING: instrument '%s' not yet created, skipping", instr->id);
+
+			/*
+			 * The bound create-form entry may not have run yet
+			 * (its scope has not executed): create the instrument
+			 * from its definition now, so that the measurement is
+			 * not lost.
+			 */
+			if (HA_ATOMIC_LOAD(&(instr->idx)) == OTELC_METRIC_INSTRUMENT_UNSET)
+				if (flt_otel_scope_instrument_create(conf, meter, instr) == FLT_OTEL_RET_ERROR)
+					retval = FLT_OTEL_RET_ERROR;
+
+			/*
+			 * If another thread is creating this instrument
+			 * (PENDING index), yield until it finishes rather than
+			 * dropping the measurement.  The creating thread always
+			 * resolves PENDING (stores the index, or UNSET on
+			 * failure), so this ends as soon as creation does.
+			 */
+			while (HA_ATOMIC_LOAD(&(instr->idx)) == OTELC_METRIC_INSTRUMENT_PENDING)
+				ha_thread_relax();
+
+			if (HA_ATOMIC_LOAD(&(instr->idx)) < 0) {
+				OTELC_DBG(WARNING, "WARNING: instrument '%s' not created, skipping", instr->id);
 			}
 			else if ((flt_otel_cond_pass(instr->cond, s, dir) == 0) || (flt_otel_cond_pass(conf_instr->cond, s, dir) == 0)) {
 				/* Gated out by an if/unless condition. */

@@ -1440,7 +1440,7 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 #define FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEF(a,b)   { OTELC_METRIC_INSTRUMENT_##a, b },
 	FLT_OTEL_KW_MAP(kw, instr_type, FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEFINES);
 #undef FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEF
-	struct flt_otel_conf_instrument *instr;
+	struct flt_otel_conf_instrument *instr, *instr_last = NULL;
 	int                              i, retval = ERR_NONE;
 
 	OTELC_FUNC("\"%s\", %d, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, pdata, OTELC_DPTR_ARGS(err));
@@ -1456,25 +1456,35 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 	OTELC_DBG(DEBUG, "instrument type: %d '%s'", kw->code, kw->keyword);
 
 	/*
-	 * Only one create and one update instrument per name are allowed.
-	 * Pass NULL as head for update instruments to bypass the generic
-	 * duplicate check (which would reject the shared name), check for
-	 * update duplicates separately, and append to the list manually.
+	 * Create-form instruments may repeat a name -- typically with an
+	 * 'if'/'unless' condition selecting which measurement is recorded --
+	 * and an update-form instrument shares the name of the create it
+	 * records on.  The generic duplicate check in
+	 * flt_otel_conf_instrument_init() matches by name alone and would
+	 * reject those, so pass NULL as head to bypass it and append to the
+	 * list manually.  Only an update-form instrument directly repeated
+	 * within this scope, with no same-name create form in between, is
+	 * rejected here: an update binds the nearest preceding create of
+	 * its name, so such a repeat would record twice on one instrument.
+	 * Names compare case-insensitively, as the meter case-folds them;
+	 * type consistency of the repeated create-form names is enforced
+	 * in flt_otel_ops_check().
 	 */
 	if (kw->code == OTELC_METRIC_INSTRUMENT_UPDATE) {
 		list_for_each_entry(instr, &(flt_otel_current_scope->instruments), list)
-			if ((instr->type == OTELC_METRIC_INSTRUMENT_UPDATE) && FLT_OTEL_PARSE_KEYWORD(2, instr->id)) {
-				FLT_OTEL_PARSE_ERR(err, "'%s' : already defined", args[2]);
+			if (strcasecmp(args[2], instr->id) == 0)
+				instr_last = instr;
 
-				OTELC_RETURN_INT(retval);
-			}
+		if ((instr_last != NULL) && (instr_last->type == OTELC_METRIC_INSTRUMENT_UPDATE)) {
+			FLT_OTEL_PARSE_ERR(err, "'%s' : already defined", args[2]);
 
-		instr = flt_otel_conf_instrument_init(args[2], line, NULL, err);
-		if (instr != NULL)
-			LIST_APPEND(&(flt_otel_current_scope->instruments), &(instr->list));
-	} else {
-		instr = flt_otel_conf_instrument_init(args[2], line, &(flt_otel_current_scope->instruments), err);
+			OTELC_RETURN_INT(retval);
+		}
 	}
+
+	instr = flt_otel_conf_instrument_init(args[2], line, NULL, err);
+	if (instr != NULL)
+		LIST_APPEND(&(flt_otel_current_scope->instruments), &(instr->list));
 
 	if (instr == NULL) {
 		retval |= ERR_ABORT | ERR_ALERT;

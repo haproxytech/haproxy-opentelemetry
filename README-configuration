@@ -470,9 +470,13 @@ Supported keywords:
   instrument update <name> [attr <key> <sample> ...] [{ if | unless } <condition>]
       Create or update a metric instrument.  For the create form, the 'aggr',
       'desc', 'unit', 'value' and 'bounds' keywords may be given in any order.
-      A create-form instrument name must be unique across all scopes of the
-      configuration, and each scope may hold at most one update form for a given
-      name; a duplicate of either kind is a configuration error.
+      A create-form instrument name may repeat, in the same or another scope,
+      as long as every repeat keeps the instrument type; a repeated name with a
+      different type is a configuration error.  An update form records on the
+      nearest preceding create form of the same name in its own scope, or on
+      the first match across all scopes; repeating an update form in a scope
+      with no same-name create form in between is a configuration error, as
+      the repeat would record twice.  Names compare case-insensitively.
 
       Supported types:
         cnt_int   - counter (uint64)

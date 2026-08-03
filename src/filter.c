@@ -795,7 +795,7 @@ int flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt_
  *   an instrumentation section and its configuration file, duplicate group and
  *   scope names, empty groups, group-to-scope and instrumentation-to-group/scope
  *   cross-references, unused scopes, require-context event eligibility, root
- *   span count, analyzer bits, and create-form instrument name uniqueness and
+ *   span count, analyzer bits, and create-form instrument type consistency and
  *   update-form instrument resolution.
  *
  * RETURN VALUE
@@ -1162,10 +1162,11 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 
 	/*
 	 * Validate update-form instruments: for each one, resolve its reference
-	 * to the matching create-form instrument definition.
+	 * to the nearest preceding create-form instrument of the same name in
+	 * its own scope, or to the first match across all scopes.
 	 *
-	 * Validate create-form instruments: check that names are unique across
-	 * all scopes.
+	 * Validate create-form instruments: check that a repeated name keeps
+	 * the same instrument type across all scopes.
 	 */
 	list_for_each_entry(conf_scope, &(conf->scopes), list) {
 		struct flt_otel_conf_instrument *conf_instr, *instr;
@@ -1176,21 +1177,35 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 				FLT_OTEL_DBG_CONF_INSTRUMENT("  update ", conf_instr);
 
 				/*
-				 * Search all scopes for a create-form instrument
-				 * whose name matches this update-form instrument.
+				 * Bind the update to the nearest preceding
+				 * create-form instrument of the same name in
+				 * its own scope, so that repeated create and
+				 * update pairs keep their declared pairing.
 				 */
-				list_for_each_entry(scope, &(conf->scopes), list) {
-					list_for_each_entry(instr, &(scope->instruments), list) {
-						if ((instr->type != OTELC_METRIC_INSTRUMENT_UPDATE) && (strcmp(instr->id, conf_instr->id) == 0))
-							conf_instr->ref = instr;
+				list_for_each_entry(instr, &(conf_scope->instruments), list)
+					if (instr == conf_instr)
+						break;
+					else if ((instr->type != OTELC_METRIC_INSTRUMENT_UPDATE) && (strcasecmp(instr->id, conf_instr->id) == 0))
+						conf_instr->ref = instr;
+
+				/*
+				 * Without one, search all scopes for the first
+				 * create-form instrument whose name matches
+				 * this update-form instrument.
+				 */
+				if (conf_instr->ref == NULL)
+					list_for_each_entry(scope, &(conf->scopes), list) {
+						list_for_each_entry(instr, &(scope->instruments), list) {
+							if ((instr->type != OTELC_METRIC_INSTRUMENT_UPDATE) && (strcasecmp(instr->id, conf_instr->id) == 0))
+								conf_instr->ref = instr;
+
+							if (conf_instr->ref != NULL)
+								break;
+						}
 
 						if (conf_instr->ref != NULL)
 							break;
 					}
-
-					if (conf_instr->ref != NULL)
-						break;
-				}
 
 				if (conf_instr->ref == NULL) {
 					FLT_OTEL_ALERT("''%s' : update-form instrument has no matching create-form definition'", conf_instr->id);
@@ -1212,10 +1227,18 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 					conf_instr->aggr_type = OTELC_METRIC_AGGREGATION_HISTOGRAM;
 
 				/*
-				 * Checking that create-form instrument names
-				 * are unique across all scopes.  Only compare
-				 * forward to avoid reporting the same pair
-				 * twice.
+				 * A create-form name may repeat across the
+				 * scopes, typically gated by conditions: the
+				 * meter returns the existing instrument for a
+				 * repeated name+type pair, with the first
+				 * creator's description and unit in effect.
+				 * A repeat with another type would register a
+				 * second instrument under one name, which the
+				 * OTel specification forbids, so the repeats
+				 * must agree on the instrument type.  Names
+				 * compare case-insensitively, as the meter
+				 * case-folds them.  Only compare forward to
+				 * avoid reporting the same pair twice.
 				 */
 				list_for_each_entry(scope, &(conf->scopes), list) {
 					list_for_each_entry(instr, &(scope->instruments), list)
@@ -1227,8 +1250,8 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 						else if (!flag_past || (instr->type == OTELC_METRIC_INSTRUMENT_UPDATE)) {
 							continue;
 						}
-						else if (strcmp(instr->id, conf_instr->id) == 0) {
-							FLT_OTEL_ALERT("''%s' : duplicated create-form instrument '%s''", conf->id, conf_instr->id);
+						else if ((strcasecmp(instr->id, conf_instr->id) == 0) && (instr->type != conf_instr->type)) {
+							FLT_OTEL_ALERT("''%s' : create-form instrument '%s' repeated with a different type'", conf->id, conf_instr->id);
 
 							retval++;
 
