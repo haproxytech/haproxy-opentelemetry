@@ -1,7 +1,7 @@
                    -----------------------------------------
                       The HAProxy OpenTelemetry filter (OTel)
                                  Version 2.0.2
-                          ( Last update: 2026-07-30 )
+                          ( Last update: 2026-08-03 )
                    -----------------------------------------
                            Author : Miroslav Zagorac
                      Contact : mzagorac at haproxy dot com
@@ -1663,22 +1663,38 @@ with a change in arguments when running the same):
   % echo "help" | socat - UNIX-CONNECT:/tmp/haproxy.sock | grep flt-otel
   --- command output ----------
   flt-otel debug [level]                  : set the OTEL filter debug level (default: get current debug level)
-  flt-otel disable                        : disable the OTEL filter
-  flt-otel enable                         : enable the OTEL filter
-  flt-otel soft-errors                    : disable hard-errors mode
-  flt-otel hard-errors                    : enable hard-errors mode
-  flt-otel reset-errors                   : reset runtime-error counters
-  flt-otel logging [state]                : set logging state (default: get current logging state)
-  flt-otel rate [value]                   : set the rate limit (default: get current rate value)
-  flt-otel status                         : show the OTEL filter status
-  flt-otel flush                          : force-export buffered telemetry now
-  flt-otel instruments                    : show configured metric instruments
-  flt-otel scopes                         : show configured scopes and groups
+  flt-otel disable [@<filter>]            : disable the OTEL filter
+  flt-otel enable [@<filter>]             : enable the OTEL filter
+  flt-otel soft-errors [@<filter>]        : disable hard-errors mode
+  flt-otel hard-errors [@<filter>]        : enable hard-errors mode
+  flt-otel reset-errors [@<filter>]       : reset runtime-error counters
+  flt-otel logging [@<filter>] [state]    : set logging state (default: get current logging state)
+  flt-otel rate [@<filter>] [value]       : set the rate limit (default: get current rate value)
+  flt-otel status [@<filter>]             : show the OTEL filter status
+  flt-otel flush [@<filter>]              : force-export buffered telemetry now
+  flt-otel instruments [@<filter>]        : show configured metric instruments
+  flt-otel scopes [@<filter>]             : show configured scopes and groups
   --- command output ----------
 
 'flt-otel debug' can only be used in case the OTel filter is compiled with the
 debug mode enabled.  When invoked without arguments, these commands display the
 current value of the respective setting.
+
+By default, the commands operate on all configured OTel filter instances at
+once.  Every command except 'debug', whose setting is process-global, takes
+an optional "@<filter>" token right after the subcommand keyword that limits
+it to the single instance whose filter id matches <filter>; the id is the one
+set with the 'id' keyword on the filter line, and it is unique across all the
+proxies ("otel-filter" by default).  For 'logging' and 'rate', the state or
+value argument then follows the token, mirroring the "[@<ver>]" selector of
+the HAProxy 'show map' family of commands.  A surplus argument, like a target
+given without its leading '@', and a token that names an unknown filter are
+both rejected:
+
+  % echo "flt-otel rate @my-filter 25.5" | socat - UNIX-CONNECT:/tmp/haproxy.sock
+  --- command output ----------
+  flt-otel : filter my-filter rate limit set to 25.50
+  --- command output ----------
 
 The 'flt-otel status' command prints a report for each configured filter
 instance.  A typical response looks like this (the 'debug level' line and

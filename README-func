@@ -596,6 +596,18 @@ HAProxy CLI command handlers for runtime filter management.
   flt_otel_cli_set_msg
       Sets the CLI appctx response message and state.
 
+  flt_otel_cli_args_target
+      Extracts the optional "@<filter>" target token that follows a CLI
+      subcommand keyword, reports the position of the value argument and rejects
+      a surplus argument.
+
+  flt_otel_cli_target_missing
+      Builds a "no such filter" error message when a target was given but no
+      instance matched.
+
+  flt_otel_cli_target_count
+      Counts the OTel filter instances whose filter id matches a target.
+
   flt_otel_cli_parse_debug [D]
       CLI handler for "flt-otel debug [level]".  Gets or sets the debug level.
 
@@ -607,7 +619,8 @@ HAProxy CLI command handlers for runtime filter management.
 
   flt_otel_cli_parse_reset_errors
       CLI handler for "flt-otel reset-errors".  Clears the runtime-error
-      counters and the log rate-limiter state for all OTel filter instances.
+      counters and the log rate-limiter state for all OTel filter instances,
+      or for the targeted one only.
 
   flt_otel_cli_parse_logging
       CLI handler for "flt-otel logging [state]".  Gets or sets the logging
@@ -627,7 +640,8 @@ HAProxy CLI command handlers for runtime filter management.
 
   flt_otel_cli_conf_next
       Advances a CLI dump context to the next OTel filter configuration,
-      moving across proxies as needed.
+      moving across proxies as needed and skipping instances that do not
+      match the dump target.
 
   flt_otel_cli_instr_cur
       Resolves the metric instrument row designated by a CLI dump context,
@@ -642,7 +656,12 @@ HAProxy CLI command handlers for runtime filter management.
       restarts at the successor proxy after a deletion.
 
   flt_otel_cli_dump_release
-      io_release handler of the dump commands; detaches the proxy watcher.
+      io_release handler of the dump commands; detaches the proxy watcher and
+      frees the target filter id copy.
+
+  flt_otel_cli_dump_target
+      Common parse-callback body of the dump commands; resolves the optional
+      "@<filter>" target token and initializes the CLI dump context.
 
   flt_otel_cli_parse_status
       CLI handler for "flt-otel status".  Initializes the CLI dump context;
@@ -650,12 +669,12 @@ HAProxy CLI command handlers for runtime filter management.
 
   flt_otel_cli_io_status
       io_handler that iteratively dumps the filter configuration and runtime
-      state for all OTel filter instances, resuming when the output buffer
-      fills.
+      state for all OTel filter instances, or the targeted one, resuming when
+      the output buffer fills.
 
   flt_otel_cli_parse_flush
       CLI handler for "flt-otel flush".  Force-exports the buffered telemetry
-      for all OTel filter instances.
+      for all OTel filter instances, or for the targeted one only.
 
   flt_otel_cli_parse_instruments
       CLI handler for "flt-otel instruments".  Initializes the CLI dump
@@ -664,8 +683,8 @@ HAProxy CLI command handlers for runtime filter management.
 
   flt_otel_cli_io_instruments
       io_handler that iteratively lists the configured metric instruments in
-      each scope for all OTel filter instances, resuming when the output
-      buffer fills.
+      each scope for all OTel filter instances, or the targeted one, resuming
+      when the output buffer fills.
 
   flt_otel_cli_parse_scopes
       CLI handler for "flt-otel scopes".  Initializes the CLI dump context;
@@ -673,7 +692,8 @@ HAProxy CLI command handlers for runtime filter management.
 
   flt_otel_cli_io_scopes
       io_handler that iteratively lists the configured scopes and groups for
-      all OTel filter instances, resuming when the output buffer fills.
+      all OTel filter instances, or the targeted one, resuming when the output
+      buffer fills.
 
   flt_otel_cli_init
       Registers the OTel CLI keywords with HAProxy.

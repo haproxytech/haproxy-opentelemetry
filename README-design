@@ -330,7 +330,8 @@ the OTel filter trace TCP-mode proxies.
 CLI set commands (cli.c) iterate all OTel filter instances across all proxies
 using the FLT_OTEL_PROXIES_LIST_START / FLT_OTEL_PROXIES_LIST_END macros
 (util.h) and atomically update the target field on each instance.  This ensures
-that "flt-otel disable" takes effect globally, not just on one proxy.
+that "flt-otel disable" takes effect globally by default, while the optional
+"@<filter>" target token restricts a command to the one matching instance.
 
 
 5  Sample Evaluation Pipeline
@@ -780,7 +781,8 @@ hard-errors / soft-errors.
 All set operations iterate every OTel filter instance across all proxies using
 FLT_OTEL_PROXIES_LIST_START / FLT_OTEL_PROXIES_LIST_END macros and atomically
 update the target field.  A single "flt-otel disable" command disables the
-filter in every proxy that has it configured.
+filter in every proxy that has it configured; only an "@<filter>" target token
+limits it to the one matching instance.
 
 12.3  Status Report
 
@@ -805,7 +807,8 @@ The "flt-otel flush" command iterates every configured filter instance with
 the FLT_OTEL_PROXIES_LIST_START / FLT_OTEL_PROXIES_LIST_END macros and, rather
 than changing state, forces output: it calls force_flush on each instance's
 tracer, meter and logger handles, each bounded by a five-second timeout, and
-skips any handle that is not yet initialized.
+skips any handle that is not yet initialized.  The "@<filter>" target token
+limits the flush to the one matching instance.
 
 The "flt-otel instruments" command reports, for every filter instance, the
 instruments declared in each scope.  A create-form instrument is shown with

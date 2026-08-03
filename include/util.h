@@ -20,16 +20,27 @@
 #  define FLT_OTEL_PROXIES_LIST_FOREACH(px)   for ((px) = proxies_list; (px) != NULL; (px) = (px)->next)
 #endif
 
-/* Iterate over all OTel filter configurations across all proxies. */
-#define FLT_OTEL_PROXIES_LIST_START()                                           \
-	do {                                                                    \
-		struct flt_conf *fconf;                                         \
-		struct proxy    *px;                                            \
-		                                                                \
-		FLT_OTEL_PROXIES_LIST_FOREACH(px)                               \
-			list_for_each_entry(fconf, &(px->filter_configs), list) \
-				if (fconf->id == otel_flt_id) {                 \
-					struct flt_otel_conf *conf = fconf->conf;
+/*
+ * Iterate over OTel filter configurations across all proxies, optionally
+ * restricted to the single instance whose filter id matches <arg_id>.
+ *
+ * When <arg_id> is non-NULL, only the filter whose id matches enters the body;
+ * passing NULL iterates every instance.  The post-parse configuration check
+ * guarantees that filter ids are unique across all proxies, so an id-only
+ * match resolves to at most one filter.
+ */
+#define FLT_OTEL_PROXIES_LIST_START(arg_id)                                                          \
+	do {                                                                                         \
+		struct flt_conf *fconf;                                                              \
+		struct proxy    *px;                                                                 \
+		                                                                                     \
+		FLT_OTEL_PROXIES_LIST_FOREACH(px)                                                    \
+			list_for_each_entry(fconf, &(px->filter_configs), list)                      \
+				if (fconf->id == otel_flt_id) {                                      \
+					struct flt_otel_conf *conf = fconf->conf;                    \
+					                                                             \
+					if (((arg_id) != NULL) && (strcmp(conf->id, (arg_id)) != 0)) \
+						continue;
 #define FLT_OTEL_PROXIES_LIST_END() \
 				}   \
 	} while (0)

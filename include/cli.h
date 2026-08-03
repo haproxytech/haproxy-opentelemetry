@@ -20,6 +20,8 @@
 
 #define FLT_OTEL_CLI_MSG_CAT(a)          (((a) == NULL) ? "" : (a)), (((a) == NULL) ? "" : "\n")
 
+#define FLT_OTEL_CLI_TARGET_FMT          "[@<filter>]"
+
 /* Iterative CLI dump states. */
 enum FLT_OTEL_CLI_DUMP_enum {
 	FLT_OTEL_CLI_DUMP_HEAD = 0,   /* Global report header. */
@@ -41,6 +43,7 @@ enum FLT_OTEL_CLI_DUMP_enum {
  * output buffer resumes where it stopped.
  */
 struct flt_otel_cli_dump_ctx {
+	char                        *id;         /* Target filter id copy (or NULL for all). */
 	struct proxy                *px;         /* Proxy being dumped. */
 	struct proxy                *px_prev;    /* Proxy as last seen (deletion detector). */
 	struct flt_conf             *fconf;      /* Filter configuration being dumped. */

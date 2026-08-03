@@ -44,6 +44,138 @@ static int flt_otel_cli_set_msg(struct appctx *appctx, char *err, char *msg)
 }
 
 
+/***
+ * NAME
+ *   flt_otel_cli_args_target - "<cmd> [@<filter>]" target extractor
+ *
+ * SYNOPSIS
+ *   static int flt_otel_cli_args_target(char **args, const char **id, int *value_idx, char **err)
+ *
+ * ARGUMENTS
+ *   args      - CLI command arguments array
+ *   id        - output target filter id (or NULL when no target was given)
+ *   value_idx - output position of the value argument (or NULL when none)
+ *   err       - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   When args[2] starts with '@', treats it as the optional "@<filter>"
+ *   target token that follows the subcommand keyword; the filter id substring
+ *   (after '@') is written through <id> and any subcommand value then follows
+ *   the token.  When args[2] does not start with '@', <id> is set to NULL
+ *   (every-instance iteration).  The position of the value argument is
+ *   reported through <value_idx>; a NULL <value_idx> declares that the
+ *   command takes no value.  Whatever follows the accepted arguments is
+ *   rejected, so that a target given without its '@' fails instead of being
+ *   silently ignored.  The token placement matches the optional "[@<ver>]"
+ *   selector of the HAProxy map and ACL CLI commands.
+ *
+ * RETURN VALUE
+ *   Returns 0 on success, or -1 with *err set when args[2] is a bare '@'
+ *   with no filter name or a surplus argument follows the accepted ones.
+ */
+static int flt_otel_cli_args_target(char **args, const char **id, int *value_idx, char **err)
+{
+	int idx = 2;
+
+	OTELC_FUNC("%p, %p, %p, %p", args, id, value_idx, err);
+
+	*id = NULL;
+
+	if (FLT_OTEL_ARG_ISVALID(idx) && (args[idx][0] == '@')) {
+		if (args[idx][1] == '\0') {
+			(void)memprintf(err, FLT_OTEL_CLI_CMD " : missing filter id after '@'");
+
+			OTELC_RETURN_INT(-1);
+		}
+
+		*id = args[idx] + 1;
+
+		idx++;
+	}
+
+	if (value_idx != NULL)
+		*value_idx = idx++;
+
+	/*
+	 * Nothing may follow the accepted arguments: reject a surplus
+	 * argument instead of silently ignoring it, which also catches
+	 * a target given without its '@'.
+	 */
+	if (FLT_OTEL_ARG_ISVALID(idx)) {
+		(void)memprintf(err, FLT_OTEL_CLI_CMD " : unexpected argument '%s'", args[idx]);
+
+		OTELC_RETURN_INT(-1);
+	}
+
+	OTELC_RETURN_INT(0);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_cli_target_missing - "no such filter" error builder
+ *
+ * SYNOPSIS
+ *   static void flt_otel_cli_target_missing(char **err, const char *id, int n)
+ *
+ * ARGUMENTS
+ *   err - indirect pointer to error message string
+ *   id  - target filter id (or NULL when no target was given)
+ *   n   - number of filter instances visited by the iteration
+ *
+ * DESCRIPTION
+ *   Builds a descriptive error message into *err when the caller asked for a
+ *   specific target but no matching filter was visited (n is zero) and no
+ *   prior error was reported (*err is NULL).  The message names the target
+ *   that did not match.  Calls without a target (id is NULL) are a no-op.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+static void flt_otel_cli_target_missing(char **err, const char *id, int n)
+{
+	OTELC_FUNC("%p, \"%s\", %d", err, OTELC_STR_ARG(id), n);
+
+	if ((id != NULL) && (n == 0) && (*err == NULL))
+		(void)memprintf(err, FLT_OTEL_CLI_CMD " : no such filter '%s'", id);
+
+	OTELC_RETURN();
+}
+
+
+/***
+ * NAME
+ *   flt_otel_cli_target_count - target filter instance counter
+ *
+ * SYNOPSIS
+ *   static int flt_otel_cli_target_count(const char *id)
+ *
+ * ARGUMENTS
+ *   id - target filter id (or NULL when no target was given)
+ *
+ * DESCRIPTION
+ *   Counts the OTel filter instances across all proxies whose filter id
+ *   matches <id>; a NULL <id> counts every instance.  Used by the dump
+ *   command parse callbacks to reject an unknown target before the
+ *   io_handler is engaged.
+ *
+ * RETURN VALUE
+ *   Returns the number of matching filter instances.
+ */
+static int flt_otel_cli_target_count(const char *id)
+{
+	int retval = 0;
+
+	OTELC_FUNC("\"%s\"", OTELC_STR_ARG(id));
+
+	FLT_OTEL_PROXIES_LIST_START(id) {
+		retval++;
+	} FLT_OTEL_PROXIES_LIST_END();
+
+	OTELC_RETURN_INT(retval);
+}
+
+
 #ifdef DEBUG_OTEL
 
 /***
@@ -64,8 +196,9 @@ static int flt_otel_cli_set_msg(struct appctx *appctx, char *err, char *msg)
  *   provided in <args[2]>, parses it as an integer in the range
  *   [0, OTELC_DBG_LEVEL_MASK] and atomically stores it as the global debug
  *   level.  Setting a level requires admin access level.  When no argument is
- *   given, reports the current debug level.  The response message includes the
- *   debug level in both decimal and hexadecimal format.
+ *   given, reports the current debug level; a surplus argument is rejected.
+ *   The response message includes the debug level in both decimal and
+ *   hexadecimal format.
  *
  * RETURN VALUE
  *   Returns 1, or 0 on memory allocation failure.
@@ -78,7 +211,10 @@ static int flt_otel_cli_parse_debug(char **args, char *payload, struct appctx *a
 
 	FLT_OTEL_ARGS_DUMP();
 
-	if (FLT_OTEL_ARG_ISVALID(2)) {
+	if (FLT_OTEL_ARG_ISVALID(3)) {
+		(void)memprintf(&err, FLT_OTEL_CLI_CMD " : unexpected argument '%s'", args[3]);
+	}
+	else if (FLT_OTEL_ARG_ISVALID(2)) {
 		int64_t value;
 
 		if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
@@ -89,7 +225,8 @@ static int flt_otel_cli_parse_debug(char **args, char *payload, struct appctx *a
 
 			(void)memprintf(&msg, FLT_OTEL_CLI_CMD " : debug level set to %d (0x%04x)", (int)value, (int)value);
 		}
-	} else {
+	}
+	else {
 		int value = _HA_ATOMIC_LOAD(&otelc_dbg_level);
 
 		(void)memprintf(&msg, FLT_OTEL_CLI_CMD " : current debug level is %d (0x%04x)", value, value);
@@ -117,18 +254,22 @@ static int flt_otel_cli_parse_debug(char **args, char *payload, struct appctx *a
  * DESCRIPTION
  *   Handles the "flt-otel enable" and "flt-otel disable" CLI commands.  The
  *   <private> parameter determines the action: a value of 1 disables the
- *   filter, 0 enables it.  Requires admin access level.  The flag_disabled
- *   field is atomically updated for all OTel filter instances across all
- *   proxies.
+ *   filter, 0 enables it.  Requires admin access level.  An optional
+ *   "@<filter>" token at args[2] restricts the change to the named filter;
+ *   otherwise the flag_disabled field is atomically updated for every OTel
+ *   filter instance across all proxies.  A target that matches no filter
+ *   produces a "no such filter" error.
  *
  * RETURN VALUE
- *   Returns 1, or 0 if no OTel filter instances are configured or on memory
- *   allocation failure.
+ *   Returns 1, or 0 if no OTel filter instances are configured (and no target
+ *   was given) or on memory allocation failure.
  */
 static int flt_otel_cli_parse_disabled(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	char *msg = NULL;
-	bool  value = (uintptr_t)private;
+	const char *id = NULL;
+	char       *err = NULL, *msg = NULL;
+	bool        value = (uintptr_t)private;
+	int         n = 0;
 
 	OTELC_FUNC("%p, \"%s\", %p, %p", args, OTELC_STR_ARG(payload), appctx, private);
 
@@ -137,13 +278,19 @@ static int flt_otel_cli_parse_disabled(char **args, char *payload, struct appctx
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		OTELC_RETURN_INT(1);
 
-	FLT_OTEL_PROXIES_LIST_START() {
+	if (flt_otel_cli_args_target(args, &id, NULL, &err) < 0)
+		OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, err, msg));
+
+	FLT_OTEL_PROXIES_LIST_START(id) {
 		_HA_ATOMIC_STORE(&(conf->instr->flag_disabled), value);
 
-		(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : filter %sabled", FLT_OTEL_CLI_MSG_CAT(msg), value ? "dis" : "en");
+		(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : filter %s %sabled", FLT_OTEL_CLI_MSG_CAT(msg), conf->id, value ? "dis" : "en");
+		n++;
 	} FLT_OTEL_PROXIES_LIST_END();
 
-	OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, NULL, msg));
+	flt_otel_cli_target_missing(&err, id, n);
+
+	OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, err, msg));
 }
 
 
@@ -165,17 +312,21 @@ static int flt_otel_cli_parse_disabled(char **args, char *payload, struct appctx
  *   commands.  The <private> parameter determines the error mode: a value of 1
  *   enables hard-error mode (filter failure aborts the stream), 0 enables
  *   soft-error mode (failures are silently ignored).  Requires admin access
- *   level.  The flag_harderr field is atomically updated for all OTel filter
- *   instances across all proxies.
+ *   level.  An optional "@<filter>" token at args[2] restricts the change to
+ *   the named filter; otherwise the flag_harderr field is atomically updated
+ *   for every OTel filter instance across all proxies.  A target that matches
+ *   no filter produces a "no such filter" error.
  *
  * RETURN VALUE
- *   Returns 1, or 0 if no OTel filter instances are configured or on memory
- *   allocation failure.
+ *   Returns 1, or 0 if no OTel filter instances are configured (and no target
+ *   was given) or on memory allocation failure.
  */
 static int flt_otel_cli_parse_option(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	char *msg = NULL;
-	bool  value = (uintptr_t)private;
+	const char *id = NULL;
+	char       *err = NULL, *msg = NULL;
+	bool        value = (uintptr_t)private;
+	int         n = 0;
 
 	OTELC_FUNC("%p, \"%s\", %p, %p", args, OTELC_STR_ARG(payload), appctx, private);
 
@@ -184,13 +335,19 @@ static int flt_otel_cli_parse_option(char **args, char *payload, struct appctx *
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		OTELC_RETURN_INT(1);
 
-	FLT_OTEL_PROXIES_LIST_START() {
+	if (flt_otel_cli_args_target(args, &id, NULL, &err) < 0)
+		OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, err, msg));
+
+	FLT_OTEL_PROXIES_LIST_START(id) {
 		_HA_ATOMIC_STORE(&(conf->instr->flag_harderr), value);
 
-		(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : filter set %s-errors", FLT_OTEL_CLI_MSG_CAT(msg), value ? "hard" : "soft");
+		(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : filter %s set %s-errors", FLT_OTEL_CLI_MSG_CAT(msg), conf->id, value ? "hard" : "soft");
+		n++;
 	} FLT_OTEL_PROXIES_LIST_END();
 
-	OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, NULL, msg));
+	flt_otel_cli_target_missing(&err, id, n);
+
+	OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, err, msg));
 }
 
 
@@ -208,61 +365,73 @@ static int flt_otel_cli_parse_option(char **args, char *payload, struct appctx *
  *   private - unused private data pointer
  *
  * DESCRIPTION
- *   Handles the "flt-otel logging [state]" CLI command.  When a state argument
- *   is provided in <args[2]>, it is matched against "off", "on", or
- *   "dontlog-normal" and the logging field is atomically updated for all OTel
- *   filter instances.  Setting a value requires admin access level.  When no
- *   argument is given, reports the current logging state for all instances.
- *   Invalid values produce an error with the accepted options listed.
+ *   Handles the "flt-otel logging [state]" CLI command.  An optional
+ *   "@<filter>" token at args[2] restricts the operation to the named filter;
+ *   the state argument then follows at args[3].  When a state argument is
+ *   present, it is matched against "off", "on", or "dontlog-normal" and the
+ *   logging field is atomically updated for every matching OTel filter
+ *   instance.  Setting a value requires admin access level.  When no state
+ *   argument is given, reports the current logging state.  Invalid values
+ *   produce an error with the accepted options listed, and a target that
+ *   matches no filter produces a "no such filter" error.
  *
  * RETURN VALUE
  *   Returns 1, or 0 if no OTel filter instances are configured (and no error
- *   occurred) or on memory allocation failure.
+ *   occurred and no target was given) or on memory allocation failure.
  */
 static int flt_otel_cli_parse_logging(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	char    *err = NULL, *msg = NULL;
-	bool     flag_set = false;
-	uint8_t  value;
+	const char *id = NULL;
+	char       *err = NULL, *msg = NULL;
+	bool        flag_set = false;
+	int         n = 0, value_idx;
+	uint8_t     value;
 
 	OTELC_FUNC("%p, \"%s\", %p, %p", args, OTELC_STR_ARG(payload), appctx, private);
 
 	FLT_OTEL_ARGS_DUMP();
 
-	if (FLT_OTEL_ARG_ISVALID(2)) {
+	if (flt_otel_cli_args_target(args, &id, &value_idx, &err) < 0)
+		OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, err, msg));
+
+	if (FLT_OTEL_ARG_ISVALID(value_idx)) {
 		if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 			OTELC_RETURN_INT(1);
 
-		if (strcasecmp(args[2], FLT_OTEL_CLI_LOGGING_OFF) == 0) {
+		if (strcasecmp(args[value_idx], FLT_OTEL_CLI_LOGGING_OFF) == 0) {
 			flag_set = true;
 			value    = FLT_OTEL_LOGGING_OFF;
 		}
-		else if (strcasecmp(args[2], FLT_OTEL_CLI_LOGGING_ON) == 0) {
+		else if (strcasecmp(args[value_idx], FLT_OTEL_CLI_LOGGING_ON) == 0) {
 			flag_set = true;
 			value    = FLT_OTEL_LOGGING_ON;
 		}
-		else if (strcasecmp(args[2], FLT_OTEL_CLI_LOGGING_NOLOGNORM) == 0) {
+		else if (strcasecmp(args[value_idx], FLT_OTEL_CLI_LOGGING_NOLOGNORM) == 0) {
 			flag_set = true;
 			value    = FLT_OTEL_LOGGING_ON | FLT_OTEL_LOGGING_NOLOGNORM;
 		}
 		else {
-			(void)memprintf(&err, "'%s' : invalid value, use <" FLT_OTEL_CLI_LOGGING_OFF " | " FLT_OTEL_CLI_LOGGING_ON " | " FLT_OTEL_CLI_LOGGING_NOLOGNORM ">", args[2]);
+			(void)memprintf(&err, "'%s' : invalid value, use <" FLT_OTEL_CLI_LOGGING_OFF " | " FLT_OTEL_CLI_LOGGING_ON " | " FLT_OTEL_CLI_LOGGING_NOLOGNORM ">", args[value_idx]);
 		}
 
 		if (flag_set) {
-			FLT_OTEL_PROXIES_LIST_START() {
+			FLT_OTEL_PROXIES_LIST_START(id) {
 				_HA_ATOMIC_STORE(&(conf->instr->log.type), value);
 
-				(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : logging is %s", FLT_OTEL_CLI_MSG_CAT(msg), FLT_OTEL_CLI_LOGGING_STATE(value));
+				(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : filter %s logging is %s", FLT_OTEL_CLI_MSG_CAT(msg), conf->id, FLT_OTEL_CLI_LOGGING_STATE(value));
+				n++;
 			} FLT_OTEL_PROXIES_LIST_END();
 		}
 	} else {
-		FLT_OTEL_PROXIES_LIST_START() {
+		FLT_OTEL_PROXIES_LIST_START(id) {
 			value = _HA_ATOMIC_LOAD(&(conf->instr->log.type));
 
-			(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : logging is currently %s", FLT_OTEL_CLI_MSG_CAT(msg), FLT_OTEL_CLI_LOGGING_STATE(value));
+			(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : filter %s logging is currently %s", FLT_OTEL_CLI_MSG_CAT(msg), conf->id, FLT_OTEL_CLI_LOGGING_STATE(value));
+			n++;
 		} FLT_OTEL_PROXIES_LIST_END();
 	}
+
+	flt_otel_cli_target_missing(&err, id, n);
 
 	OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, err, msg));
 }
@@ -283,17 +452,22 @@ static int flt_otel_cli_parse_logging(char **args, char *payload, struct appctx 
  *
  * DESCRIPTION
  *   Handles the "flt-otel reset-errors" CLI command.  Requires admin access
- *   level.  Clears the runtime-error counters, the suppressed-line tally and
- *   the log edge-trigger latch for all OTel filter instances across all
- *   proxies, so the next error episode is reported afresh.
+ *   level.  An optional "@<filter>" token at args[2] restricts the operation
+ *   to the named filter; otherwise every OTel filter instance across all
+ *   proxies is visited.  Clears the runtime-error counters, the
+ *   suppressed-line tally and the log edge-trigger latch of each visited
+ *   instance, so the next error episode is reported afresh.  A target that
+ *   matches no filter produces a "no such filter" error.
  *
  * RETURN VALUE
- *   Returns 1, or 0 if no OTel filter instances are configured or on memory
- *   allocation failure.
+ *   Returns 1, or 0 if no OTel filter instances are configured (and no target
+ *   was given) or on memory allocation failure.
  */
 static int flt_otel_cli_parse_reset_errors(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	char *msg = NULL;
+	const char *id = NULL;
+	char       *err = NULL, *msg = NULL;
+	int         n = 0;
 
 	OTELC_FUNC("%p, \"%s\", %p, %p", args, OTELC_STR_ARG(payload), appctx, private);
 
@@ -302,16 +476,22 @@ static int flt_otel_cli_parse_reset_errors(char **args, char *payload, struct ap
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		OTELC_RETURN_INT(1);
 
-	FLT_OTEL_PROXIES_LIST_START() {
+	if (flt_otel_cli_args_target(args, &id, NULL, &err) < 0)
+		OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, err, msg));
+
+	FLT_OTEL_PROXIES_LIST_START(id) {
 		_HA_ATOMIC_STORE(&(conf->instr->n_harderr), 0);
 		_HA_ATOMIC_STORE(&(conf->instr->n_softerr), 0);
 		_HA_ATOMIC_STORE(&(conf->instr->log.suppressed), 0);
 		_HA_ATOMIC_STORE(&(conf->instr->log.latch), 0);
 
-		(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : runtime errors reset", FLT_OTEL_CLI_MSG_CAT(msg));
+		(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : filter %s runtime errors reset", FLT_OTEL_CLI_MSG_CAT(msg), conf->id);
+		n++;
 	} FLT_OTEL_PROXIES_LIST_END();
 
-	OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, NULL, msg));
+	flt_otel_cli_target_missing(&err, id, n);
+
+	OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, err, msg));
 }
 
 
@@ -329,45 +509,57 @@ static int flt_otel_cli_parse_reset_errors(char **args, char *payload, struct ap
  *   private - unused private data pointer
  *
  * DESCRIPTION
- *   Handles the "flt-otel rate [value]" CLI command.  When a value argument is
- *   provided in <args[2]>, it is parsed as a floating-point number in the
- *   range [0.0, 100.0], converted to a fixed-point uint32_t representation,
- *   and atomically stored as the rate limit for all OTel filter instances.
- *   Setting a value requires admin access level.  When no argument is given,
- *   reports the current rate limit percentage for all instances.
+ *   Handles the "flt-otel rate [value]" CLI command.  An optional "@<filter>"
+ *   token at args[2] restricts the operation to the named filter; the value
+ *   argument then follows at args[3].  When a value argument is present, it
+ *   is parsed as a floating-point number in the range [0.0, 100.0], converted
+ *   to a fixed-point uint32_t representation, and atomically stored as the
+ *   rate limit of every matching OTel filter instance.  Setting a value
+ *   requires admin access level.  When no value argument is given, reports
+ *   the current rate limit percentage.  A target that matches no filter
+ *   produces a "no such filter" error.
  *
  * RETURN VALUE
  *   Returns 1, or 0 if no OTel filter instances are configured (and no error
- *   occurred) or on memory allocation failure.
+ *   occurred and no target was given) or on memory allocation failure.
  */
 static int flt_otel_cli_parse_rate(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	char *err = NULL, *msg = NULL;
+	const char *id = NULL;
+	char       *err = NULL, *msg = NULL;
+	int         n = 0, value_idx;
 
 	OTELC_FUNC("%p, \"%s\", %p, %p", args, OTELC_STR_ARG(payload), appctx, private);
 
 	FLT_OTEL_ARGS_DUMP();
 
-	if (FLT_OTEL_ARG_ISVALID(2)) {
+	if (flt_otel_cli_args_target(args, &id, &value_idx, &err) < 0)
+		OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, err, msg));
+
+	if (FLT_OTEL_ARG_ISVALID(value_idx)) {
 		double value;
 
 		if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 			OTELC_RETURN_INT(1);
 
-		if (flt_otel_strtod(args[2], &value, 0.0, 100.0, &err)) {
-			FLT_OTEL_PROXIES_LIST_START() {
+		if (flt_otel_strtod(args[value_idx], &value, 0.0, 100.0, &err)) {
+			FLT_OTEL_PROXIES_LIST_START(id) {
 				_HA_ATOMIC_STORE(&(conf->instr->rate_limit), FLT_OTEL_FLOAT_U32(value));
 
-				(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : rate limit set to %.2f", FLT_OTEL_CLI_MSG_CAT(msg), value);
+				(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : filter %s rate limit set to %.2f", FLT_OTEL_CLI_MSG_CAT(msg), conf->id, value);
+				n++;
 			} FLT_OTEL_PROXIES_LIST_END();
 		}
 	} else {
-		FLT_OTEL_PROXIES_LIST_START() {
+		FLT_OTEL_PROXIES_LIST_START(id) {
 			uint32_t value = _HA_ATOMIC_LOAD(&(conf->instr->rate_limit));
 
-			(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : current rate limit is %.2f", FLT_OTEL_CLI_MSG_CAT(msg), FLT_OTEL_U32_FLOAT(value));
+			(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : filter %s current rate limit is %.2f", FLT_OTEL_CLI_MSG_CAT(msg), conf->id, FLT_OTEL_U32_FLOAT(value));
+			n++;
 		} FLT_OTEL_PROXIES_LIST_END();
 	}
+
+	flt_otel_cli_target_missing(&err, id, n);
 
 	OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, err, msg));
 }
@@ -458,7 +650,8 @@ static struct proxy *flt_otel_cli_px_next(struct flt_otel_cli_dump_ctx *ctx)
  *   restarts the search at the first filter configuration of the current
  *   proxy, while NULL px and px_prev fields start the walk at the beginning
  *   of the proxies list.  Filter configurations that do not belong to the
- *   OTel filter are skipped.
+ *   OTel filter are skipped, and when the id field of <ctx> holds a target
+ *   filter id, so are the configurations whose filter id does not match it.
  *
  * RETURN VALUE
  *   Returns the next OTel filter configuration, or NULL when the walk is
@@ -466,8 +659,9 @@ static struct proxy *flt_otel_cli_px_next(struct flt_otel_cli_dump_ctx *ctx)
  */
 static struct flt_otel_conf *flt_otel_cli_conf_next(struct flt_otel_cli_dump_ctx *ctx)
 {
-	struct flt_conf *fconf;
-	struct list     *node;
+	struct flt_conf      *fconf;
+	struct flt_otel_conf *retptr;
+	struct list          *node;
 
 	OTELC_FUNC("%p", ctx);
 
@@ -480,9 +674,13 @@ static struct flt_otel_conf *flt_otel_cli_conf_next(struct flt_otel_cli_dump_ctx
 		while (node != &(ctx->px->filter_configs)) {
 			fconf = LIST_ELEM(node, struct flt_conf *, list);
 			if (fconf->id == otel_flt_id) {
-				ctx->fconf = fconf;
+				retptr = fconf->conf;
 
-				OTELC_RETURN_PTR((struct flt_otel_conf *)(fconf->conf));
+				if ((ctx->id == NULL) || (strcmp(retptr->id, ctx->id) == 0)) {
+					ctx->fconf = fconf;
+
+					OTELC_RETURN_PTR(retptr);
+				}
 			}
 			node = node->n;
 		}
@@ -572,6 +770,7 @@ static struct flt_otel_cli_dump_ctx *flt_otel_cli_dump_init(struct appctx *appct
 	OTELC_FUNC("%p", appctx);
 
 	retptr = applet_reserve_svcctx(appctx, sizeof(*retptr));
+	retptr->id         = NULL;
 	retptr->px         = NULL;
 	retptr->px_prev    = NULL;
 	retptr->fconf      = NULL;
@@ -643,28 +842,84 @@ static struct flt_otel_conf *flt_otel_cli_dump_resume(struct flt_otel_cli_dump_c
  *   appctx - CLI application context
  *
  * DESCRIPTION
- *   Releases the CLI dump context resources of <appctx>.  The function is
- *   registered as the io_release handler of the dump commands and runs both
- *   after a completed dump and when the CLI session is aborted in the middle
- *   of one.  On HAProxy versions with the main_proxies list the proxy watcher
- *   is detached (a watcher that is not attached is left untouched).
+ *   Releases the CLI dump context resources of <appctx>: the target filter id
+ *   copy is freed and, on HAProxy versions with the main_proxies list, the
+ *   proxy watcher is detached (a watcher that is not attached is left
+ *   untouched).  The function is registered as the io_release handler of the
+ *   dump commands and runs both after a completed dump and when the CLI
+ *   session is aborted in the middle of one.
  *
  * RETURN VALUE
  *   This function does not return a value.
  */
 static void flt_otel_cli_dump_release(struct appctx *appctx)
 {
-#ifdef USE_OTEL_MAIN_PROXIES
 	struct flt_otel_cli_dump_ctx *ctx = appctx->svcctx;
-#endif
 
 	OTELC_FUNC("%p", appctx);
 
 #ifdef USE_OTEL_MAIN_PROXIES
 	watcher_detach(&(ctx->px_watch));
 #endif
+	ha_free(&(ctx->id));
 
 	OTELC_RETURN();
+}
+
+
+/***
+ * NAME
+ *   flt_otel_cli_dump_target - CLI dump command target setup
+ *
+ * SYNOPSIS
+ *   static int flt_otel_cli_dump_target(char **args, struct appctx *appctx)
+ *
+ * ARGUMENTS
+ *   args   - CLI command arguments array
+ *   appctx - CLI application context
+ *
+ * DESCRIPTION
+ *   Common parse-callback body of the dump commands.  Extracts the optional
+ *   "@<filter>" target token from <args> and rejects an invalid or unknown
+ *   target here, before the io_handler is engaged.  On success the CLI dump
+ *   context is initialized and a copy of the target filter id is stored in
+ *   its id field, restricting the walk of flt_otel_cli_conf_next() to the
+ *   named filter; the copy is freed by flt_otel_cli_dump_release().
+ *
+ * RETURN VALUE
+ *   Returns 0 when the dump may proceed, or 1 when an error message was set.
+ */
+static int flt_otel_cli_dump_target(char **args, struct appctx *appctx)
+{
+	struct flt_otel_cli_dump_ctx *ctx;
+	const char                   *id = NULL;
+	char                         *err = NULL;
+
+	OTELC_FUNC("%p, %p", args, appctx);
+
+	if (flt_otel_cli_args_target(args, &id, NULL, &err) < 0) {
+		(void)flt_otel_cli_set_msg(appctx, err, NULL);
+
+		OTELC_RETURN_INT(1);
+	}
+
+	if (id != NULL) {
+		flt_otel_cli_target_missing(&err, id, flt_otel_cli_target_count(id));
+		if (err != NULL) {
+			(void)flt_otel_cli_set_msg(appctx, err, NULL);
+
+			OTELC_RETURN_INT(1);
+		}
+	}
+
+	ctx = flt_otel_cli_dump_init(appctx);
+	if (id != NULL) {
+		ctx->id = strdup(id);
+		if (ctx->id == NULL)
+			OTELC_RETURN_INT(cli_err(appctx, "Out of memory.\n"));
+	}
+
+	OTELC_RETURN_INT(0);
 }
 
 
@@ -683,11 +938,14 @@ static void flt_otel_cli_dump_release(struct appctx *appctx)
  *
  * DESCRIPTION
  *   Handles the "flt-otel status" CLI command.  Initializes the CLI dump
- *   context; the report itself is built iteratively by the
- *   flt_otel_cli_io_status() io_handler.
+ *   context through flt_otel_cli_dump_target(), which also resolves the
+ *   optional "@<filter>" target token; the report itself is built iteratively
+ *   by the flt_otel_cli_io_status() io_handler.
  *
  * RETURN VALUE
- *   Returns 0 so that the CLI engages the registered io_handler.
+ *   Returns 0 so that the CLI engages the registered io_handler, or 1 when
+ *   the target token is invalid, matches no filter, or the target id copy
+ *   cannot be allocated.
  */
 static int flt_otel_cli_parse_status(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -696,9 +954,7 @@ static int flt_otel_cli_parse_status(char **args, char *payload, struct appctx *
 	FLT_OTEL_ARGS_DUMP();
 	flt_otel_filters_dump();
 
-	(void)flt_otel_cli_dump_init(appctx);
-
-	OTELC_RETURN_INT(0);
+	OTELC_RETURN_INT(flt_otel_cli_dump_target(args, appctx));
 }
 
 
@@ -724,6 +980,7 @@ static int flt_otel_cli_parse_status(char **args, char *payload, struct appctx *
  *   through the applet output buffer; when the buffer is full the function
  *   returns 0 and resumes from the interrupted block on the next call, so the
  *   dump never blocks the thread and its size is not limited by the buffer.
+ *   A target given to the command restricts the dump to the named instance.
  *
  * RETURN VALUE
  *   Returns 1 when the dump is finished, or 0 when the output buffer is full
@@ -863,19 +1120,24 @@ static int flt_otel_cli_io_status(struct appctx *appctx)
  *
  * DESCRIPTION
  *   Handles the "flt-otel flush" CLI command.  Requires admin access level.
- *   For every OTel filter instance across all proxies, forces the export of
- *   buffered telemetry by calling force_flush on the active tracer, meter and
- *   logger, each bounded by a five-second timeout.  Handles that are not yet
- *   initialized are skipped.
+ *   An optional "@<filter>" token at args[2] restricts the operation to the
+ *   named filter; otherwise every OTel filter instance across all proxies is
+ *   visited.  For each visited instance, forces the export of buffered
+ *   telemetry by calling force_flush on the active tracer, meter and logger,
+ *   each bounded by a five-second timeout.  Handles that are not yet
+ *   initialized are skipped.  A target that matches no filter produces a
+ *   "no such filter" error.
  *
  * RETURN VALUE
- *   Returns 1, or 0 if no OTel filter instances are configured or on memory
- *   allocation failure.
+ *   Returns 1, or 0 if no OTel filter instances are configured (and no target
+ *   was given) or on memory allocation failure.
  */
 static int flt_otel_cli_parse_flush(char **args, char *payload, struct appctx *appctx, void *private)
 {
 	const struct timespec  timeout = { .tv_sec = 5, .tv_nsec = 0 };
-	char                  *msg = NULL;
+	const char            *id = NULL;
+	char                  *err = NULL, *msg = NULL;
+	int                    n = 0;
 
 	OTELC_FUNC("%p, \"%s\", %p, %p", args, OTELC_STR_ARG(payload), appctx, private);
 
@@ -884,7 +1146,10 @@ static int flt_otel_cli_parse_flush(char **args, char *payload, struct appctx *a
 	if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
 		OTELC_RETURN_INT(1);
 
-	FLT_OTEL_PROXIES_LIST_START() {
+	if (flt_otel_cli_args_target(args, &id, NULL, &err) < 0)
+		OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, err, msg));
+
+	FLT_OTEL_PROXIES_LIST_START(id) {
 		if (conf->instr->tracer != NULL)
 			(void)OTELC_OPS(conf->instr->tracer, force_flush, &timeout);
 		if (conf->instr->meter != NULL)
@@ -893,9 +1158,12 @@ static int flt_otel_cli_parse_flush(char **args, char *payload, struct appctx *a
 			(void)OTELC_OPS(conf->instr->logger, force_flush, &timeout);
 
 		(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : flushed proxy %s, filter %s", FLT_OTEL_CLI_MSG_CAT(msg), px->id, conf->id);
+		n++;
 	} FLT_OTEL_PROXIES_LIST_END();
 
-	OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, NULL, msg));
+	flt_otel_cli_target_missing(&err, id, n);
+
+	OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, err, msg));
 }
 
 
@@ -914,11 +1182,14 @@ static int flt_otel_cli_parse_flush(char **args, char *payload, struct appctx *a
  *
  * DESCRIPTION
  *   Handles the "flt-otel instruments" CLI command.  Initializes the CLI dump
- *   context; the report itself is built iteratively by the
- *   flt_otel_cli_io_instruments() io_handler.
+ *   context through flt_otel_cli_dump_target(), which also resolves the
+ *   optional "@<filter>" target token; the report itself is built iteratively
+ *   by the flt_otel_cli_io_instruments() io_handler.
  *
  * RETURN VALUE
- *   Returns 0 so that the CLI engages the registered io_handler.
+ *   Returns 0 so that the CLI engages the registered io_handler, or 1 when
+ *   the target token is invalid, matches no filter, or the target id copy
+ *   cannot be allocated.
  */
 static int flt_otel_cli_parse_instruments(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -926,9 +1197,7 @@ static int flt_otel_cli_parse_instruments(char **args, char *payload, struct app
 
 	FLT_OTEL_ARGS_DUMP();
 
-	(void)flt_otel_cli_dump_init(appctx);
-
-	OTELC_RETURN_INT(0);
+	OTELC_RETURN_INT(flt_otel_cli_dump_target(args, appctx));
 }
 
 
@@ -952,7 +1221,8 @@ static int flt_otel_cli_parse_instruments(char **args, char *payload, struct app
  *   own, so only its name and 'update' type appear.  Rows are emitted through
  *   the applet output buffer; when the buffer is full the function returns 0
  *   and resumes from the interrupted row on the next call, so the dump never
- *   blocks the thread and its size is not limited by the buffer.
+ *   blocks the thread and its size is not limited by the buffer.  A target
+ *   given to the command restricts the dump to the named instance.
  *
  * RETURN VALUE
  *   Returns 1 when the dump is finished, or 0 when the output buffer is full
@@ -1073,11 +1343,14 @@ static int flt_otel_cli_io_instruments(struct appctx *appctx)
  *
  * DESCRIPTION
  *   Handles the "flt-otel scopes" CLI command.  Initializes the CLI dump
- *   context; the report itself is built iteratively by the
- *   flt_otel_cli_io_scopes() io_handler.
+ *   context through flt_otel_cli_dump_target(), which also resolves the
+ *   optional "@<filter>" target token; the report itself is built iteratively
+ *   by the flt_otel_cli_io_scopes() io_handler.
  *
  * RETURN VALUE
- *   Returns 0 so that the CLI engages the registered io_handler.
+ *   Returns 0 so that the CLI engages the registered io_handler, or 1 when
+ *   the target token is invalid, matches no filter, or the target id copy
+ *   cannot be allocated.
  */
 static int flt_otel_cli_parse_scopes(char **args, char *payload, struct appctx *appctx, void *private)
 {
@@ -1085,9 +1358,7 @@ static int flt_otel_cli_parse_scopes(char **args, char *payload, struct appctx *
 
 	FLT_OTEL_ARGS_DUMP();
 
-	(void)flt_otel_cli_dump_init(appctx);
-
-	OTELC_RETURN_INT(0);
+	OTELC_RETURN_INT(flt_otel_cli_dump_target(args, appctx));
 }
 
 
@@ -1110,7 +1381,8 @@ static int flt_otel_cli_parse_scopes(char **args, char *payload, struct appctx *
  *   are emitted through the applet output buffer; when the buffer is full the
  *   function returns 0 and resumes from the interrupted row on the next call,
  *   so the dump never blocks the thread and its size is not limited by the
- *   buffer.
+ *   buffer.  A target given to the command restricts the dump to the named
+ *   instance.
  *
  * RETURN VALUE
  *   Returns 1 when the dump is finished, or 0 when the output buffer is full
@@ -1288,17 +1560,17 @@ static struct cli_kw_list cli_kws = { { }, {
 #ifdef DEBUG_OTEL
 	{ { FLT_OTEL_CLI_CMD, "debug", NULL }, FLT_OTEL_CLI_CMD " debug [level]                  : set the OTEL filter debug level (default: get current debug level)", flt_otel_cli_parse_debug, NULL, NULL, NULL, 0 },
 #endif
-	{ { FLT_OTEL_CLI_CMD, "disable", NULL }, FLT_OTEL_CLI_CMD " disable                        : disable the OTEL filter", flt_otel_cli_parse_disabled, NULL, NULL, (void *)1, ACCESS_LVL_ADMIN },
-	{ { FLT_OTEL_CLI_CMD, "enable", NULL }, FLT_OTEL_CLI_CMD " enable                         : enable the OTEL filter", flt_otel_cli_parse_disabled, NULL, NULL, (void *)0, ACCESS_LVL_ADMIN },
-	{ { FLT_OTEL_CLI_CMD, "soft-errors", NULL }, FLT_OTEL_CLI_CMD " soft-errors                    : disable hard-errors mode", flt_otel_cli_parse_option, NULL, NULL, (void *)0, ACCESS_LVL_ADMIN },
-	{ { FLT_OTEL_CLI_CMD, "hard-errors", NULL }, FLT_OTEL_CLI_CMD " hard-errors                    : enable hard-errors mode", flt_otel_cli_parse_option, NULL, NULL, (void *)1, ACCESS_LVL_ADMIN },
-	{ { FLT_OTEL_CLI_CMD, "reset-errors", NULL }, FLT_OTEL_CLI_CMD " reset-errors                   : reset runtime-error counters", flt_otel_cli_parse_reset_errors, NULL, NULL, NULL, ACCESS_LVL_ADMIN },
-	{ { FLT_OTEL_CLI_CMD, "logging",  NULL }, FLT_OTEL_CLI_CMD " logging [state]                : set logging state (default: get current logging state)", flt_otel_cli_parse_logging, NULL, NULL, NULL, 0 },
-	{ { FLT_OTEL_CLI_CMD, "rate", NULL }, FLT_OTEL_CLI_CMD " rate [value]                   : set the rate limit (default: get current rate value)", flt_otel_cli_parse_rate, NULL, NULL, NULL, 0 },
-	{ { FLT_OTEL_CLI_CMD, "status", NULL }, FLT_OTEL_CLI_CMD " status                         : show the OTEL filter status", flt_otel_cli_parse_status, flt_otel_cli_io_status, flt_otel_cli_dump_release, NULL, 0 },
-	{ { FLT_OTEL_CLI_CMD, "flush", NULL }, FLT_OTEL_CLI_CMD " flush                          : force-export buffered telemetry now", flt_otel_cli_parse_flush, NULL, NULL, NULL, ACCESS_LVL_ADMIN },
-	{ { FLT_OTEL_CLI_CMD, "instruments", NULL }, FLT_OTEL_CLI_CMD " instruments                    : show configured metric instruments", flt_otel_cli_parse_instruments, flt_otel_cli_io_instruments, flt_otel_cli_dump_release, NULL, 0 },
-	{ { FLT_OTEL_CLI_CMD, "scopes", NULL }, FLT_OTEL_CLI_CMD " scopes                         : show configured scopes and groups", flt_otel_cli_parse_scopes, flt_otel_cli_io_scopes, flt_otel_cli_dump_release, NULL, 0 },
+	{ { FLT_OTEL_CLI_CMD, "disable", NULL }, FLT_OTEL_CLI_CMD " disable " FLT_OTEL_CLI_TARGET_FMT "            : disable the OTEL filter", flt_otel_cli_parse_disabled, NULL, NULL, (void *)1, ACCESS_LVL_ADMIN },
+	{ { FLT_OTEL_CLI_CMD, "enable", NULL }, FLT_OTEL_CLI_CMD " enable " FLT_OTEL_CLI_TARGET_FMT "             : enable the OTEL filter", flt_otel_cli_parse_disabled, NULL, NULL, (void *)0, ACCESS_LVL_ADMIN },
+	{ { FLT_OTEL_CLI_CMD, "soft-errors", NULL }, FLT_OTEL_CLI_CMD " soft-errors " FLT_OTEL_CLI_TARGET_FMT "        : disable hard-errors mode", flt_otel_cli_parse_option, NULL, NULL, (void *)0, ACCESS_LVL_ADMIN },
+	{ { FLT_OTEL_CLI_CMD, "hard-errors", NULL }, FLT_OTEL_CLI_CMD " hard-errors " FLT_OTEL_CLI_TARGET_FMT "        : enable hard-errors mode", flt_otel_cli_parse_option, NULL, NULL, (void *)1, ACCESS_LVL_ADMIN },
+	{ { FLT_OTEL_CLI_CMD, "reset-errors", NULL }, FLT_OTEL_CLI_CMD " reset-errors " FLT_OTEL_CLI_TARGET_FMT "       : reset runtime-error counters", flt_otel_cli_parse_reset_errors, NULL, NULL, NULL, ACCESS_LVL_ADMIN },
+	{ { FLT_OTEL_CLI_CMD, "logging",  NULL }, FLT_OTEL_CLI_CMD " logging " FLT_OTEL_CLI_TARGET_FMT " [state]    : set logging state (default: get current logging state)", flt_otel_cli_parse_logging, NULL, NULL, NULL, 0 },
+	{ { FLT_OTEL_CLI_CMD, "rate", NULL }, FLT_OTEL_CLI_CMD " rate " FLT_OTEL_CLI_TARGET_FMT " [value]       : set the rate limit (default: get current rate value)", flt_otel_cli_parse_rate, NULL, NULL, NULL, 0 },
+	{ { FLT_OTEL_CLI_CMD, "status", NULL }, FLT_OTEL_CLI_CMD " status " FLT_OTEL_CLI_TARGET_FMT "             : show the OTEL filter status", flt_otel_cli_parse_status, flt_otel_cli_io_status, flt_otel_cli_dump_release, NULL, 0 },
+	{ { FLT_OTEL_CLI_CMD, "flush", NULL }, FLT_OTEL_CLI_CMD " flush " FLT_OTEL_CLI_TARGET_FMT "              : force-export buffered telemetry now", flt_otel_cli_parse_flush, NULL, NULL, NULL, ACCESS_LVL_ADMIN },
+	{ { FLT_OTEL_CLI_CMD, "instruments", NULL }, FLT_OTEL_CLI_CMD " instruments " FLT_OTEL_CLI_TARGET_FMT "        : show configured metric instruments", flt_otel_cli_parse_instruments, flt_otel_cli_io_instruments, flt_otel_cli_dump_release, NULL, 0 },
+	{ { FLT_OTEL_CLI_CMD, "scopes", NULL }, FLT_OTEL_CLI_CMD " scopes " FLT_OTEL_CLI_TARGET_FMT "             : show configured scopes and groups", flt_otel_cli_parse_scopes, flt_otel_cli_io_scopes, flt_otel_cli_dump_release, NULL, 0 },
 	{ /* END */ }
 }};
 

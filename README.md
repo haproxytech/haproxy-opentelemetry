@@ -233,23 +233,26 @@ signals:
 
 Available via the HAProxy CLI socket (prefix: `flt-otel`):
 
-| Command                    | Description                        |
-|----------------------------|------------------------------------|
-| `flt-otel status`          | Show filter status                 |
-| `flt-otel instruments`     | Show configured metric instruments |
-| `flt-otel scopes`          | Show configured scopes and groups  |
-| `flt-otel enable`          | Enable the filter                  |
-| `flt-otel disable`         | Disable the filter                 |
-| `flt-otel hard-errors`     | Enable hard-errors mode            |
-| `flt-otel soft-errors`     | Disable hard-errors mode           |
-| `flt-otel reset-errors`    | Reset runtime-error counters       |
-| `flt-otel logging [state]` | Set logging state                  |
-| `flt-otel rate [value]`    | Set or show the rate limit         |
-| `flt-otel flush`           | Force-export buffered telemetry    |
-| `flt-otel debug [level]`   | Set debug level (debug build only) |
+| Command                                | Description                        |
+|----------------------------------------|------------------------------------|
+| `flt-otel status [@<filter>]`          | Show filter status                 |
+| `flt-otel instruments [@<filter>]`     | Show configured metric instruments |
+| `flt-otel scopes [@<filter>]`          | Show configured scopes and groups  |
+| `flt-otel enable [@<filter>]`          | Enable the filter                  |
+| `flt-otel disable [@<filter>]`         | Disable the filter                 |
+| `flt-otel hard-errors [@<filter>]`     | Enable hard-errors mode            |
+| `flt-otel soft-errors [@<filter>]`     | Disable hard-errors mode           |
+| `flt-otel reset-errors [@<filter>]`    | Reset runtime-error counters       |
+| `flt-otel logging [@<filter>] [state]` | Set logging state                  |
+| `flt-otel rate [@<filter>] [value]`    | Set or show the rate limit         |
+| `flt-otel flush [@<filter>]`           | Force-export buffered telemetry    |
+| `flt-otel debug [level]`               | Set debug level (debug build only) |
 
 When invoked without arguments, `rate`, `logging` and `debug` display the
-current value.
+current value.  The optional `@<filter>` token, accepted by every command
+except `debug`, restricts a command to the single filter instance whose id
+matches; without it, a command operates on every configured instance at once.
+Surplus arguments are rejected.
 
 ### Performance
 
