@@ -20,6 +20,41 @@
 
 #define FLT_OTEL_CLI_MSG_CAT(a)          (((a) == NULL) ? "" : (a)), (((a) == NULL) ? "" : "\n")
 
+/* Iterative CLI dump states. */
+enum FLT_OTEL_CLI_DUMP_enum {
+	FLT_OTEL_CLI_DUMP_HEAD = 0,   /* Global report header. */
+	FLT_OTEL_CLI_DUMP_PROXY,      /* Per-filter block header. */
+	FLT_OTEL_CLI_DUMP_INSTR,      /* Metric instrument rows. */
+	FLT_OTEL_CLI_DUMP_SCOPES_HDR, /* Scope section header. */
+	FLT_OTEL_CLI_DUMP_SCOPES,     /* Scope rows. */
+	FLT_OTEL_CLI_DUMP_GROUPS_HDR, /* Group section header. */
+	FLT_OTEL_CLI_DUMP_GROUPS,     /* Group rows. */
+#ifdef DEBUG_OTEL
+	FLT_OTEL_CLI_DUMP_EVENTS_HDR, /* Event section header. */
+	FLT_OTEL_CLI_DUMP_EVENTS,     /* Event rows. */
+#endif
+};
+
+/*
+ * Iterative CLI dump context, kept in the applet service context storage
+ * between calls of an io_handler so that a dump interrupted on a full
+ * output buffer resumes where it stopped.
+ */
+struct flt_otel_cli_dump_ctx {
+	struct proxy                *px;         /* Proxy being dumped. */
+	struct proxy                *px_prev;    /* Proxy as last seen (deletion detector). */
+	struct flt_conf             *fconf;      /* Filter configuration being dumped. */
+	struct flt_otel_conf_scope  *scope;      /* Scope of the instrument row cursor. */
+	struct list                 *node;       /* Row cursor within the current section. */
+	enum FLT_OTEL_CLI_DUMP_enum  state;      /* FLT_OTEL_CLI_DUMP_* dump state. */
+	int                          idx;        /* Event counter index (scope dump). */
+	bool                         flag_first; /* Set until the first block is dumped. */
+	int                          w[4];       /* Column widths of the current block. */
+#ifdef USE_OTEL_MAIN_PROXIES
+	struct watcher               px_watch;   /* Updates px if the proxy is deleted. */
+#endif
+};
+
 
 /* Register CLI keywords for the OTel filter. */
 void flt_otel_cli_init(void);

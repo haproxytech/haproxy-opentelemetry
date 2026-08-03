@@ -784,8 +784,9 @@ filter in every proxy that has it configured.
 
 12.3  Status Report
 
-The "flt-otel status" command assembles its report via memprintf(), rendering
-the tabular parts with the column-oriented table builder (util.c), and contains:
+The "flt-otel status" command builds its report iteratively in an io_handler
+that emits through the applet output buffer, rendering the tabular parts with
+the column-oriented table builder (util.c).  The report contains:
 
   - Library versions (C++ SDK and C wrapper).
   - Debug level (DEBUG_OTEL only).
