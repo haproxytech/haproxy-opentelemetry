@@ -6,6 +6,50 @@ commits, with directly related commits folded into a single bullet, and the
 git log keeps the full descriptions.
 
 
+Version 2.1.0 (2026-08-05)
+--------------------------
+
+Requires the OTel C wrapper version 3.2.0 and adds the 'require-context' option,
+which holds all telemetry of a stream back until a valid trace context has been
+extracted from the request, so a downstream HAProxy never originates a trace of
+its own.  The option is off by default, which preserves the earlier behavior of
+the filter.
+
+The runtime CLI commands now accept an optional '@<filter>' token that addresses
+a single filter instance by its id, and the dump commands have been rebuilt as
+iterative io_handlers: a report larger than tune.bufsize is no longer silently
+discarded, and the quadratic string rebuilding that could stall a thread into a
+watchdog panic is gone.  The status report shows the suppressed runtime log
+lines as a pending count and as a lifetime total, with its section titles and
+head-block value columns aligned.
+
+A metric instrument name may also be repeated in create form, typically gated
+by an 'if' or 'unless' condition selecting which measurement is recorded; an
+update-form entry binds the nearest preceding create of the same name, and the
+configuration check enforces type consistency instead of uniqueness.
+
+  * BUG/MINOR: Closed the outer quote of the message printed when the
+    filter id falls back to the default.
+  * BUG/MEDIUM: Made the status, scopes and instruments CLI commands
+    iterative io_handlers, replacing the single memprintf() report that a
+    full buffer silently discarded.
+  * MINOR: Added the optional '@<filter>' target token to the CLI commands,
+    which restricts a command to the one instance named by its filter id.
+  * MINOR: Added the 'require-context' option that suppresses all telemetry
+    for a stream without a valid extracted trace context.
+  * MINOR: Allowed repeated creates of a metric instrument name; an update
+    binds the nearest preceding create, and the checks enforce type
+    consistency instead of uniqueness.
+  * MINOR: Added a lifetime total of the suppressed runtime log lines,
+    shown by 'flt-otel status' and kept across 'flt-otel reset-errors'.
+  * MINOR: Polished the CLI status dump formatting: aligned section titles,
+    shared head-block value columns and colons on the bare titles.
+  * DOC: Required the OTel C wrapper version 3.2.0 on the OpenTelemetry C++
+    SDK 1.26.0 or newer, and refreshed the sample version strings of the
+    build and CLI status outputs.
+  * VERSION: Bumped the filter version to 2.1.0.
+
+
 Version 2.0.2 (2026-07-30)
 --------------------------
 
