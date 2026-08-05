@@ -93,6 +93,25 @@ make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_INC=/opt/
 PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_DEBUG=1
 ```
 
+#### Without the wrapper library (compile testing)
+
+The `dummy/` directory holds a stand-in implementation of the wrapper API, so
+the filter can be compiled and linked with neither the wrapper nor the whole
+OpenTelemetry C++ SDK installed:
+
+```
+make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_INC=../haproxy-opentelemetry/dummy/include OTEL_LIB=../haproxy-opentelemetry/dummy
+```
+
+This is for compile testing only -- for instance in continuous integration, or
+when working on the filter on a machine without the SDK.  The executable parses
+its configuration and runs, and all of the filter's own parsing, scope and event
+handling is exercised, but no telemetry is produced and the OTel configuration
+file is not read.  It reports the C++ version as `none`, which tells it apart
+from a real build.  The stand-in archive is built in the same make pass, and
+`OTEL_DEBUG` reaches it automatically.  See [dummy/README](dummy/README) for
+details.
+
 #### Variable-based context propagation
 
 ```
@@ -298,6 +317,10 @@ The `test/` directory contains ready-to-run example configurations:
   response to drive the rate-limited error/warning logs and CLI counters.
 - **empty** -- filter initialized with no active telemetry.
 
+All of them need a real wrapper build to produce anything.  Against the `dummy/`
+stand-in they still pass `haproxy -c` and start normally, which makes them into
+a smoke test of the filter itself, but no telemetry ever reaches the backend.
+
 #### Quick start with Jaeger
 
 Start a Jaeger all-in-one container:
@@ -326,6 +349,7 @@ Detailed documentation is available in the following files:
 - [README-implementation](README-implementation) -- component architecture
 - [README-func](README-func) -- function reference
 - [README-misc](README-misc) -- miscellaneous notes
+- [dummy/README](dummy/README) -- build-only stand-in for the wrapper library
 - [ChangeLog](ChangeLog) -- release notes
 
 ### Copyright

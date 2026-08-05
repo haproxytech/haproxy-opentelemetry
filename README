@@ -1,7 +1,7 @@
                    -----------------------------------------
                       The HAProxy OpenTelemetry filter (OTel)
                                  Version 2.1.0
-                          ( Last update: 2026-08-05 )
+                          ( Last update: 2026-08-06 )
                    -----------------------------------------
                            Author : Miroslav Zagorac
                      Contact : mzagorac at haproxy dot com
@@ -170,6 +170,30 @@ A summary of all OTel build options:
   OTEL_RUNPATH  - add opentelemetry-c-wrapper RUNPATH (needs OTEL_LIB)
   OTEL_STATIC   - pass --static to pkg-config for static linking
   OTEL_USE_VARS - enable context propagation via HAProxy variables
+
+Finally, the filter can also be compiled without the OpenTelemetry C Wrapper
+library being available at all.  The 'dummy' subdirectory of this source tree
+holds a stand-in implementation of the wrapper API that is built as a static
+archive in the same make pass once OTEL_INC and OTEL_LIB are pointed at it:
+
+  % make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_INC=../haproxy-opentelemetry/dummy/include OTEL_LIB=../haproxy-opentelemetry/dummy
+
+This is meant for compile testing only, for example in continuous integration
+or when working on the filter where the OpenTelemetry C++ SDK is not installed.
+The resulting executable parses its configuration and runs, and the filter's own
+parsing, scope and event handling is exercised, but no telemetry is produced and
+the OTel configuration file is not even read.  Such an executable reports the
+C++ version as "none", which tells it apart from a real build:
+
+  % ./haproxy -vv | grep -i opentelemetry
+  --- command output ----------
+  Built with OpenTelemetry support (C++ version none, C Wrapper version 3.2.0-0).
+          [OTEL] opentelemetry
+  --- command output ----------
+
+OTEL_DEBUG is handed on to the stand-in build automatically, so the filter and
+the archive cannot disagree on the debug macros.  See dummy/README for the whole
+story, including what the stand-in implements and what it merely accepts.
 
 
 3. Basic concepts in OpenTelemetry

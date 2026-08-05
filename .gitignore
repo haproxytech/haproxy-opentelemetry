@@ -3,4 +3,5 @@ vgcore.*
 *.pid
 *.i
 *.o
+*.a
 _*

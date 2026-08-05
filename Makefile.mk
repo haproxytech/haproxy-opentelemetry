@@ -31,13 +31,16 @@ OTEL_CFLAGS = -I$(OTEL_INC) $(if $(OTEL_DEBUG),-DOTELC_DBG_MEM)
 endif
 endif
 
+# The probes must not block a clean of the already removed dummy archive.
+OTEL_CLEANING = $(filter clean otel-clean,$(MAKECMDGOALS))
+
 ifeq ($(OTEL_PKGSTAT),)
 ifeq ($(OTEL_CFLAGS),)
-$(error OpenTelemetry C wrapper : can't find headers)
+$(if $(OTEL_CLEANING),,$(error OpenTelemetry C wrapper : can't find headers))
 endif
 else
 ifneq ($(OTEL_PKGSTAT),0)
-$(error OpenTelemetry C wrapper : can't find package)
+$(if $(OTEL_CLEANING),,$(error OpenTelemetry C wrapper : can't find package))
 endif
 endif
 
@@ -45,7 +48,9 @@ ifeq ($(OTEL_LIB),)
 OTEL_PKG_STATIC = $(if $(OTEL_STATIC:0=),--static,)
 OTEL_LDFLAGS = $(shell pkg-config --silence-errors $(OTEL_PKG_STATIC) --libs $(OTELC_WRAPPER)$(OTEL_DEBUG_EXT))
 else
-ifneq ($(wildcard $(OTEL_LIB)/lib$(OTELC_WRAPPER).*),)
+# The bundled dummy archive is built on demand and may not exist yet.
+OTEL_DUMMY = $(filter $(realpath $(OTEL_DIR)/dummy),$(realpath $(OTEL_LIB)))
+ifneq ($(OTEL_DUMMY)$(wildcard $(OTEL_LIB)/lib$(OTELC_WRAPPER)$(OTEL_DEBUG_EXT).*),)
 OTEL_LDFLAGS = -L$(OTEL_LIB) -l$(OTELC_WRAPPER)$(OTEL_DEBUG_EXT)
 ifneq ($(OTEL_RUNPATH),)
 OTEL_LDFLAGS += -Wl,--rpath,$(OTEL_LIB)
@@ -54,7 +59,7 @@ endif
 endif
 
 ifeq ($(OTEL_LDFLAGS),)
-$(error OpenTelemetry C wrapper : can't find library)
+$(if $(OTEL_CLEANING),,$(error OpenTelemetry C wrapper : can't find library))
 endif
 
 OPTIONS_OBJS += \
@@ -116,5 +121,25 @@ otel-clean:
 	$(Q)rm -f $(OTEL_DIR)/src/*~ $(OTEL_DIR)/src/*.rej
 	$(Q)rm -f $(OTEL_DIR)/include/*~ $(OTEL_DIR)/include/*.rej
 	$(Q)rm -f $(OTEL_DIR)/core $(OTEL_DIR)/test/core
+	$(Q)$(MAKE) -C $(OTEL_DIR)/dummy clean
+
+# One-pass build of the bundled stand-in: a missing archive is bootstrapped
+# at include time (the other tools of the default goal link it too), and a
+# changed dummy source rebuilds it before the haproxy link.  A USE_THREAD or
+# DEFINE change alone does not re-trigger this; rebuild the archive by hand.
+ifneq ($(OTEL_DUMMY),)
+OTEL_DUMMY_LIB = $(OTEL_DIR)/dummy/lib$(OTELC_WRAPPER)$(OTEL_DEBUG_EXT).a
+
+ifeq ($(OTEL_CLEANING),)
+ifeq ($(wildcard $(OTEL_DUMMY_LIB)),)
+OTEL_DUMMY_BOOT := $(shell $(MAKE) -C $(OTEL_DIR)/dummy OTEL_DEBUG=$(OTEL_DEBUG) >&2)
+endif
+endif
+
+haproxy: $(OTEL_DUMMY_LIB)
+
+$(OTEL_DUMMY_LIB): $(wildcard $(OTEL_DIR)/dummy/src/*.c) $(wildcard $(OTEL_DIR)/dummy/include/$(OTELC_WRAPPER)/*.h) $(OTEL_DIR)/dummy/Makefile
+	$(Q)$(MAKE) -C $(OTEL_DIR)/dummy OTEL_DEBUG=$(OTEL_DEBUG)
+endif
 
 .DEFAULT_GOAL :=

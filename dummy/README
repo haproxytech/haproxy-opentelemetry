@@ -1,0 +1,180 @@
+Build-only stand-in for the OpenTelemetry C Wrapper
+===================================================
+
+
+1  Purpose
+----------------------------------------------------------------------
+
+The OTel filter normally links against the OpenTelemetry C Wrapper library,
+which in turn pulls in the OpenTelemetry C++ SDK.  This directory provides a
+stand-in implementation of the wrapper API so that the filter can be compiled
+and linked without either of them being installed.
+
+It is meant for compile testing: continuous integration, checking that a change
+to the filter still builds, or working on the filter on a machine where the SDK
+is not available.  It is not a replacement library.  An executable built against
+it parses its configuration and runs, but produces no telemetry at all.
+
+The API reproduced here is that of wrapper version 3.2.0.
+
+
+2  Layout
+----------------------------------------------------------------------
+
+  dummy/
+  |-- Makefile           Builds the archive that Makefile.mk expects
+  |-- include/
+  |   `-- opentelemetry-c-wrapper/
+  |       `-- include.h  The whole reproduced API
+  `-- src/
+      `-- wrapper.c      The implementation behind it
+
+The filter includes only <opentelemetry-c-wrapper/include.h> and never reaches
+for one of the per-signal headers, so the per-signal header layout of the real
+wrapper is not mirrored here; the umbrella header carries everything.
+
+Only what the filter actually references is declared.  Functions, macros and
+structure or operation-table members that the filter never uses are left out on
+purpose, which keeps the stand-in small at the cost of it being useless to any
+other consumer.  Enumeration lists are the exception and are carried complete,
+so that every enumerator keeps the numeric value it has in the real API; the
+reasons are given in section 6.
+
+
+3  Building and using it
+----------------------------------------------------------------------
+
+Point the HAProxy build at this directory with the OTEL_INC and the OTEL_LIB
+variables instead of letting Makefile.mk search for a system-installed library
+through pkg-config.  Makefile.mk recognizes that OTEL_LIB selects this subtree
+and then builds the archive itself in the same pass, through a sub-make run in
+this directory, so a single make command is now enough.  As in the top-level
+README, the example assumes that make is run from the HAProxy directory and
+that the addon checkout sits next to it:
+
+  % make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_INC=../haproxy-opentelemetry/dummy/include OTEL_LIB=../haproxy-opentelemetry/dummy
+
+The debug build works the same way, and the archive then carries the _dbg suffix
+that Makefile.mk links against:
+
+  % make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_INC=../haproxy-opentelemetry/dummy/include OTEL_LIB=../haproxy-opentelemetry/dummy OTEL_DEBUG=1
+
+Makefile.mk hands OTEL_DEBUG on to the sub-make itself, so the archive always
+matches what the link line expects.  That agreement matters: the two defines
+DEBUG_OTEL and OTELC_DBG_MEM change the shape of the debug macros and of the
+external allocator types, so the filter and this archive must not disagree on
+them.  The archive can still be built by hand too, with 'make -C dummy' and
+the optional OTEL_DEBUG=1, which is useful for a quick compile check of the
+stand-in alone; the same OTEL_DEBUG must then be given to both makes.
+
+Whenever the sub-make runs, this side needs no extra care about the options:
+the two build modes keep their object files apart, and a stamp holding all the
+recorded compiler flags recompiles them whenever any of the options changes.
+The one-pass rule starts the sub-make when a dummy source or the Makefile here
+has changed or the archive of the requested flavor does not exist yet, so a
+change of USE_THREAD or DEFINE alone needs a by-hand rebuild of the archive.
+The filter objects on the HAProxy side do not rebuild by themselves either,
+so remove them there before switching modes; a 'make clean' in the HAProxy tree
+removes them together with the dummy artifacts.
+
+The defines that HAProxy's Makefile derives from TARGET are not visible in the
+sub-make, but they can be handed over: USE_THREAD=1 builds the archive the way
+a threaded HAProxy is compiled, which only shapes the thread id prefix of the
+debug traces, and any further define can be passed on to the compiler with the
+DEFINE variable, the same way HAProxy's Makefile accepts it.  Both reach the
+sub-make from the HAProxy make command line on their own, because make passes
+command line variables down to it.
+
+Nothing needs to be installed and no library path has to be set at run time,
+since the stand-in is a static archive that is linked into the executable.
+
+An executable built this way identifies itself in the build options:
+
+  % ./haproxy -vv | grep -i opentelemetry
+  --- command output ----------
+  Built with OpenTelemetry support (C++ version none, C Wrapper version 3.2.0-0).
+          [OTEL] opentelemetry
+  --- command output ----------
+
+The C++ version reported as "none", together with the zero build counter, is how
+a stand-in linked executable can be told apart from a real one.
+
+
+4  What it does and does not do
+----------------------------------------------------------------------
+
+The plain data helpers are implemented for real: the text map used to carry
+propagation headers, the attribute vector, the string to number conversion, the
+hexadecimal formatting of the trace and span identifiers and the severity and
+aggregation name parsers.  The filter passes its own data through those, so
+stubbing them out would make the surrounding filter code paths meaningless.
+
+Everything that would need the SDK reports success without doing anything at
+all.  Starting a span hands out an opaque handle; attributes, events, links,
+baggage, status and recorded exceptions are accepted and discarded; the metric
+instruments are handed sequential identifiers, with a repeated create of the
+same name and type returning the existing one as the real library does; log
+records are accepted; flush and shutdown succeed.  Extracting a propagation
+context yields a span context that reports itself invalid, which is also what
+the real library produces for a carrier without usable trace headers.
+
+Allocation goes through the C library.  The external allocator hooks that the
+filter installs are accepted and ignored, so nothing allocated here is released
+through HAProxy pools or the other way round.
+
+
+5  Limitations
+----------------------------------------------------------------------
+
+No telemetry is exported.  The export pipeline status is filled with the value
+that the wrapper API uses for a field which does not apply, so the CLI status
+table shows -1 counters on the trace and log rows and reports that nothing has
+ever been exported.
+
+The OTel configuration file is not read.  The path handed to otelc_init() is
+accepted without being opened, so any mistake in the YAML configuration goes
+unreported and a configuration that the real library would reject passes here.
+
+Context extraction never yields a valid span context.  A request that carries
+propagation headers is handled without error, but no parent linkage results
+from it: the extracted span context reports itself invalid, the sample fetches
+that report context validity read as invalid, and 'require-context' never sees
+a valid context.
+
+The debug allocators forward straight to the C library and record nothing, so
+the memory diagnostics of a debug build stay empty.
+
+The test configurations under test/ can still be checked with 'haproxy -c' and
+started with their runner scripts, and the filter's own parsing, scope and event
+handling runs as usual, but no telemetry arrives at the backend.
+
+
+6  Keeping it in step with the wrapper API
+----------------------------------------------------------------------
+
+When the wrapper API changes, treat the compiler as the specification: build the
+filter against this header and add whatever it asks for.  Working out the needed
+surface by searching the filter sources instead is unreliable, and quietly so.
+Searching for '.u.value_' misses '->u.value_bool', because that access has no
+dot in front of the member; a variadic operation-table member whose parameter
+list has grown will accept the extra arguments with nothing worse than a warning
+about the shifted ones.
+
+Some parts that look like they could be shrunk have to stay as they are.
+
+Every enumeration list is carried complete, not cut down to the members that the
+filter names, so that each enumerator keeps the numeric value it has in the real
+API.  The debug level list in OTELC_DBG_LEVEL_DEFINES shows why that matters:
+OTELC_DBG_LEVEL_MASK is derived from the length of that list and bounds both the
+'debug-level' keyword and the CLI command that sets it, so a shortened list
+shifts the bit positions and rejects values that the real library accepts.  The
+severity and aggregation name parsers walk their full lists, which also gives
+the stand-in exactly the same accept and reject behavior at 'haproxy -c' as
+a real build.
+
+The span context operations are implemented, although every context they serve
+reports itself invalid.  Handing out no context at all is not an option: the
+real extract operations yield a span context even for a carrier without usable
+trace headers, and the filter takes a NULL return as an extraction failure that
+feeds its runtime-error handling and, with 'option hard-errors', disables the
+filter for the stream.

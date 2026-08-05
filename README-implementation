@@ -54,6 +54,7 @@ with runner scripts.
   |   |-- util.c         Argument handling, sample conversion
   |   |-- group.c        Group action parsing and execution
   |   `-- cli.c          CLI command handlers
+  |-- dummy/             Build-only wrapper stand-in (see dummy/README)
   `-- test/
       |-- copy-yml.sh    YAML configuration transformer
       |-- test-speed.sh  Performance benchmarking runner
@@ -117,6 +118,17 @@ Compiled objects (vars.o is built unconditionally):
 OTEL_USE_VARS does not gate whether vars.o is compiled; it only adds the
 -DUSE_OTEL_VARS / -DUSE_OTEL_VARS_NAME defines that select the code paths
 compiled inside vars.c.
+
+The dummy/ subtree provides a stand-in implementation of the wrapper API for
+compile testing, letting the filter build and link with neither the wrapper nor
+the OpenTelemetry C++ SDK installed.  Its Makefile produces a static archive
+named the way Makefile.mk expects, and OTEL_INC and OTEL_LIB are pointed at it
+instead of pkg-config; Makefile.mk then builds the archive in the same pass
+and hands OTEL_DEBUG on to it, because DEBUG_OTEL and OTELC_DBG_MEM change the
+shape of the debug macros and of the external allocator types.  The resulting
+executable runs and it exercises all of the filter's own logic but produces
+no telemetry, and it reports the C++ version as "none" so that it cannot be
+mistaken for a real build.  See dummy/README.
 
 
 4  Configuration Parsing
