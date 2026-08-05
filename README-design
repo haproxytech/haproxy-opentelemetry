@@ -229,8 +229,8 @@ Both emissions go through FLT_OTEL_LOG_LIM (debug.h): one per-mode latch bit
 makes each error episode log only once -- a clean callback return re-arms it
 -- and a sliding frequency counter caps the output at FLT_OTEL_LOG_RATE_MAX
 lines per FLT_OTEL_LOG_RATE_PERIOD per instance (config.h), with the held-back
-lines tallied in log.suppressed and reported as a suffix on the next emitted
-line.
+lines tallied in log.sup_pending and reported as a suffix on the next emitted
+line, and counted in log.sup_total, a lifetime total that is never reset.
 
 In both modes, FLT_OTEL_RET_OK is always returned to HAProxy.  A tracing failure
 never interrupts stream processing.
@@ -274,7 +274,10 @@ The following fields are accessed atomically across threads:
                               Read at each FLT_OTEL_LOG emission.
 
   conf->instr->log.latch      Edge-trigger bits of the rate-limited runtime
-  conf->instr->log.suppressed log and its held-back line tally (section 3.3).
+  conf->instr->log.sup_pending log and its held-back line tally (section 3.3).
+
+  conf->instr->log.sup_total  Lifetime total of held-back log lines; never
+                              cleared (section 3.3).
 
   conf->instr->n_harderr      Runtime-error tallies shown by "flt-otel status"
   conf->instr->n_softerr      and cleared by "flt-otel reset-errors".
@@ -762,7 +765,8 @@ keyword sequences to handler functions with access level requirements.
   "flt-otel hard-errors"  ACCESS_LVL_ADMIN.  Sets flag_harderr.
   "flt-otel soft-errors"  ACCESS_LVL_ADMIN.  Clears flag_harderr.
   "flt-otel reset-errors" ACCESS_LVL_ADMIN.  Clears the runtime-error tallies
-                          and the log rate-limiter state.
+                          and the log rate-limiter state; the lifetime
+                          suppressed total is retained.
   "flt-otel logging"      ACCESS_LVL_ADMIN for setting; any for reading.
   "flt-otel rate"         ACCESS_LVL_ADMIN for setting; any for reading.
   "flt-otel debug"        ACCESS_LVL_ADMIN for setting; any for reading.
@@ -798,8 +802,8 @@ the column-oriented table builder (util.c).  The report contains:
   - Dropped diagnostic message count ('sdk diagnostics').
   - Per-proxy: config file, group/scope counts, instrumentation details, rate
     limit, error mode, disabled state, logging state, runtime-error tallies
-    (hard, soft, suppressed), the minimum idle timeout, analyzer bitmask, and
-    counters (if FLT_OTEL_USE_COUNTERS).
+    (hard, soft), suppressed-line counts (pending, total), the minimum idle
+    timeout, analyzer bitmask, and counters (if FLT_OTEL_USE_COUNTERS).
 
 12.4  Introspection and Flush
 

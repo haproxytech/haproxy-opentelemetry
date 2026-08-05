@@ -83,8 +83,8 @@
 #define FLT_OTEL_DBG_CONF_PH(h,p) \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%p }", (p), FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->ptr)
 
-#define FLT_OTEL_CONF_LOG_FMT         "%p:{ %hhu %p:{ %s } %p:{ %u } 0x%02x %u }"
-#define FLT_OTEL_CONF_LOG_ARGS(p)     (p), (p)->type, &((p)->proxy), flt_otel_list_dump(&((p)->proxy.loggers)), &((p)->rate), (p)->rate.curr_ctr, (p)->latch, (p)->suppressed
+#define FLT_OTEL_CONF_LOG_FMT         "%p:{ %hhu %p:{ %s } %p:{ %u } 0x%02x %u %" PRIu64 " }"
+#define FLT_OTEL_CONF_LOG_ARGS(p)     (p), (p)->type, &((p)->proxy), flt_otel_list_dump(&((p)->proxy.loggers)), &((p)->rate), (p)->rate.curr_ctr, (p)->latch, (p)->sup_pending, (p)->sup_total
 
 #define FLT_OTEL_DBG_CONF_INSTR(h,p)                                                                                                                                                      \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' '%s' %p %p %p %p %u %hhu %hhu %hhu %hhu %hhu %u " FLT_OTEL_CONF_LOG_FMT " %" PRIu64 " %" PRIu64 " 0x%08x %u %s %s %s }", \
@@ -343,11 +343,12 @@ struct flt_otel_conf_ph {
 
 /* Runtime-log emission state (mode, log servers, flood control). */
 struct flt_otel_log {
-	uint8_t         type;       /* [0 1 3] */
-	struct proxy    proxy;      /* The log server list. */
-	struct freq_ctr rate;       /* Sliding-window rate of emitted runtime logs. */
-	uint            latch;      /* Atomic FLT_OTEL_LOG_LATCH_* bits, one per open error episode. */
-	uint            suppressed; /* Runtime log lines suppressed since the last emission. */
+	uint8_t         type;        /* [0 1 3] */
+	struct proxy    proxy;       /* The log server list. */
+	struct freq_ctr rate;        /* Sliding-window rate of emitted runtime logs. */
+	uint            latch;       /* Atomic FLT_OTEL_LOG_LATCH_* bits, one per open error episode. */
+	uint            sup_pending; /* Runtime log lines suppressed since the last emission. */
+	uint64_t        sup_total;   /* Lifetime total of suppressed lines; never reset. */
 };
 
 /* Top-level OTel instrumentation settings (tracer, meter, options). */

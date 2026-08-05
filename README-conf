@@ -161,8 +161,9 @@ list -- it is the unique root, owned by the filter instance.
 The embedded flt_otel_log structure carries the runtime-log emission state:
 the logging mode ('type', 0, 1 or 3), the log server list ('proxy', a HAProxy
 proxy structure whose loggers list holds the configured targets), the sliding
-emission-rate window ('rate'), the per-episode latch bits ('latch') and the
-count of suppressed log lines ('suppressed').
+emission-rate window ('rate'), the per-episode latch bits ('latch'), the count
+of log lines suppressed since the last emission ('sup_pending') and the lifetime
+total of suppressed lines ('sup_total'), which no reset clears.
 
 Exactly one instrumentation block is allowed per filter instance.  The parser
 stores a pointer to it in flt_otel_conf.instr.

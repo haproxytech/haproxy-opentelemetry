@@ -456,8 +456,9 @@ static int flt_otel_cli_parse_logging(char **args, char *payload, struct appctx 
  *   to the named filter; otherwise every OTel filter instance across all
  *   proxies is visited.  Clears the runtime-error counters, the
  *   suppressed-line tally and the log edge-trigger latch of each visited
- *   instance, so the next error episode is reported afresh.  A target that
- *   matches no filter produces a "no such filter" error.
+ *   instance, so the next error episode is reported afresh.  The lifetime
+ *   total of suppressed lines is retained.  A target that matches no filter
+ *   produces a "no such filter" error.
  *
  * RETURN VALUE
  *   Returns 1, or 0 if no OTel filter instances are configured (and no target
@@ -482,7 +483,7 @@ static int flt_otel_cli_parse_reset_errors(char **args, char *payload, struct ap
 	FLT_OTEL_PROXIES_LIST_START(id) {
 		_HA_ATOMIC_STORE(&(conf->instr->n_harderr), 0);
 		_HA_ATOMIC_STORE(&(conf->instr->n_softerr), 0);
-		_HA_ATOMIC_STORE(&(conf->instr->log.suppressed), 0);
+		_HA_ATOMIC_STORE(&(conf->instr->log.sup_pending), 0);
 		_HA_ATOMIC_STORE(&(conf->instr->log.latch), 0);
 
 		(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : filter %s runtime errors reset", FLT_OTEL_CLI_MSG_CAT(msg), conf->id);
@@ -1088,7 +1089,8 @@ static int flt_otel_cli_io_status(struct appctx *appctx)
 		(void)chunk_appendf(&trash, "       disabled:      %s\n", FLT_OTEL_STR_FLAG_YN(_HA_ATOMIC_LOAD(&(conf->instr->flag_disabled))));
 		(void)chunk_appendf(&trash, "       require ctx:   %s\n", FLT_OTEL_STR_FLAG_YN(conf->instr->flag_reqctx));
 		(void)chunk_appendf(&trash, "       logging:       %s\n", FLT_OTEL_CLI_LOGGING_STATE(_HA_ATOMIC_LOAD(&(conf->instr->log.type))));
-		(void)chunk_appendf(&trash, "       runtime err:   hard %" PRIu64 ", soft %" PRIu64 " (suppressed %u)\n", _HA_ATOMIC_LOAD(&(conf->instr->n_harderr)), _HA_ATOMIC_LOAD(&(conf->instr->n_softerr)), _HA_ATOMIC_LOAD(&(conf->instr->log.suppressed)));
+		(void)chunk_appendf(&trash, "       runtime err:   hard %" PRIu64 ", soft %" PRIu64 "\n", _HA_ATOMIC_LOAD(&(conf->instr->n_harderr)), _HA_ATOMIC_LOAD(&(conf->instr->n_softerr)));
+		(void)chunk_appendf(&trash, "       suppressed:    pending %u, total %" PRIu64 "\n", _HA_ATOMIC_LOAD(&(conf->instr->log.sup_pending)), _HA_ATOMIC_LOAD(&(conf->instr->log.sup_total)));
 		(void)chunk_appendf(&trash, "       idle timeout:  %u ms\n", conf->instr->idle_timeout);
 		(void)chunk_appendf(&trash, "       analyzers:     %08x\n", conf->instr->analyzers);
 #ifdef FLT_OTEL_USE_COUNTERS

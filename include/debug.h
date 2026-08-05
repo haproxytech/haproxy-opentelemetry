@@ -49,8 +49,9 @@
  * Emits at most once per error episode -- the <b> bit, which the caller re-arms
  * on a clean return -- and never more than FLT_OTEL_LOG_RATE_MAX lines per
  * FLT_OTEL_LOG_RATE_PERIOD per instance.  Lines that are held back are tallied
- * and reported as a suffix on the next line that is emitted.  Like FLT_OTEL_LOG,
- * it requires an ambient <conf> pointer.
+ * and reported as a suffix on the next line that is emitted, and counted in a
+ * lifetime total that is never reset.  Like FLT_OTEL_LOG, it requires an
+ * ambient <conf> pointer.
  */
 #define FLT_OTEL_LOG_LIM(l,b,f, ...)                                                                       \
 	do {                                                                                               \
@@ -58,14 +59,15 @@
 		uint rate = update_freq_ctr_period(&(conf->instr->log.rate), FLT_OTEL_LOG_RATE_PERIOD, 1); \
 		                                                                                           \
 		if ((old == 0) && (rate <= FLT_OTEL_LOG_RATE_MAX)) {                                       \
-			uint sup = _HA_ATOMIC_XCHG(&(conf->instr->log.suppressed), 0);                     \
+			uint sup = _HA_ATOMIC_XCHG(&(conf->instr->log.sup_pending), 0);                    \
 			                                                                                   \
 			if (sup == 0)                                                                      \
 				FLT_OTEL_LOG((l), f, ##__VA_ARGS__);                                       \
 			else                                                                               \
 				FLT_OTEL_LOG((l), f " (%u more suppressed)", ##__VA_ARGS__, sup);          \
 		} else {                                                                                   \
-			_HA_ATOMIC_ADD(&(conf->instr->log.suppressed), 1);                                 \
+			_HA_ATOMIC_ADD(&(conf->instr->log.sup_pending), 1);                                \
+			_HA_ATOMIC_ADD(&(conf->instr->log.sup_total), 1);                                  \
 		}                                                                                          \
 	} while (0)
 

@@ -1,7 +1,7 @@
                    -----------------------------------------
                       The HAProxy OpenTelemetry filter (OTel)
                                  Version 2.0.2
-                          ( Last update: 2026-08-03 )
+                          ( Last update: 2026-08-05 )
                    -----------------------------------------
                            Author : Miroslav Zagorac
                      Contact : mzagorac at haproxy dot com
@@ -1743,7 +1743,8 @@ the 'counters' block appear only in a debug build):
          hard errors:   no
          disabled:      no
          logging:       enabled
-         runtime err:   hard 0, soft 0 (suppressed 0)
+         runtime err:   hard 0, soft 0
+         suppressed:    pending 0, total 0
          idle timeout:  1000 ms
          analyzers:     01e03fbe
 
@@ -1778,23 +1779,26 @@ decision (a failed condition or 'otel-stop') or by a hard error.
 
 'runtime err' reports the data-path errors the filter met while processing
 streams: 'hard' counts the hard-error episodes that disabled the filter for a
-stream, 'soft' the errors that were swallowed so processing continued, and
-'suppressed' the log lines the rate limiter held back.  Both kinds are sent to
-the per-instance 'log' target -- hard errors at level err, soft errors at level
-warning -- but each emission is edge-triggered and rate-limited per instance, so
-a fault recurring on every stream yields only a couple of lines per window while
-these counters keep the true tally.  'option dontlog-normal' keeps the error
-lines but drops the warnings, and 'flt-otel logging off' silences both; the
-counters climb either way.
+stream, 'soft' the errors that were swallowed so processing could continue.
+The 'suppressed' line below it tracks the log lines the rate limiter held back:
+'pending' counts the lines held back since the last emitted line, which the next
+emission reports as a "(N more suppressed)" suffix and zeros, while 'total' is
+the lifetime count and it only ever climbs.  Both error kinds are sent to the
+per-instance 'log' target -- hard errors at level err, soft errors at level
+warning -- but each emission is edge-triggered and rate-limited per instance,
+so a fault recurring on every stream yields only a couple of lines per window
+while these counters keep the true tally.  'option dontlog-normal' keeps the
+error lines but drops the warnings, and 'flt-otel logging off' silences both;
+the counters climb either way.
 
 'flt-otel flush' forces every filter instance to export its buffered telemetry
 at once, calling force_flush on the active tracer, meter and logger, each one
 bounded by a five-second timeout.  It requires admin access.
 
-'flt-otel reset-errors' clears the 'runtime err' counters and the log
-rate-limiter state for every filter instance, so a fresh fault is reported
-again instead of folding into the running suppressed tally.  It requires admin
-access.
+'flt-otel reset-errors' clears the 'runtime err' counters and the runtime-log
+rate-limiter state for every filter instance, so a fresh fault is reported again
+instead of folding into the running suppressed tally; only the lifetime 'total'
+is retained.  It requires admin access.
 
 'flt-otel instruments' lists the metric instruments declared in each scope.  A
 create-form instrument is shown with its type, unit and creation state -- 'not

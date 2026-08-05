@@ -620,7 +620,8 @@ HAProxy CLI command handlers for runtime filter management.
   flt_otel_cli_parse_reset_errors
       CLI handler for "flt-otel reset-errors".  Clears the runtime-error
       counters and the log rate-limiter state for all OTel filter instances,
-      or for the targeted one only.
+      or for the targeted one only.  The lifetime total of suppressed lines is
+      retained.
 
   flt_otel_cli_parse_logging
       CLI handler for "flt-otel logging [state]".  Gets or sets the logging
