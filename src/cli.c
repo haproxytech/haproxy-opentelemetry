@@ -1005,11 +1005,11 @@ static int flt_otel_cli_io_status(struct appctx *appctx)
 
 	if (ctx->state == FLT_OTEL_CLI_DUMP_HEAD) {
 		(void)chunk_printf(&trash, " " FLT_OTEL_OPT_NAME " filter status\n" FLT_OTEL_STR_DASH_78 "\n");
-		(void)chunk_appendf(&trash, "   library:       C++ " OTELCPP_VERSION ", C wrapper %s\n", otelc_version());
+		(void)chunk_appendf(&trash, "   library:         C++ " OTELCPP_VERSION ", C wrapper %s\n", otelc_version());
 #ifdef DEBUG_OTEL
-		(void)chunk_appendf(&trash, "   debug level:   0x%02hhx\n", otelc_dbg_level);
+		(void)chunk_appendf(&trash, "   debug level:     0x%02hhx\n", otelc_dbg_level);
 #endif
-		(void)chunk_appendf(&trash, "   export pipeline\n");
+		(void)chunk_appendf(&trash, "   export pipeline:\n");
 		otelc_pipeline_status_get(&sig_stat);
 
 		for (i = 0; i < 3; i++) {
@@ -1079,7 +1079,7 @@ static int flt_otel_cli_io_status(struct appctx *appctx)
 		else
 			(void)chunk_appendf(&trash, "     configuration: %s [%s]\n", conf->cfg_file, conf->sec_name);
 		(void)chunk_appendf(&trash, "     groups/scopes: %d/%d\n\n", n_groups, n_scopes);
-		(void)chunk_appendf(&trash, "       instrumentation %s\n", conf->instr->id);
+		(void)chunk_appendf(&trash, "     instrumentation %s\n", conf->instr->id);
 		(void)chunk_appendf(&trash, "       configuration: %s\n", conf->instr->config);
 		(void)chunk_appendf(&trash, "       tracer:        %s\n", (conf->instr->tracer != NULL) ? "active" : "not initialized");
 		(void)chunk_appendf(&trash, "       meter:         %s\n", (conf->instr->meter != NULL) ? "active" : "not initialized");
@@ -1094,7 +1094,7 @@ static int flt_otel_cli_io_status(struct appctx *appctx)
 		(void)chunk_appendf(&trash, "       idle timeout:  %u ms\n", conf->instr->idle_timeout);
 		(void)chunk_appendf(&trash, "       analyzers:     %08x\n", conf->instr->analyzers);
 #ifdef FLT_OTEL_USE_COUNTERS
-		(void)chunk_appendf(&trash, "\n     counters\n");
+		(void)chunk_appendf(&trash, "\n     counters:\n");
 		(void)chunk_appendf(&trash, "       attached: run %" PRIu64 ", rate-limit %" PRIu64 ", disabled %" PRIu64 ", error %" PRIu64 "\n", conf->cnt.attached[0], conf->cnt.attached[1], conf->cnt.attached[2], conf->cnt.attached[3]);
 		(void)chunk_appendf(&trash, "       disabled: scope %" PRIu64 ", hard-error %" PRIu64 "\n", conf->cnt.disabled[0], conf->cnt.disabled[1]);
 #endif

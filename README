@@ -1721,9 +1721,9 @@ the 'counters' block appear only in a debug build):
   --- command output ----------
    opentelemetry filter status
   ------------------------------------------------------------------------------
-     library:       C++ 1.26.0, C wrapper 3.1.0-977
-     debug level:   0x7f
-     export pipeline
+     library:         C++ 1.26.0, C wrapper 3.1.0-977
+     debug level:     0x7f
+     export pipeline:
        signal   queued  dropped  exported  failed  last export
        traces   0/2048        0   2400/12     0/0  120 ms
        logs     0/2048        0     300/3     0/0  1500 ms
@@ -1734,7 +1734,7 @@ the 'counters' block appear only in a debug build):
        configuration: otel.cfg
        groups/scopes: 2/29
 
-         instrumentation otel-instr
+       instrumentation otel-instr
          configuration: otel.yml
          tracer:        active
          meter:         active
@@ -1748,7 +1748,7 @@ the 'counters' block appear only in a debug build):
          idle timeout:  1000 ms
          analyzers:     01e03fbe
 
-       counters
+       counters:
          attached: run 0, rate-limit 0, disabled 0, error 0
          disabled: scope 0, hard-error 0
   --- command output ----------
