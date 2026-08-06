@@ -95,7 +95,7 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
 		if (flt_otel_sample_eval(s, dir, sample, true, &attr_value, err) == FLT_OTEL_RET_ERROR) {
 			retval = FLT_OTEL_RET_ERROR;
 
-			continue;
+			break;
 		}
 
 		if (flt_otel_sample_add_kv(&instr_attr, sample->key, &attr_value) == FLT_OTEL_RET_ERROR) {
@@ -103,6 +103,8 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
 				OTELC_SFREE(attr_value.u.value_data);
 
 			retval = FLT_OTEL_RET_ERROR;
+
+			break;
 		}
 	}
 
@@ -1058,8 +1060,11 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 		flt_otel_scope_data_init(&data);
 
 		span = flt_otel_scope_span_init(f->ctx, conf_span->id, conf_span->id_len, conf_span->ref_id, conf_span->ref_id_len, dir, err);
-		if (span == NULL)
+		if (span == NULL) {
 			retval = FLT_OTEL_RET_ERROR;
+
+			continue;
+		}
 
 		/*
 		 * Resolve configured span links against the runtime context.

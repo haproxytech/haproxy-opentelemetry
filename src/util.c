@@ -985,8 +985,11 @@ int flt_otel_sample_eval(struct stream *s, uint dir, struct flt_otel_conf_sample
 			 * a string and as such sent to the tracer.
 			 */
 			if ((sample->num_exprs == 1) && flag_native) {
-				if (flt_otel_sample_to_value(sample->key, &(smp.data), value, err) == FLT_OTEL_RET_ERROR)
+				if (flt_otel_sample_to_value(sample->key, &(smp.data), value, err) == FLT_OTEL_RET_ERROR) {
 					retval = FLT_OTEL_RET_ERROR;
+
+					break;
+				}
 			} else {
 				if (buffer.area == NULL) {
 					chunk_init(&buffer, OTELC_CALLOC(1, global.tune.bufsize), global.tune.bufsize);
@@ -1002,6 +1005,8 @@ int flt_otel_sample_eval(struct stream *s, uint dir, struct flt_otel_conf_sample
 				rc = flt_otel_sample_to_str(&(smp.data), buffer.area + buffer.data, buffer.size - buffer.data, err);
 				if (rc == FLT_OTEL_RET_ERROR) {
 					retval = FLT_OTEL_RET_ERROR;
+
+					break;
 				} else {
 					buffer.data += rc;
 
