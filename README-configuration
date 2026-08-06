@@ -1,7 +1,7 @@
                    -----------------------------------------
                     HAProxy OTel filter configuration guide
                                Version 2.1.0
-                        ( Last update: 2026-08-05 )
+                        ( Last update: 2026-08-06 )
                    -----------------------------------------
                          Author : Miroslav Zagorac
                    Contact : mzagorac at haproxy dot com
@@ -206,6 +206,14 @@ Keywords (optional):
   option hard-errors / no option hard-errors
       Stop all filter processing in a stream after the first error.  Default:
       disabled (errors are non-fatal).
+
+      In the default soft-error mode a failure affects only the output that
+      produced it.  A span attribute, event or baggage sample that fails to
+      evaluate is skipped and the span is still exported with the remaining
+      data; the same holds for log-record attributes.  A metric measurement is
+      dropped whole when its value or any of its attributes fails.  A log record
+      whose body fails to evaluate is not emitted.  A span whose parent cannot
+      be resolved is not created, and none of its samples are evaluated.
 
   option require-context / no option require-context
       Suppress all telemetry for a stream until a valid upstream trace context
@@ -779,6 +787,13 @@ Supported keywords:
 
       The on-http-end-request and on-http-end-response events fire when all HTTP
       data has been processed and forwarded.
+
+      The response-channel HTTP events fire only for a response received from a
+      server.  A reply synthesised by HAProxy itself -- such as the 503 returned
+      when no connection to a server could be established, or the 504 sent on a
+      server timeout -- does not run the scopes bound to these events.  To trace
+      such replies, attach the scope through an 'http-after-response otel-group'
+      action instead, as described for on-http-reply below.
 
       The on-http-reply event is meant to fire when HAProxy returns an internal
       reply (error page, deny response, redirect), but it never fires on any
