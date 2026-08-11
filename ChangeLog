@@ -6,6 +6,44 @@ commits, with directly related commits folded into a single bullet, and the
 git log keeps the full descriptions.
 
 
+Version 2.1.1 (2026-08-11)
+--------------------------
+
+Fixes a crash of the configuration check: the 'require-context' check ran on
+the instrumentation pointer without any test, so an OTel configuration file
+that defines nothing for the filter, an empty file included, segfaulted the
+'haproxy -c' run instead of failing it with the error it had just reported.
+
+The other fixes stop a sample evaluation on the first conversion error, keep
+the DEBUG_OTEL variable dump from reading a scalar variable as a string pointer,
+take the context tracking buffer ownership from the buffer state instead of
+the add helper's return offset, and clear the converted instrument value so
+its type tag is meaningful on every return path.
+
+A new dummy subtree reproduces the OTel C wrapper API as a build-only stand-in,
+which lets the filter compile and link without the wrapper and even without
+the OpenTelemetry C++ SDK; an executable built this way still runs but produces
+no telemetry at all.  The required wrapper version stays at 3.2.0.
+
+  * BUILD: Added a build-only stand-in for the OTel C wrapper, which lets the
+    filter compile and link without the wrapper and the OpenTelemetry C++ SDK.
+  * BUG/MINOR: Stopped the sample evaluation on a conversion error, in the
+    expression list loop as well as in the span and instrument attribute
+    collection.
+  * DOC: Documented that the response-channel HTTP events fire only for a real
+    server response, and the soft-error behavior of each output type.
+  * BUG/MEDIUM: Guarded the require-context check on a missing instrumentation,
+    which crashed 'haproxy -c' on an OTel configuration file that defines
+    nothing for the filter.
+  * BUG/MINOR: Guarded the debug variable dump by the sample type, so a scalar
+    variable is no longer read as a string pointer.
+  * BUG/MINOR: Freed the context tracking buffer only when it was ours, taking
+    the ownership from the buffer state before the add call.
+  * MINOR: Initialized the output value in the sample conversion, so the type
+    tag is meaningful on every return.
+  * VERSION: Bumped the filter version to 2.1.1.
+
+
 Version 2.1.0 (2026-08-05)
 --------------------------
 
