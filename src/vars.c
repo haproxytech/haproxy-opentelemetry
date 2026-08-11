@@ -734,11 +734,18 @@ static int flt_otel_ctx_set(struct stream *s, const char *scope, const char *pre
 	/* Loop through existing context variables and apply set operations. */
 	retval = flt_otel_ctx_loop(&smp_ctx, scope, prefix, err, flt_otel_ctx_set_cb, &ctx);
 	if (retval == 0) {
-		rc = flt_otel_smp_add(&(smp_ctx.data), ctx.value, ctx.value_len, err);
-		if (rc == FLT_OTEL_RET_ERROR)
-			retval = FLT_OTEL_RET_ERROR;
+		/*
+		 * Only a buffer that flt_otel_smp_add() has to allocate is ours
+		 * to free; an existing one belongs to HAProxy even when empty,
+		 * and a failed addition releases its own allocation.
+		 */
+		flag_alloc = (b_orig(&(smp_ctx.data.u.str)) == NULL);
 
-		flag_alloc = (rc == 0);
+		rc = flt_otel_smp_add(&(smp_ctx.data), ctx.value, ctx.value_len, err);
+		if (rc == FLT_OTEL_RET_ERROR) {
+			retval     = FLT_OTEL_RET_ERROR;
+			flag_alloc = 0;
+		}
 	}
 
 	/* Persist the context data as a HAProxy variable. */
