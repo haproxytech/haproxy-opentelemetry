@@ -603,7 +603,8 @@ int flt_otel_sample_to_str(const struct sample_data *data, char *value, size_t s
  *   Converts sample data to an otelc_value structure.  Boolean samples are
  *   stored as OTELC_VALUE_BOOL, integer samples as OTELC_VALUE_INT64.  All
  *   other types are converted to a string via flt_otel_sample_to_str() and
- *   stored as OTELC_VALUE_DATA with heap-allocated storage.
+ *   stored as OTELC_VALUE_DATA with heap-allocated storage.  The <value>
+ *   structure is cleared first, so its type tag is valid on every return.
  *
  * RETURN VALUE
  *   Returns the size of the converted value, or FLT_OTEL_RET_ERROR on failure.
@@ -614,7 +615,13 @@ int flt_otel_sample_to_value(const char *key, const struct sample_data *data, st
 
 	OTELC_FUNC("\"%s\", %p, %p, %p:%p", OTELC_STR_ARG(key), data, value, OTELC_DPTR_ARGS(err));
 
-	if ((data == NULL) || (value == NULL))
+	if (value == NULL)
+		OTELC_RETURN_INT(retval);
+
+	/* Cleared here so that the type tag is valid on every return. */
+	(void)memset(value, 0, sizeof(*value));
+
+	if (data == NULL)
 		OTELC_RETURN_INT(retval);
 
 	/* Convert the sample value to an otelc_value based on its type. */
