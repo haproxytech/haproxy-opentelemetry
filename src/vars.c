@@ -202,7 +202,11 @@ static void flt_otel_vars_scope_dump(struct vars *vars, const char *scope)
 		for ( ; node != NULL; node = cebu64_imm_next(&(vars->name_root[i]), node)) {
 			struct var *var = container_of(node, struct var, name_node);
 
-			OTELC_DBG(DEBUG, "'%s.%016" PRIx64 "' -> '%.*s'", scope, var->name_hash, (int)b_data(&(var->data.u.str)), b_orig(&(var->data.u.str)));
+			/* Only a string or binary variable keeps its value in the buffer. */
+			if ((var->data.type == SMP_T_STR) || (var->data.type == SMP_T_BIN))
+				OTELC_DBG(DEBUG, "'%s.%016" PRIx64 "' -> '%.*s'", scope, var->name_hash, (int)b_data(&(var->data.u.str)), b_orig(&(var->data.u.str)));
+			else
+				OTELC_DBG(DEBUG, "'%s.%016" PRIx64 "' type %d", scope, var->name_hash, var->data.type);
 		}
 	}
 	vars_rdunlock(vars);
