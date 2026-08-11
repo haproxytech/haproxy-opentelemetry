@@ -1152,7 +1152,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	 * 'extract' context, otherwise no stream could ever establish a
 	 * valid upstream context and the filter would stay silent.
 	 */
-	if (conf->instr->flag_reqctx && (ctx_extract_cnt == 0)) {
+	if ((conf->instr != NULL) && conf->instr->flag_reqctx && (ctx_extract_cnt == 0)) {
 		FLT_OTEL_ALERT("''%s' : 'require-context' is set but no used " FLT_OTEL_PARSE_SECTION_SCOPE_ID " has an 'extract' context'", conf->id);
 
 		retval++;
