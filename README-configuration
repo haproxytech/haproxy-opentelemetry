@@ -1,7 +1,7 @@
                    -----------------------------------------
                     HAProxy OTel filter configuration guide
                                Version 2.1.1
-                        ( Last update: 2026-08-11 )
+                        ( Last update: 2026-08-13 )
                    -----------------------------------------
                          Author : Miroslav Zagorac
                    Contact : mzagorac at haproxy dot com
@@ -323,11 +323,16 @@ Supported keywords:
         so it cannot also serve as an attribute key in that position.
 
       An optional trailing 'if'/'unless' ACL condition gates the event.  The
-      keyword may be repeated to add several events to one span, and every line
-      whose condition holds is applied.
+      keyword may be repeated, and every line whose condition holds is applied.
+      The lines of one span definition are grouped by <name>: each distinct
+      name produces a single span event, and the <key>/<sample> pairs of all
+      lines sharing that name become the attributes of that one event.  The
+      timestamp is set by the first such line whose 'time' clause evaluates,
+      and the later lines keep it.
 
       Examples:
         event "event_ip" "src" src str(":") src_port
+        event "event_ip" "dst" dst str(":") dst_port
         event "event_be" "be" be_id str(" ") be_name
         event "received" time ms req.hdr("x-start-ms") "stage" str("recv")
 

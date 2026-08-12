@@ -1,7 +1,7 @@
                    -----------------------------------------
                       The HAProxy OpenTelemetry filter (OTel)
                                  Version 2.1.1
-                          ( Last update: 2026-08-11 )
+                          ( Last update: 2026-08-13 )
                    -----------------------------------------
                            Author : Miroslav Zagorac
                      Contact : mzagorac at haproxy dot com
@@ -600,8 +600,12 @@ event <name> [time [<unit>] <sample>] <key> <sample> ... [{ if | unless } <condi
   read as this clause, so it cannot also serve as an attribute key there.
 
   An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
-  gates the event.  The keyword may be repeated to add several events to one
-  span, and every line whose condition holds is applied.
+  gates the event.  The keyword may be repeated, and every line whose condition
+  holds is applied.  The lines of one span definition are grouped by <name>:
+  each distinct name produces a single span event, and the <key>/<sample> pairs
+  of all lines sharing that name become the attributes of that one event.  The
+  timestamp is set by the first such line whose 'time' clause evaluates, and
+  the later lines keep it.
 
   Arguments :
     name      - name of the span event
