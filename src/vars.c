@@ -573,8 +573,10 @@ static int flt_otel_smp_add(struct sample_data *data, const char *name, size_t l
  *   Iterates over all context variable names stored in the binary tracking
  *   buffer.  Retrieves the tracking variable by constructing its name from
  *   <scope> and <prefix>.  Each stored entry (length-prefixed name) is
- *   extracted and passed to the <func> callback.  Iteration stops if the
- *   callback returns a positive value (match found) or FLT_OTEL_RET_ERROR.
+ *   extracted and passed to the <func> callback.  The entries are walked from
+ *   a private copy of the buffer, since the callback's own variable fetches
+ *   recycle the trash chunk that holds it.  Iteration stops if the callback
+ *   returns a positive value (match found) or FLT_OTEL_RET_ERROR.
  *
  * RETURN VALUE
  *   Returns the match position (positive), 0 if no match,
@@ -583,7 +585,8 @@ static int flt_otel_smp_add(struct sample_data *data, const char *name, size_t l
 static int flt_otel_ctx_loop(struct sample *smp, const char *scope, const char *prefix, char **err, flt_otel_ctx_loop_cb func, void *ptr)
 {
 	FLT_OTEL_VAR_CTX_SIZE var_ctx_size;
-	char                  var_name[BUFSIZ], var_ctx[BUFSIZ];
+	char                  var_name[BUFSIZ], var_ctx[BUFSIZ], *data = NULL;
+	size_t                data_len;
 	int                   i, var_name_len, var_ctx_len, rc, n = 1, retval = 0;
 
 	OTELC_FUNC("%p, \"%s\", \"%s\", %p:%p, %p, %p", smp, OTELC_STR_ARG(scope), OTELC_STR_ARG(prefix), OTELC_DPTR_ARGS(err), func, ptr);
@@ -614,34 +617,55 @@ static int flt_otel_ctx_loop(struct sample *smp, const char *scope, const char *
 	else {
 		FLT_OTEL_DBG_BUF(DEBUG, &(smp->data.u.str));
 
-		for (i = 0; i < b_data(&(smp->data.u.str)); i += sizeof(var_ctx_size) + var_ctx_len, n++) {
-			var_ctx_size = *((typeof(var_ctx_size) *)(b_orig(&(smp->data.u.str)) + i));
-			var_ctx_len  = abs(var_ctx_size);
+		/*
+		 * vars_get_by_name() returned the tracking buffer in one of the
+		 * two rotating thread-local trash chunks, and every variable
+		 * the callback fetches advances that rotation: the second fetch
+		 * recycles the tracking buffer's chunk mid-walk.  The entries
+		 * are therefore iterated from a private copy; the extra byte
+		 * keeps the allocation non-empty for an empty buffer.
+		 */
+		data_len = b_data(&(smp->data.u.str));
+		data     = OTELC_MALLOC(data_len + 1);
 
-			if ((i + sizeof(var_ctx_size) + var_ctx_len) > b_data(&(smp->data.u.str))) {
-				FLT_OTEL_ERR("ctx '%s' invalid data size", var_name);
+		if (data == NULL) {
+			FLT_OTEL_ERR_NOMEM();
 
-				retval = FLT_OTEL_RET_ERROR;
+			retval = FLT_OTEL_RET_ERROR;
+		} else {
+			(void)memcpy(data, b_orig(&(smp->data.u.str)), data_len);
 
-				break;
-			}
+			for (i = 0; i < data_len; i += sizeof(var_ctx_size) + var_ctx_len, n++) {
+				var_ctx_size = *((typeof(var_ctx_size) *)(data + i));
+				var_ctx_len  = abs(var_ctx_size);
 
-			(void)memcpy(var_ctx, b_orig(&(smp->data.u.str)) + i + sizeof(var_ctx_size), var_ctx_len);
-			var_ctx[var_ctx_len] = '\0';
+				if ((i + sizeof(var_ctx_size) + var_ctx_len) > data_len) {
+					FLT_OTEL_ERR("ctx '%s' invalid data size", var_name);
 
-			rc = func(smp, i, scope, prefix, var_ctx, var_ctx_size, err, ptr);
-			if (rc == FLT_OTEL_RET_ERROR) {
-				retval = FLT_OTEL_RET_ERROR;
+					retval = FLT_OTEL_RET_ERROR;
 
-				break;
-			}
-			else if (rc > 0) {
-				retval = n;
+					break;
+				}
 
-				break;
+				(void)memcpy(var_ctx, data + i + sizeof(var_ctx_size), var_ctx_len);
+				var_ctx[var_ctx_len] = '\0';
+
+				rc = func(smp, i, scope, prefix, var_ctx, var_ctx_size, err, ptr);
+				if (rc == FLT_OTEL_RET_ERROR) {
+					retval = FLT_OTEL_RET_ERROR;
+
+					break;
+				}
+				else if (rc > 0) {
+					retval = n;
+
+					break;
+				}
 			}
 		}
 	}
+
+	OTELC_SFREE(data);
 
 	OTELC_RETURN_INT(retval);
 }
