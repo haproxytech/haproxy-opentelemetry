@@ -758,7 +758,6 @@ http-after-response rules:
 
   flt_otel_pool_alloc()   Allocates from a pool (when non-NULL) or the heap.
   flt_otel_pool_free()    Returns memory to the pool or frees it.
-  flt_otel_pool_strndup() Duplicates a string via pool allocation.
   flt_otel_trash_alloc()  Acquires a trash buffer chunk.
   flt_otel_trash_free()   Releases a trash buffer chunk.
 

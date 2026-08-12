@@ -879,9 +879,6 @@ Memory pool and trash buffer helpers.
       Allocates memory from a HAProxy pool (if available) or from the heap.
       Optionally zero-fills the allocated block.
 
-  flt_otel_pool_strndup
-      Duplicates a string using a HAProxy pool (if available) or the heap.
-
   flt_otel_pool_free
       Returns memory to a HAProxy pool or frees it from the heap.
 

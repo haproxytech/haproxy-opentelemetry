@@ -83,56 +83,6 @@ void *flt_otel_pool_alloc(struct pool_head *pool, size_t size, bool flag_clear, 
 
 /***
  * NAME
- *   flt_otel_pool_strndup - pool-aware string duplication
- *
- * SYNOPSIS
- *   void *flt_otel_pool_strndup(struct pool_head *pool, const char *s, size_t size, char **err)
- *
- * ARGUMENTS
- *   pool - HAProxy memory pool to allocate from (or NULL for heap)
- *   s    - source string to duplicate
- *   size - maximum number of characters to copy
- *   err  - indirect pointer to error message string
- *
- * DESCRIPTION
- *   Duplicates up to <size> characters from the string <s> using the HAProxy
- *   memory <pool>.  If <pool> is NULL, the duplication falls back to
- *   OTELC_STRNDUP().  When using a pool, the copy is truncated to <pool>->size-1
- *   bytes and null-terminated.
- *
- * RETURN VALUE
- *   Returns a pointer to the duplicated string, or NULL on failure.
- */
-void *flt_otel_pool_strndup(struct pool_head *pool, const char *s, size_t size, char **err)
-{
-	void *retptr;
-
-	OTELC_FUNC("%p, \"%.*s\", %zu, %p:%p", pool, (int)size, s, size, OTELC_DPTR_ARGS(err));
-
-	if (pool != NULL) {
-		retptr = pool_alloc(pool);
-		if (retptr != NULL) {
-			size_t len = strnlen(s, MIN(pool->size - 1, size));
-
-			(void)memcpy(retptr, s, len);
-
-			((uint8_t *)retptr)[len] = '\0';
-		}
-	} else {
-		retptr = OTELC_STRNDUP(s, size);
-	}
-
-	if (retptr != NULL)
-		OTELC_DBG(MEM, "POOL_STRNDUP: %s:%d(%p %zu)", __func__, __LINE__, retptr, FLT_OTEL_DEREF(pool, size, size));
-	else
-		FLT_OTEL_ERR_NOMEM();
-
-	OTELC_RETURN_PTR(retptr);
-}
-
-
-/***
- * NAME
  *   flt_otel_pool_free - pool-aware memory deallocation
  *
  * SYNOPSIS
