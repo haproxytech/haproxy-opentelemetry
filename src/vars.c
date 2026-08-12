@@ -54,6 +54,15 @@ int flt_otel_var_register_byname(const char *name, char **err)
 		else
 			FLT_OTEL_ERR("failed to register variable '%s'", var_name);
 	} else {
+		/*
+		 * Release the name copy vars_check_arg() left in the
+		 * descriptor; var_set() stores its own.
+		 */
+		if ((arg.type == ARGT_VAR) && (arg.data.var.flags & VDF_NAME_ALLOCATED)) {
+			ha_free((char **)&(arg.data.var.name));
+			arg.data.var.name = NULL;
+		}
+
 		OTELC_DBG(DEBUG, "variable '%s' registered", var_name);
 
 		retval = FLT_OTEL_RET_OK;
