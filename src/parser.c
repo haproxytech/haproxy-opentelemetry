@@ -1305,7 +1305,7 @@ static int flt_otel_parse_bounds(const char *str, double **bounds, size_t *bound
 	*bounds = OTELC_CALLOC(bounds_size, sizeof(**bounds));
 	if ((buffer == NULL) || (*bounds == NULL)) {
 		OTELC_SFREE(buffer);
-		OTELC_SFREE(*bounds);
+		OTELC_SFREE_CLEAR(*bounds);
 
 		FLT_OTEL_PARSE_ERR_NOMEM(err, err_msg);
 
