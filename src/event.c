@@ -108,6 +108,13 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
 		}
 	}
 
+	/* Do not evaluate the instrument value if an attribute failed. */
+	if (retval == FLT_OTEL_RET_ERROR) {
+		otelc_kv_destroy(&(instr_attr.attr), instr_attr.cnt);
+
+		OTELC_RETURN_INT(retval);
+	}
+
 	/* The samples list always contains exactly one entry. */
 	sample = LIST_NEXT(&(instr_ref->samples), struct flt_otel_conf_sample *, list);
 
