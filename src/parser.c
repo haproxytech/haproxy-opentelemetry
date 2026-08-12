@@ -368,8 +368,9 @@ static int flt_otel_parse_cfg_sample_expr(const char *file, int line, char **arg
  *   as a log-format string via parse_logformat_string(): the lf_used flag
  *   is set and the result is stored in the lf_expr member while the exprs
  *   list remains empty.  Otherwise the arguments are treated as bare sample
- *   expressions: the proxy configuration context is set and the function
- *   calls flt_otel_parse_cfg_sample_expr() in a loop to populate exprs.
+ *   expressions and flt_otel_parse_cfg_sample_expr() is called in a loop to
+ *   populate exprs.  The proxy argument context is set before either path,
+ *   since both queue deferred fetch arguments on the proxy list.
  *
  *   An explicit '%[ ... ]' wrapper around the entire argument is treated as
  *   a marker that the inner string is itself a log-format string (containing
@@ -398,6 +399,15 @@ static int flt_otel_parse_cfg_sample(const char *file, int line, char **args, in
 	sample = flt_otel_conf_sample_init_ex((const char **)args, idx, n, extra, line, head, err);
 	if (sample == NULL)
 		FLT_OTEL_PARSE_ERR_NOMEM(err, args[0]);
+
+	/*
+	 * Both paths below queue deferred fetch arguments on the proxy list,
+	 * and parse_logformat_string() expects the argument context to be set
+	 * by the caller, so it is set here for the log-format path as well.
+	 */
+	flt_otel_current_config->proxy->conf.args.ctx  = ARGC_OTEL;
+	flt_otel_current_config->proxy->conf.args.file = file;
+	flt_otel_current_config->proxy->conf.args.line = line;
 
 	if (retval & ERR_CODE) {
 		/* Do nothing. */
@@ -449,21 +459,17 @@ static int flt_otel_parse_cfg_sample(const char *file, int line, char **args, in
 		/*
 		 * Bare sample expression path.
 		 */
-		flt_otel_current_config->proxy->conf.args.ctx  = ARGC_OTEL;
-		flt_otel_current_config->proxy->conf.args.file = file;
-		flt_otel_current_config->proxy->conf.args.line = line;
-
 		while (!(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(idx) && ((n == 0) || (count < n))) {
 			retval = flt_otel_parse_cfg_sample_expr(file, line, args, &idx, &(sample->exprs), err);
 			if (!(retval & ERR_CODE))
 				count++;
 		}
 
-		flt_otel_current_config->proxy->conf.args.file = NULL;
-		flt_otel_current_config->proxy->conf.args.line = 0;
-
 		OTELC_DBG(DEBUG, "sample '%s' -> '%s' added (num_exprs %d, parsed %d)", sample->key, sample->fmt_string, sample->num_exprs, count);
 	}
+
+	flt_otel_current_config->proxy->conf.args.file = NULL;
+	flt_otel_current_config->proxy->conf.args.line = 0;
 
 	if (retval & ERR_CODE)
 		flt_otel_conf_sample_free(&sample);
@@ -628,6 +634,9 @@ static int flt_otel_parse_cfg_file(char **ptr, const char *file, int line, char 
  *   HAProxy cfg_scope section.  The section name set on the filter line is
  *   matched first; when it is not set, the filter ID is used.  When cfg_scope
  *   is set and does not match that name, the configuration line is skipped.
+ *   An explicit section name also requires a scoped file: the lines outside
+ *   of any [section] are skipped, so a file without sections then leaves the
+ *   filter without instrumentation, which is reported after parsing.
  *
  * RETURN VALUE
  *   Returns TRUE in case the configuration is not in the currently
@@ -638,7 +647,14 @@ static bool flt_otel_parse_check_scope(void)
 	const char *name = (flt_otel_current_config->sec_name != NULL) ? flt_otel_current_config->sec_name : flt_otel_current_config->id;
 	bool        retval = 0;
 
-	if ((cfg_scope != NULL) && (name != NULL) && (strcmp(name, cfg_scope) != 0)) {
+	if ((flt_otel_current_config->sec_name != NULL) && (cfg_scope == NULL)) {
+		/*
+		 * An explicit section name selects a [section] of the file,
+		 * so the lines outside of any section are skipped.
+		 */
+		retval = 1;
+	}
+	else if ((cfg_scope != NULL) && (name != NULL) && (strcmp(name, cfg_scope) != 0)) {
 		OTELC_DBG(INFO, "cfg_scope: '%s', name: '%s'", cfg_scope, name);
 
 		retval = 1;
@@ -2322,7 +2338,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		else
 			retval = flt_otel_parse_strdup(&(flt_otel_current_span->ctx_id), &(flt_otel_current_span->ctx_id_len), args[1], &err, args[0]);
 
-		if (flt_otel_current_span->ctx_id != NULL) {
+		if (!(retval & ERR_CODE)) {
 			/*
 			 * Here is checked the context storage type; which, if
 			 * not explicitly specified, is set to HTTP headers.
