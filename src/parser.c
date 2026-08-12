@@ -731,6 +731,18 @@ static int flt_otel_parse_cfg_instr(const char *file, int line, char **args, int
 		OTELC_RETURN_INT(retval);
 	}
 
+	/*
+	 * In a scoped configuration file the section header can fall in a
+	 * non-matching scope, leaving the keyword lines of the matching scope
+	 * without an open section object.
+	 */
+	if ((pdata->keyword != FLT_OTEL_PARSE_INSTR_ID) && (flt_otel_current_instr == NULL)) {
+		FLT_OTEL_PARSE_ERR(&err, "'%s' : " FLT_OTEL_PARSE_SECTION_INSTR_ID " section not opened in this scope", args[0]);
+		FLT_OTEL_PARSE_IFERR_ALERT();
+
+		OTELC_RETURN_INT(retval);
+	}
+
 	/* Handle keyword-specific instrumentation configuration. */
 	if (pdata->keyword == FLT_OTEL_PARSE_INSTR_ID) {
 		if (flt_otel_current_config->instr != NULL) {
@@ -902,6 +914,18 @@ static int flt_otel_parse_cfg_group(const char *file, int line, char **args, int
 	/* Validate and identify the group keyword. */
 	retval = flt_otel_parse_cfg_check(file, line, args, flt_otel_current_group, true, parse_data, OTELC_TABLESIZE(parse_data), &pdata, &err);
 	if (retval & ERR_CODE) {
+		FLT_OTEL_PARSE_IFERR_ALERT();
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	/*
+	 * In a scoped configuration file the section header can fall in a
+	 * non-matching scope, leaving the keyword lines of the matching scope
+	 * without an open section object.
+	 */
+	if ((pdata->keyword != FLT_OTEL_PARSE_GROUP_ID) && (flt_otel_current_group == NULL)) {
+		FLT_OTEL_PARSE_ERR(&err, "'%s' : " FLT_OTEL_PARSE_SECTION_GROUP_ID " section not opened in this scope", args[0]);
 		FLT_OTEL_PARSE_IFERR_ALERT();
 
 		OTELC_RETURN_INT(retval);
@@ -2015,6 +2039,14 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 
 	/* Validate and identify the scope keyword. */
 	retval = flt_otel_parse_cfg_check(file, line, args, flt_otel_current_span, true, parse_data, OTELC_TABLESIZE(parse_data), &pdata, &err);
+
+	/*
+	 * In a scoped configuration file the section header can fall in a
+	 * non-matching scope, leaving the keyword lines of the matching scope
+	 * without an open section object.
+	 */
+	if (!(retval & ERR_CODE) && (pdata->keyword != FLT_OTEL_PARSE_SCOPE_ID) && (flt_otel_current_scope == NULL))
+		FLT_OTEL_PARSE_ERR(&err, "'%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " section not opened in this scope", args[0]);
 
 	/*
 	 * Keywords that set flag_check_id attach to a span, so name the 'span'
