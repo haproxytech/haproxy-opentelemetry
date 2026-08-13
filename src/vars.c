@@ -115,7 +115,7 @@ int flt_otel_var_set_byname(struct stream *s, const char *name, const char *valu
 	if (vars_set_by_name_ifexist(name, strlen(name), &smp) == 0) {
 		FLT_OTEL_ERR("failed to set variable '%s'", name);
 	} else {
-		OTELC_DBG(DEBUG, "variable '%s' set to '%s'", name, OTELC_STR_ARG(value));
+		OTELC_DBG(DEBUG, "variable '%s' set to '%s'", name, (value == NULL) ? "" : value);
 
 		retval = FLT_OTEL_RET_OK;
 	}
@@ -317,6 +317,9 @@ static int flt_otel_normalize_name(char *var_name, size_t size, int *len, const 
 			FLT_OTEL_ERR("failed to normalize variable name, buffer too small");
 
 			retval = FLT_OTEL_RET_ERROR;
+
+			/* An appended '.' may have clobbered the terminator. */
+			var_name[*len] = '\0';
 		} else {
 			(void)memcpy(var_name + *len, name, retval + 1);
 

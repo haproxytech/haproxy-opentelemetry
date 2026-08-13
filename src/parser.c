@@ -465,7 +465,8 @@ static int flt_otel_parse_cfg_sample(const char *file, int line, char **args, in
 				count++;
 		}
 
-		OTELC_DBG(DEBUG, "sample '%s' -> '%s' added (num_exprs %d, parsed %d)", sample->key, sample->fmt_string, sample->num_exprs, count);
+		if (!(retval & ERR_CODE))
+			OTELC_DBG(DEBUG, "sample '%s' -> '%s' added (num_exprs %d, parsed %d)", sample->key, sample->fmt_string, sample->num_exprs, count);
 	}
 
 	flt_otel_current_config->proxy->conf.args.file = NULL;

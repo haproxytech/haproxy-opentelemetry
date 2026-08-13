@@ -17,7 +17,7 @@
  *
  * DESCRIPTION
  *   Dumps all HTTP headers from the channel's HTX buffer.  Iterates over HTX
- *   blocks, logging each header name-value pair at NOTICE level.  Processing
+ *   blocks, logging each header name-value pair at DEBUG level.  Processing
  *   stops at the end-of-headers marker.
  *
  * RETURN VALUE
@@ -180,7 +180,7 @@ struct otelc_text_map *flt_otel_http_headers_get(struct channel *chn, const char
 	OTELC_TEXT_MAP_DUMP(retptr, "extracted HTTP headers");
 
 	if ((retptr != NULL) && (retptr->count == 0)) {
-		OTELC_DBG(WARNING, "WARNING: no HTTP headers found");
+		OTELC_DBG(WARNING, "WARNING: extracted HTTP headers map is empty");
 
 		otelc_text_map_destroy(&retptr);
 	}
@@ -278,21 +278,27 @@ int flt_otel_http_header_set(struct channel *chn, const char *prefix, const char
 
 	/* Remove all occurrences of the header. */
 	while (http_find_header(htx, ist(""), &ctx, 1) == 1) {
-		struct ist n = htx_get_blk_name(htx, ctx.blk);
+		struct ist m, n = htx_get_blk_name(htx, ctx.blk);
 #ifdef DEBUG_OTEL
 		struct ist v = htx_get_blk_value(htx, ctx.blk);
 #endif
 
 		/*
 		 * If the <name> parameter is not set, then remove all headers
-		 * that start with the contents of the <prefix> parameter.
+		 * that start with the contents of the <prefix> parameter.  The
+		 * match uses a copy so that the full header name stays intact
+		 * for the debug output.
 		 */
-		if (!OTELC_STR_IS_VALID(name) && (n.len > ist_name.len))
-			n.len = ist_name.len;
+		m = n;
+		if (!OTELC_STR_IS_VALID(name) && (m.len > ist_name.len))
+			m.len = ist_name.len;
 
-		if (isteqi(n, ist_name))
-			if (http_remove_header(htx, &ctx) == 1)
-				OTELC_DBG(DEBUG, "HTTP header '%.*s: %.*s' removed", (int)n.len, n.ptr, (int)v.len, v.ptr);
+		if (isteqi(m, ist_name)) {
+			/* The block data cannot be read after the removal. */
+			OTELC_DBG(DEBUG, "removing HTTP header '%.*s: %.*s'", (int)n.len, n.ptr, (int)v.len, v.ptr);
+
+			(void)http_remove_header(htx, &ctx);
+		}
 	}
 
 	/*

@@ -108,12 +108,13 @@ void flt_otel_pool_free(struct pool_head *pool, void **ptr)
 	if ((ptr == NULL) || (*ptr == NULL))
 		OTELC_RETURN();
 
-	OTELC_DBG(MEM, "POOL_FREE: %s:%d(%p %u)", __func__, __LINE__, *ptr, FLT_OTEL_DEREF(pool, size, 0));
+	if (pool != NULL) {
+		OTELC_DBG(MEM, "POOL_FREE: %s:%d(%p %u)", __func__, __LINE__, *ptr, pool->size);
 
-	if (pool != NULL)
 		pool_free(pool, *ptr);
-	else
+	} else {
 		OTELC_SFREE(*ptr);
+	}
 
 	*ptr = NULL;
 
@@ -327,9 +328,9 @@ void flt_otel_trash_free(struct buffer **ptr)
 	if ((ptr == NULL) || (*ptr == NULL))
 		OTELC_RETURN();
 
+#ifdef USE_TRASH_CHUNK
 	OTELC_DBG(MEM, "TRASH_FREE: %s:%d(%p %zu)", __func__, __LINE__, *ptr, (*ptr)->size);
 
-#ifdef USE_TRASH_CHUNK
 	free_trash_chunk(*ptr);
 #else
 	OTELC_SFREE((*ptr)->area);
