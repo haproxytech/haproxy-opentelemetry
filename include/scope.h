@@ -16,13 +16,13 @@
 	          FLT_OTEL_STR_HDR_ARGS(p, id), (p)->smp_opt_dir,   \
 	          (p)->flag_finish, (p)->span, (p)->ref_span, (p)->ref_ctx)
 
-#define FLT_OTEL_DBG_SCOPE_CONTEXT(h,p)                            \
-	OTELC_DBG(DEBUG, h "%p:{ '%s' %zu %u %hhu %p '%s' }", (p), \
-	          FLT_OTEL_STR_HDR_ARGS(p, id), (p)->smp_opt_dir,  \
+#define FLT_OTEL_DBG_SCOPE_CONTEXT(h,p)                                  \
+	OTELC_DBG(DEBUG, h "%p:{ '%s' %zu %u %hhu %p '%s' }", (p),       \
+	          OTELC_STR_ARG((p)->id), (p)->id_len, (p)->smp_opt_dir, \
 	          (p)->flag_finish, (p)->context, OTELC_STR_ARG((p)->baggage))
 
 #define FLT_OTEL_DBG_SCOPE_DATA_EVENT(h,p)                                   \
-	OTELC_DBG(DEBUG, h "%p:{ '%s' %p %zu %zu %hhu %ld.%08ld %s }", &(p), \
+	OTELC_DBG(DEBUG, h "%p:{ '%s' %p %zu %zu %hhu %ld.%09ld %s }", &(p), \
 	          (p).name, (p).attr, (p).cnt, (p).size, (p).ts_set,         \
 	          OTELC_TV_ARGS(&((p).ts)), flt_otel_list_dump(&((p).list)))
 
@@ -31,16 +31,17 @@
 
 #define FLT_OTEL_DBG_SCOPE_DATA_KV_FMT       "%p:{ %p %zu %zu }"
 #define FLT_OTEL_DBG_SCOPE_DATA_KV_ARGS(p)   &(p), (p).attr, (p).cnt, (p).size
-#define FLT_OTEL_DBG_SCOPE_DATA(h,p)                                                                                   \
-	OTELC_DBG(DEBUG, h "%p:{ " FLT_OTEL_DBG_SCOPE_DATA_KV_FMT " " FLT_OTEL_DBG_SCOPE_DATA_KV_FMT " %s %s }", (p), \
-	          FLT_OTEL_DBG_SCOPE_DATA_KV_ARGS((p)->baggage), FLT_OTEL_DBG_SCOPE_DATA_KV_ARGS((p)->attributes),    \
-	          flt_otel_list_dump(&((p)->events)), flt_otel_list_dump(&((p)->links)))
+#define FLT_OTEL_DBG_SCOPE_DATA(h,p)                                                                                                 \
+	OTELC_DBG(DEBUG, h "%p:{ " FLT_OTEL_DBG_SCOPE_DATA_KV_FMT " " FLT_OTEL_DBG_SCOPE_DATA_KV_FMT " %s %s %p:{ %d '%s' } }", (p), \
+	          FLT_OTEL_DBG_SCOPE_DATA_KV_ARGS((p)->baggage), FLT_OTEL_DBG_SCOPE_DATA_KV_ARGS((p)->attributes),                   \
+	          flt_otel_list_dump(&((p)->events)), flt_otel_list_dump(&((p)->links)),                                             \
+	          &((p)->status), (p)->status.code, OTELC_STR_ARG((p)->status.description))
 
-#define FLT_OTEL_DBG_RUNTIME_CONTEXT(h,p)                                                       \
-	OTELC_DBG(DEBUG, h "%p:{ %p %p '%s' %hhu %hhu %hhu 0x%02hhx 0x%08x %u %d %s %s }", (p), \
-	          (p)->stream, (p)->filter, (p)->uuid, (p)->flag_harderr, (p)->flag_disabled,   \
-	          (p)->flag_ctx_valid, (p)->logging, (p)->analyzers, (p)->idle_timeout,         \
-	          (p)->idle_exp, flt_otel_list_dump(&((p)->spans)),                             \
+#define FLT_OTEL_DBG_RUNTIME_CONTEXT(h,p)                                                                               \
+	OTELC_DBG(DEBUG, h "%p:{ %p %p '%s' %hhu %hhu %hhu 0x%02hhx 0x%08x %u %d %" PRIu64 " %" PRIu64 " %s %s }", (p), \
+	          (p)->stream, (p)->filter, (p)->uuid, (p)->flag_harderr, (p)->flag_disabled,                           \
+	          (p)->flag_ctx_valid, (p)->logging, (p)->analyzers, (p)->idle_timeout,                                 \
+	          (p)->idle_exp, (p)->bytes_in, (p)->bytes_out, flt_otel_list_dump(&((p)->spans)),                      \
 	          flt_otel_list_dump(&((p)->contexts)))
 
 /* Anonymous struct containing a const string pointer and its length. */

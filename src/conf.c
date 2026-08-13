@@ -188,7 +188,7 @@ FLT_OTEL_CONF_FUNC_INIT(ph, id, )
  *   This function does not return a value.
  */
 FLT_OTEL_CONF_FUNC_FREE(ph, id,
-	FLT_OTEL_DBG_CONF_HDR("- conf_ph free ", *ptr, id);
+	FLT_OTEL_DBG_CONF_PH("- conf_ph free ", *ptr);
 )
 
 
@@ -469,7 +469,7 @@ FLT_OTEL_CONF_FUNC_INIT(context, id, )
  *   This function does not return a value.
  */
 FLT_OTEL_CONF_FUNC_FREE(context, id,
-	FLT_OTEL_DBG_CONF_HDR("- conf_context free ", *ptr, id);
+	FLT_OTEL_DBG_CONF_CONTEXT("- conf_context free ", *ptr);
 )
 
 
@@ -525,7 +525,7 @@ FLT_OTEL_CONF_FUNC_INIT(span, id,
  *   This function does not return a value.
  */
 FLT_OTEL_CONF_FUNC_FREE(span, id,
-	FLT_OTEL_DBG_CONF_HDR("- conf_span free ", *ptr, id);
+	FLT_OTEL_DBG_CONF_SPAN("- conf_span free ", *ptr);
 
 	OTELC_SFREE((*ptr)->ref_id);
 	OTELC_SFREE((*ptr)->ctx_id);
@@ -583,7 +583,7 @@ FLT_OTEL_CONF_FUNC_INIT(exception, id,
  *   This function does not return a value.
  */
 FLT_OTEL_CONF_FUNC_FREE(exception, id,
-	FLT_OTEL_DBG_CONF_HDR("- conf_exception free ", *ptr, id);
+	FLT_OTEL_DBG_CONF_EXCEPTION("- conf_exception free ", *ptr);
 
 	OTELC_SFREE((*ptr)->type);
 	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->message));

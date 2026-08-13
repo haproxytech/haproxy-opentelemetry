@@ -41,13 +41,14 @@
 #define FLT_OTEL_CONF_STR_CMP(s,S)    ((s##_len == S##_len) && (memcmp(s, S, S##_len) == 0))
 
 #define FLT_OTEL_DBG_CONF_SAMPLE_EXPR(h,p) \
-	OTELC_DBG(DEBUG, h "%p:{ '%s' %p }", (p), (p)->fmt_expr, (p)->expr)
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%p }", (p), FLT_OTEL_CONF_HDR_ARGS(p, fmt_expr), (p)->expr)
 
-#define FLT_OTEL_DBG_CONF_SAMPLE(h,p)                                                 \
-	OTELC_DBG(DEBUG, h "%p:{ '%s' '%s' %s %s %d %p %hhu %s %p }", (p),            \
-	          (p)->key, (p)->fmt_string, otelc_value_dump(&((p)->extra), ""),     \
-	          flt_otel_list_dump(&((p)->exprs)), (p)->num_exprs, &((p)->lf_expr), \
-	          (p)->lf_used, flt_otel_list_dump(&((p)->time)), (p)->cond)
+#define FLT_OTEL_DBG_CONF_SAMPLE(h,p)                                                            \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %s %s %d %p %hhu %s %p }", (p), \
+	                 FLT_OTEL_CONF_HDR_ARGS(p, key), OTELC_STR_ARG((p)->fmt_string),         \
+	                 otelc_value_dump(&((p)->extra), ""), flt_otel_list_dump(&((p)->exprs)), \
+	                 (p)->num_exprs, &((p)->lf_expr), (p)->lf_used,                          \
+	                 flt_otel_list_dump(&((p)->time)), (p)->cond)
 
 #define FLT_OTEL_DBG_CONF_HDR(h,p,i) \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "}", (p), FLT_OTEL_CONF_HDR_ARGS(p, i))
@@ -61,11 +62,17 @@
 
 #define FLT_OTEL_DBG_CONF_SPAN(h,p)                                                                                  \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %zu '%s' %zu %hhu 0x%02hhx %d %s %s %s %s %s %s }", \
-	                 (p), FLT_OTEL_CONF_HDR_ARGS(p, id), FLT_OTEL_STR_HDR_ARGS(p, ref_id),                       \
-	                 FLT_OTEL_STR_HDR_ARGS(p, ctx_id), (p)->flag_root, (p)->ctx_flags, (p)->kind,                \
+	                 (p), FLT_OTEL_CONF_HDR_ARGS(p, id), OTELC_STR_ARG((p)->ref_id), (p)->ref_id_len,            \
+	                 OTELC_STR_ARG((p)->ctx_id), (p)->ctx_id_len, (p)->flag_root, (p)->ctx_flags, (p)->kind,     \
 	                 flt_otel_list_dump(&((p)->links)), flt_otel_list_dump(&((p)->attributes)),                  \
 	                 flt_otel_list_dump(&((p)->events)), flt_otel_list_dump(&((p)->baggages)),                   \
 	                 flt_otel_list_dump(&((p)->statuses)), flt_otel_list_dump(&((p)->exceptions)))
+
+#define FLT_OTEL_DBG_CONF_EXCEPTION(h,p)                                           \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %s %s %p }", (p), \
+	                 FLT_OTEL_CONF_HDR_ARGS(p, id), OTELC_STR_ARG((p)->type),  \
+	                 flt_otel_list_dump(&((p)->message)),                      \
+	                 flt_otel_list_dump(&((p)->attributes)), (p)->cond)
 
 #define FLT_OTEL_DBG_CONF_SCOPE(h,p)                                                                                  \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%hhu %hhu %d %u %s %p %p %s %s %s %s %s %s %s %s }", (p), \
@@ -83,12 +90,12 @@
 #define FLT_OTEL_DBG_CONF_PH(h,p) \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%p }", (p), FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->ptr)
 
-#define FLT_OTEL_CONF_LOG_FMT         "%p:{ %hhu %p:{ %s } %p:{ %u } 0x%02x %u %" PRIu64 " }"
+#define FLT_OTEL_CONF_LOG_FMT         "%p:{ %hhu %p:{ %s } %p:{ %u } 0x%08x %u %" PRIu64 " }"
 #define FLT_OTEL_CONF_LOG_ARGS(p)     (p), (p)->type, &((p)->proxy), flt_otel_list_dump(&((p)->proxy.loggers)), &((p)->rate), (p)->rate.curr_ctr, (p)->latch, (p)->sup_pending, (p)->sup_total
 
 #define FLT_OTEL_DBG_CONF_INSTR(h,p)                                                                                                                                                      \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' '%s' %p %p %p %p %u %hhu %hhu %hhu %hhu %hhu %u " FLT_OTEL_CONF_LOG_FMT " %" PRIu64 " %" PRIu64 " 0x%08x %u %s %s %s }", \
-	                 (p), FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->config, (p)->ctx_name, (p)->ctx, (p)->tracer, (p)->meter, (p)->logger,                                                  \
+	                 (p), FLT_OTEL_CONF_HDR_ARGS(p, id), OTELC_STR_ARG((p)->config), OTELC_STR_ARG((p)->ctx_name), (p)->ctx, (p)->tracer, (p)->meter, (p)->logger,                    \
 	                 (p)->rate_limit, (p)->flag_harderr, (p)->flag_disabled, (p)->flag_reqctx, (p)->flag_data_req, (p)->flag_data_res, (p)->flag_started,                             \
 	                 FLT_OTEL_CONF_LOG_ARGS(&((p)->log)), (p)->n_harderr, (p)->n_softerr, (p)->analyzers, (p)->idle_timeout,                                                          \
 	                 flt_otel_list_dump(&((p)->acls)), flt_otel_list_dump(&((p)->ph_groups)), flt_otel_list_dump(&((p)->ph_scopes)))
@@ -113,10 +120,12 @@
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%s %p }", (p), \
 	                 FLT_OTEL_CONF_HDR_ARGS(p, id), flt_otel_list_dump(&((p)->vars)), (p)->cond)
 
-#define FLT_OTEL_DBG_CONF(h,p)                                                   \
-	OTELC_DBG(DEBUG, h "%p:{ %p '%s' '%s' '%s' %p %s %s }", (p),             \
-	          (p)->proxy, (p)->id, (p)->cfg_file, (p)->sec_name, (p)->instr, \
-	          flt_otel_list_dump(&((p)->groups)), flt_otel_list_dump(&((p)->scopes)))
+#define FLT_OTEL_DBG_CONF(h,p)                                                            \
+	OTELC_DBG(DEBUG, h "%p:{ %p '%s' '%s' '%s' %p %s %s %s }", (p),                   \
+	          (p)->proxy, OTELC_STR_ARG((p)->id), OTELC_STR_ARG((p)->cfg_file),       \
+	          OTELC_STR_ARG((p)->sec_name), (p)->instr,                               \
+	          flt_otel_list_dump(&((p)->groups)), flt_otel_list_dump(&((p)->scopes)), \
+	          flt_otel_list_dump(&((p)->smp_args)))
 
 /* Anonymous struct containing a string pointer and its length. */
 #define FLT_OTEL_CONF_STR(p)     \

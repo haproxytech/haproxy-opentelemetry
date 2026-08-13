@@ -62,13 +62,13 @@
 	__idx = (__idx + 1) % (m)
 
 /* Format an error message if none has been set yet. */
-#define FLT_OTEL_ERR(f, ...)                                    \
-	do {                                                    \
-		if ((err != NULL) && (*err == NULL)) {          \
-			(void)memprintf(err, f, ##__VA_ARGS__); \
-		                                                \
-			OTELC_DBG(DEBUG, "err: '%s'", *err);    \
-		}                                               \
+#define FLT_OTEL_ERR(f, ...)                                                \
+	do {                                                                \
+		if ((err != NULL) && (*err == NULL)) {                      \
+			(void)memprintf(err, f, ##__VA_ARGS__);             \
+		                                                            \
+			OTELC_DBG(DEBUG, "err: '%s'", OTELC_STR_ARG(*err)); \
+		}                                                           \
 	} while (0)
 /* Format the standard out-of-memory error. */
 #define FLT_OTEL_ERR_NOMEM()         FLT_OTEL_ERR("out of memory")

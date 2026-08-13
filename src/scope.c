@@ -420,7 +420,7 @@ void flt_otel_scope_data_dump(const struct flt_otel_scope_data *data)
 	if (data->baggage.attr == NULL) {
 		OTELC_DBG(DEBUG, "baggage %p:{ }", &(data->baggage));
 	} else {
-		OTELC_DBG(DEBUG, "baggage %p:{", &(data->baggage));
+		OTELC_DBG(DEBUG, "baggage %p:{ %p %zu/%zu", &(data->baggage), data->baggage.attr, data->baggage.cnt, data->baggage.size);
 		for (i = 0; i < data->baggage.cnt; i++)
 			OTELC_DBG_KV(DEBUG, "  ", data->baggage.attr + i);
 		OTELC_DBG(DEBUG, "}");
@@ -429,7 +429,7 @@ void flt_otel_scope_data_dump(const struct flt_otel_scope_data *data)
 	if (data->attributes.attr == NULL) {
 		OTELC_DBG(DEBUG, "attributes %p:{ }", &(data->attributes));
 	} else {
-		OTELC_DBG(DEBUG, "attributes %p:{", &(data->attributes));
+		OTELC_DBG(DEBUG, "attributes %p:{ %p %zu/%zu", &(data->attributes), data->attributes.attr, data->attributes.cnt, data->attributes.size);
 		for (i = 0; i < data->attributes.cnt; i++)
 			OTELC_DBG_KV(DEBUG, "  ", data->attributes.attr + i);
 		OTELC_DBG(DEBUG, "}");
@@ -442,7 +442,10 @@ void flt_otel_scope_data_dump(const struct flt_otel_scope_data *data)
 
 		OTELC_DBG(DEBUG, "events %p:{", &(data->events));
 		list_for_each_entry_rev(event, &(data->events), list) {
-			OTELC_DBG(DEBUG, "  '%s' %zu/%zu", event->name, event->cnt, event->size);
+			if (event->ts_set)
+				OTELC_DBG(DEBUG, "  '%s' %p %zu/%zu %ld.%09ld", event->name, event->attr, event->cnt, event->size, OTELC_TV_ARGS(&(event->ts)));
+			else
+				OTELC_DBG(DEBUG, "  '%s' %p %zu/%zu", event->name, event->attr, event->cnt, event->size);
 			if (event->attr != NULL)
 				for (i = 0; i < event->cnt; i++)
 					OTELC_DBG_KV(DEBUG, "  ", event->attr + i);
@@ -456,8 +459,12 @@ void flt_otel_scope_data_dump(const struct flt_otel_scope_data *data)
 		struct flt_otel_scope_data_link *link;
 
 		OTELC_DBG(DEBUG, "links %p:{", &(data->links));
-		list_for_each_entry(link, &(data->links), list)
-			OTELC_DBG(DEBUG, "  %p %p %zu", link->span, link->context, link->attributes.cnt);
+		list_for_each_entry(link, &(data->links), list) {
+			OTELC_DBG(DEBUG, "  %p %p " FLT_OTEL_DBG_SCOPE_DATA_KV_FMT, link->span, link->context, FLT_OTEL_DBG_SCOPE_DATA_KV_ARGS(link->attributes));
+			if (link->attributes.attr != NULL)
+				for (i = 0; i < link->attributes.cnt; i++)
+					OTELC_DBG_KV(DEBUG, "  ", link->attributes.attr + i);
+		}
 		OTELC_DBG(DEBUG, "}");
 	}
 

@@ -1173,7 +1173,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 			if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
 				continue;
 
-			OTELC_DBG(DEBUG, "adding status '%s' -> '%s'", sample->key, sample->fmt_string);
+			OTELC_DBG(DEBUG, "adding status '%s' -> '%s'", sample->key, OTELC_STR_ARG(sample->fmt_string));
 
 			if (flt_otel_sample_add(s, dir, sample, &data, FLT_OTEL_EVENT_SAMPLE_STATUS, err) == FLT_OTEL_RET_ERROR)
 				retval = FLT_OTEL_RET_ERROR;
