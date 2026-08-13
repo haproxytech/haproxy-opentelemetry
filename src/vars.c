@@ -967,6 +967,13 @@ static int flt_otel_vars_get_cb(struct sample *smp, size_t idx, const char *scop
 
 	/* Retrieve the context variable and build a text map entry. */
 	if (vars_get_by_name(var_ctx, var_ctx_len, &smp_ctx, NULL) != 0) {
+		/* Only a string or binary variable keeps its value in the buffer. */
+		if ((smp_ctx.data.type != SMP_T_STR) && (smp_ctx.data.type != SMP_T_BIN)) {
+			OTELC_DBG(WARNING, "WARNING: ctx variable '%s' has invalid type %d", var_ctx, smp_ctx.data.type);
+
+			OTELC_RETURN_INT(retval);
+		}
+
 		OTELC_DBG(DEBUG, "'%s' -> '%.*s'", var_ctx, (int)b_data(&(smp_ctx.data.u.str)), b_orig(&(smp_ctx.data.u.str)));
 
 		if (*map == NULL) {
