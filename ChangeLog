@@ -6,6 +6,56 @@ commits, with directly related commits folded into a single bullet, and the
 git log keeps the full descriptions.
 
 
+Version 2.1.2 (2026-08-13)
+--------------------------
+
+Fixes a memory leak that grew with every HTTP request handled: on HAProxy 3.4
+vars_check_arg() duplicates the variable name into the descriptor it returns,
+and the filter discarded that descriptor on return without releasing the copy.
+The registration of sess.otel.uuid leaked one copy per stream attach and the
+variable context injection leaked one more per injected key, until the worker
+was OOM-killed under production load.
+
+Two further fixes matter at runtime.  The extraction of a context stored in
+variables iterated one of the two rotating trash chunks, which every variable
+fetch of its own callback recycled, so the entries after the first were misread
+and a propagated tracestate disappeared from the resulting spans.  A context
+variable overwritten with a non-string type was read as a string pointer; such a
+variable is now reported and rejected.
+
+A scoped configuration file whose section header line fell outside the matching
+scope crashed the 'haproxy -c' run, because the keyword handlers ran with no
+open section object; such lines are now rejected with an error.  The remaining
+changes clear a bounds pointer that the section cleanup freed twice, tighten
+the variable-name and parser checks, correct or complete the debug output, and
+add the filter version to the 'haproxy -vv' build options line.  The required
+wrapper version stays at 3.2.0.
+
+  * BUG/MEDIUM: Released the variable-name copy that vars_check_arg() allocates
+    on HAProxy 3.4, which leaked one copy per request until the worker was
+    OOM-killed.
+  * BUG/MEDIUM: Iterated the context tracking buffer from a private copy, which
+    the variable fetches of the extraction cannot disturb.
+  * BUG/MINOR: Cleared the bounds pointer on a failed allocation, so the section
+    cleanup no longer frees the released array a second time.
+  * CLEANUP: Removed the unused flt_otel_pool_strndup() helper.
+  * MINOR: Skipped the instrument evaluation on an attribute failure, instead of
+    evaluating a value that the error guard then discarded.
+  * BUG/MEDIUM: Rejected keyword lines that arrive with no open section object,
+    which crashed 'haproxy -c' on a scoped configuration file.
+  * BUG/MINOR: Validated the first character of a variable name, which must
+    be a letter or an underscore.
+  * MINOR: Resolved minor parser inconsistencies around the explicit section
+    name, a duplicate 'inject' line and the proxy argument context.
+  * DOC: Described the by-name grouping of span 'event' lines into a single span
+    event.
+  * BUG/MINOR: Fixed the truncated debug level in the 'flt-otel status' report.
+  * BUG/MINOR: Rejected non-string context variables in the extraction.
+  * BUG/MINOR: Corrected invalid or misleading debug output.
+  * MINOR: Completed and hardened the structure dump macros.
+  * VERSION: Bumped the filter version to 2.1.2.
+
+
 Version 2.1.1 (2026-08-11)
 --------------------------
 

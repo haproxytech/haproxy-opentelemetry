@@ -2370,7 +2370,7 @@ struct flt_ops flt_otel_ops = {
 
 
 /* Advertise OTel support in haproxy -vv output. */
-REGISTER_BUILD_OPTS("Built with OpenTelemetry support (C++ version " OTELCPP_VERSION ", C Wrapper version " OTELC_VERSION ").");
+REGISTER_BUILD_OPTS("Built with OpenTelemetry support (filter version " FLT_OTEL_VERSION ", C++ version " OTELCPP_VERSION ", C Wrapper version " OTELC_VERSION ").");
 
 /*
  * Local variables:

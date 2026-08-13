@@ -92,7 +92,7 @@ An executable built this way identifies itself in the build options:
 
   % ./haproxy -vv | grep -i opentelemetry
   --- command output ----------
-  Built with OpenTelemetry support (C++ version none, C Wrapper version 3.2.0-0).
+  Built with OpenTelemetry support (filter version 2.1.2, C++ version none, C Wrapper version 3.2.0-0).
           [OTEL] opentelemetry
   --- command output ----------
 

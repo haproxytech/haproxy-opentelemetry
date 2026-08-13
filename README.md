@@ -127,7 +127,7 @@ PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 TARGET=linux-glibc EXTRA_MAKE="../ha
 If the filter is built in, the output contains:
 
 ```
-Built with OpenTelemetry support (C++ version 1.28.0, C Wrapper version 3.2.0-994).
+Built with OpenTelemetry support (filter version 2.1.2, C++ version 1.28.0, C Wrapper version 3.2.0-994).
 	[OTEL] opentelemetry
 ```
 
