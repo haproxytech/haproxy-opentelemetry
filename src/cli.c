@@ -1007,7 +1007,7 @@ static int flt_otel_cli_io_status(struct appctx *appctx)
 		(void)chunk_printf(&trash, " " FLT_OTEL_OPT_NAME " filter status\n" FLT_OTEL_STR_DASH_78 "\n");
 		(void)chunk_appendf(&trash, "   library:         C++ " OTELCPP_VERSION ", C wrapper %s\n", otelc_version());
 #ifdef DEBUG_OTEL
-		(void)chunk_appendf(&trash, "   debug level:     0x%02hhx\n", otelc_dbg_level);
+		(void)chunk_appendf(&trash, "   debug level:     0x%04x\n", _HA_ATOMIC_LOAD(&otelc_dbg_level));
 #endif
 		(void)chunk_appendf(&trash, "   export pipeline:\n");
 		otelc_pipeline_status_get(&sig_stat);
