@@ -594,8 +594,8 @@ static int flt_otel_parse_cfg_str(const char *file, int line, char **args, struc
  *
  * DESCRIPTION
  *   Parses and validates a file path argument.  Checks that the argument is
- *   present, that no extra arguments follow, and that the file exists and is
- *   readable.
+ *   present, that no extra arguments follow, and that the path names a
+ *   readable regular file.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -603,7 +603,8 @@ static int flt_otel_parse_cfg_str(const char *file, int line, char **args, struc
  */
 static int flt_otel_parse_cfg_file(char **ptr, const char *file, int line, char **args, char **err, const char *err_msg)
 {
-	int retval = ERR_NONE;
+	struct stat st;
+	int         retval = ERR_NONE;
 
 	OTELC_FUNC("%p:%p, \"%s\", %d, %p, %p:%p, \"%s\"", OTELC_DPTR_ARGS(ptr), OTELC_STR_ARG(file), line, args, OTELC_DPTR_ARGS(err), err_msg);
 
@@ -613,6 +614,8 @@ static int flt_otel_parse_cfg_file(char **ptr, const char *file, int line, char 
 		retval |= ERR_ABORT | ERR_ALERT;
 	else if (access(args[1], R_OK) == -1)
 		FLT_OTEL_PARSE_ERR(err, "'%s' : %s", args[1], strerror(errno));
+	else if ((stat(args[1], &st) == 0) && !S_ISREG(st.st_mode))
+		FLT_OTEL_PARSE_ERR(err, "'%s' : not a regular file", args[1]);
 	else
 		retval = flt_otel_parse_keyword(ptr, args, 0, 0, err, err_msg);
 
@@ -2668,6 +2671,7 @@ static int flt_otel_parse_cfg(struct flt_otel_conf *conf, const char *flt_name, 
 {
 	struct list    backup_sections;
 	struct cfgfile cfg_file;
+	struct stat    st;
 	int            retval = ERR_ABORT | ERR_ALERT;
 
 	OTELC_FUNC("%p, \"%s\", %p:%p", conf, OTELC_STR_ARG(flt_name), OTELC_DPTR_ARGS(err));
@@ -2687,6 +2691,8 @@ static int flt_otel_parse_cfg(struct flt_otel_conf *conf, const char *flt_name, 
 		/* Do nothing. */;
 	else if (access(conf->cfg_file, R_OK) == -1)
 		FLT_OTEL_PARSE_ERR(err, "'%s' : %s", conf->cfg_file, strerror(errno));
+	else if ((stat(conf->cfg_file, &st) == 0) && !S_ISREG(st.st_mode))
+		FLT_OTEL_PARSE_ERR(err, "'%s' : not a regular file", conf->cfg_file);
 	else {
 		struct list saved_args = LIST_HEAD_INIT(saved_args);
 

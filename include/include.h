@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <math.h>
+#include <sys/stat.h>
 #include <values.h>
 #ifdef USE_THREAD
 #  include <pthread.h>
