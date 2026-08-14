@@ -3,6 +3,13 @@
 #ifndef _OTEL_HTTP_H_
 #define _OTEL_HTTP_H_
 
+/* Add an HTTP header, with the authority update older versions always did. */
+#ifdef USE_OTEL_ADD_HEADER_AUTHORITY
+#  define FLT_OTEL_HTTP_ADD_HEADER(htx, n, v)   http_add_header((htx), (n), (v), 1)
+#else
+#  define FLT_OTEL_HTTP_ADD_HEADER(htx, n, v)   http_add_header((htx), (n), (v))
+#endif
+
 #ifndef DEBUG_OTEL
 #  define flt_otel_http_headers_dump(...)   while (0)
 #else

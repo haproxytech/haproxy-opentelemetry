@@ -106,6 +106,14 @@ ifneq ($(OTEL_HAS_COND_CONFLICTS_ERR),)
 OTEL_DEFINE += -DUSE_OTEL_COND_CONFLICTS_ERR
 endif
 
+# Auto-detect the calling convention of http_add_header().  HAProxy 3.4 added
+# the 'update_authority' argument that makes the authority rewrite optional
+# when a host header is added; older versions always rewrite the authority.
+OTEL_HAS_ADD_HEADER_AUTHORITY := $(shell grep -q 'http_add_header(.*update_authority)' include/haproxy/http_htx.h 2>/dev/null && echo 1)
+ifneq ($(OTEL_HAS_ADD_HEADER_AUTHORITY),)
+OTEL_DEFINE += -DUSE_OTEL_ADD_HEADER_AUTHORITY
+endif
+
 OTEL_CFLAGS := $(OTEL_CFLAGS) -I$(OTEL_DIR)/include $(OTEL_DEFINE)
 
 # OTEL is no longer part of haproxy's use_opts list, so $(collect_opts_flags)
