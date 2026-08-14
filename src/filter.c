@@ -597,15 +597,22 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
  *
  * DESCRIPTION
  *   Warns when an 'if'/'unless' condition can never match at the processing
- *   point where the scope runs.  HAProxy's warnif_cond_conflicts() does the
- *   comparison against <where> and composes the message, which is then
- *   forwarded as a filter warning.  A NULL condition is ignored.
+ *   point where the scope runs.  On HAProxy 3.4 and newer the comparison and
+ *   the message both come from warnif_cond_conflicts(); older versions print
+ *   the warning there themselves, so the same checks are run locally through
+ *   acl_cond_conflicts() and acl_cond_kw_conflicts() and the message is then
+ *   composed here.  Either way the message is forwarded as a filter warning.
+ *   A NULL condition is ignored.
  *
  * RETURN VALUE
  *   Returns ERR_WARN if the condition can never match at <where>, otherwise 0.
  */
 static int flt_otel_check_cond_loc(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope, const struct proxy *p, uint where, const struct acl_cond *cond, const char *kind, const char *trigger)
 {
+#ifndef USE_OTEL_COND_CONFLICTS_ERR
+	const struct acl *acl;
+	const char       *kw;
+#endif
 	char *err = NULL;
 	int   retval = 0;
 
@@ -614,7 +621,31 @@ static int flt_otel_check_cond_loc(const struct flt_otel_conf *conf, const struc
 	if (cond == NULL)
 		OTELC_RETURN_INT(retval);
 
+#ifdef USE_OTEL_COND_CONFLICTS_ERR
 	retval = warnif_cond_conflicts(cond, where, &err);
+#else
+	/*
+	 * warnif_cond_conflicts() of this HAProxy version prints the warning
+	 * itself, tied to a config file/line pair this check does not have,
+	 * so the same conflict checks compose the message here instead.
+	 */
+	acl = acl_cond_conflicts(cond, where);
+	if (acl != NULL) {
+		if ((acl->name != NULL) && (*acl->name != '\0'))
+			(void)memprintf(&err, "acl '%s' will never match because it only involves keywords that are incompatible with '%s'", acl->name, sample_ckp_names(where));
+		else
+			(void)memprintf(&err, "anonymous acl will never match because it uses keyword '%s' which is incompatible with '%s'", LIST_ELEM(acl->expr.n, struct acl_expr *, list)->kw, sample_ckp_names(where));
+		retval = ERR_WARN;
+	}
+	else if (acl_cond_kw_conflicts(cond, where, &acl, &kw) != 0) {
+		if ((acl->name != NULL) && (*acl->name != '\0'))
+			(void)memprintf(&err, "acl '%s' involves keywords '%s' which is incompatible with '%s'", acl->name, kw, sample_ckp_names(where));
+		else
+			(void)memprintf(&err, "anonymous acl involves keyword '%s' which is incompatible with '%s'", kw, sample_ckp_names(where));
+		retval = ERR_WARN;
+	}
+#endif
+
 	if (err != NULL)
 		FLT_OTEL_WARNING("''%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' %s condition at %s on proxy '%s': %s'", conf->id, conf_scope->id, kind, trigger, p->id, err);
 

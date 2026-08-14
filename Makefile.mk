@@ -97,6 +97,15 @@ ifneq ($(OTEL_HAS_MAIN_PROXIES),)
 OTEL_DEFINE += -DUSE_OTEL_MAIN_PROXIES
 endif
 
+# Auto-detect the calling convention of warnif_cond_conflicts().  HAProxy 3.4
+# changed the function to hand the warning text back through a 'char **err'
+# argument, while the older versions print the warning themselves and take a
+# config file/line pair instead.
+OTEL_HAS_COND_CONFLICTS_ERR := $(shell grep -q 'warnif_cond_conflicts(.*char \*\*err)' include/haproxy/cfgparse.h 2>/dev/null && echo 1)
+ifneq ($(OTEL_HAS_COND_CONFLICTS_ERR),)
+OTEL_DEFINE += -DUSE_OTEL_COND_CONFLICTS_ERR
+endif
+
 OTEL_CFLAGS := $(OTEL_CFLAGS) -I$(OTEL_DIR)/include $(OTEL_DEFINE)
 
 # OTEL is no longer part of haproxy's use_opts list, so $(collect_opts_flags)
