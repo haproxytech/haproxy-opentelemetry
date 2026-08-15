@@ -712,7 +712,8 @@ be used simultaneously.
   flt_otel_http_header_set(chn, prefix, name, value, err):
     Removes any existing header matching "prefix" + "name", then adds a new
     header with the given value.  If name is NULL, all headers with the prefix
-    are removed (bulk delete).
+    are removed (bulk delete).  A prefixed name that does not fit the build
+    buffer is rejected with a runtime error instead of being truncated.
 
   flt_otel_http_headers_remove(chn, prefix, err):
     Convenience wrapper; removes all headers matching the prefix.

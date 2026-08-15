@@ -347,6 +347,60 @@ int flt_otel_args_concat(const char **args, int idx, int n, char **str)
 }
 
 
+/***
+ * NAME
+ *   flt_otel_str_escape - escapes the non-printable characters of a string
+ *
+ * SYNOPSIS
+ *   const char *flt_otel_str_escape(char *dst, size_t size, const char *src)
+ *
+ * ARGUMENTS
+ *   dst  - buffer that receives the escaped string
+ *   size - size of the destination buffer, including the terminator
+ *   src  - the string to escape
+ *
+ * DESCRIPTION
+ *   Copies <src> to <dst>, replacing every byte outside the printable ASCII
+ *   range with the HAProxy log form '#XX'.  A runtime error message may quote
+ *   a sample value, and such a value carries whatever bytes the peer sent, so
+ *   escaping keeps terminal control sequences and 8-bit data out of the logs.
+ *   The result is always terminated and is truncated when it does not fit;
+ *   an escape sequence is never split.
+ *
+ * RETURN VALUE
+ *   Returns <dst>, or <src> if <dst> is unusable.
+ */
+const char *flt_otel_str_escape(char *dst, size_t size, const char *src)
+{
+	static const char hex[] = "0123456789ABCDEF";
+	size_t            i;
+
+	if ((dst == NULL) || (size == 0))
+		return src;
+	else if (src == NULL)
+		src = "";
+
+	for (i = 0; *src != '\0'; src++)
+		if ((*src >= 0x20) && (*src < 0x7f)) {
+			if ((i + 1) >= size)
+				break;
+
+			dst[i++] = *src;
+		} else {
+			if ((i + 3) >= size)
+				break;
+
+			dst[i++] = '#';
+			dst[i++] = hex[(uint8_t)(*src) >> 4];
+			dst[i++] = hex[(uint8_t)(*src) & 0x0f];
+		}
+
+	dst[i] = '\0';
+
+	return dst;
+}
+
+
 /*
  * Comparator for qsort: ascending order of doubles.  The strict ordering
  * keeps the comparison transitive, as qsort() requires; near-equal values

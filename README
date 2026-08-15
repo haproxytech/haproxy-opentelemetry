@@ -1821,7 +1821,9 @@ warning -- but each emission is edge-triggered and rate-limited per instance,
 so a fault recurring on every stream yields only a couple of lines per window
 while these counters keep the true tally.  'option dontlog-normal' keeps the
 error lines but drops the warnings, and 'flt-otel logging off' silences both;
-the counters climb either way.
+the counters climb either way.  An error text may quote a sample value, so its
+non-printable bytes reach the log escaped in the '#XX' form and its length is
+bounded.
 
 'flt-otel flush' forces every filter instance to export its buffered telemetry
 at once, calling force_flush on the active tracer, meter and logger, each one

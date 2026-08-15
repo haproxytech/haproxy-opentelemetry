@@ -931,6 +931,10 @@ Utility and conversion functions.
       Concatenates arguments starting from a given index into a single
       space-separated string.
 
+  flt_otel_str_escape
+      Escapes the non-printable characters of a string into a bounded buffer,
+      in HAProxy's '#XX' form, for logging text that may carry raw sample bytes.
+
   flt_otel_strtod
       Parses a string to double with range validation.
 

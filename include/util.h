@@ -107,6 +107,9 @@ int         flt_otel_args_count(const char **args);
 /* Concatenate argument array elements into a single string. */
 int         flt_otel_args_concat(const char **args, int idx, int n, char **str);
 
+/* Escape the non-printable characters of a string for logging. */
+const char *flt_otel_str_escape(char *dst, size_t size, const char *src);
+
 /* Comparator for qsort: strict ascending order of doubles. */
 int         flt_otel_qsort_compar_double(const void *a, const void *b);
 

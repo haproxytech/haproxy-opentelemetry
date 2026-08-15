@@ -140,7 +140,7 @@ struct otelc_text_map *flt_otel_http_headers_get(struct channel *chn, const char
 			 * The name must be longer than the prefix; a zero
 			 * length key is read as a NUL terminated string.
 			 */
-			if ((prefix_len == 0) || ((n.len > prefix_len) && (strncasecmp(n.ptr, prefix, len) == 0))) {
+			if (((prefix_len == 0) && (n.len > 0)) || ((n.len > prefix_len) && (strncasecmp(n.ptr, prefix, len) == 0))) {
 				if (retptr == NULL) {
 					retptr = OTELC_TEXT_MAP_NEW(NULL, 8);
 					if (retptr == NULL) {
@@ -277,7 +277,12 @@ int flt_otel_http_header_set(struct channel *chn, const char *prefix, const char
 		if (buffer == NULL)
 			OTELC_RETURN_INT(retval);
 
-		(void)chunk_printf(buffer, "%s-%s", prefix, name);
+		/* On truncation the chunk length is left untouched. */
+		if (chunk_printf(buffer, "%s-%s", prefix, name) < 0) {
+			FLT_OTEL_ERR("HTTP header name '%s-%s' too long", prefix, name);
+
+			OTELC_RETURN_INT(retval);
+		}
 
 		ist_name = ist2(buffer->area, buffer->data);
 	}

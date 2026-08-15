@@ -366,7 +366,8 @@ bool flt_otel_is_disabled(const struct filter *f FLT_OTEL_DBG_ARGS(, int event))
  *   disabled when hard-error mode is enabled and the cause is logged at
  *   LOG_ERR; in soft-error mode the error is cleared and logged at LOG_WARNING.
  *   Both logs are edge-triggered and rate-limited per instance, and a clean
- *   return re-arms the edge trigger.  The error message is always freed before
+ *   return re-arms the edge trigger.  As a message may quote a sample value,
+ *   it is escaped before logging.  The error message is always freed before
  *   returning.
  *
  * RETURN VALUE
@@ -376,11 +377,13 @@ static int flt_otel_return_int(const struct filter *f, char **err, int retval)
 {
 	struct flt_otel_runtime_context *rt_ctx = f->ctx;
 	struct flt_otel_conf            *conf   = FLT_OTEL_CONF(f);
+	char                             buffer[FLT_OTEL_LOG_MSG_SIZE];
 	const char                      *msg;
 
 	/* Disable the filter on hard errors; ignore on soft errors. */
 	if ((retval == FLT_OTEL_RET_ERROR) || ((err != NULL) && (*err != NULL))) {
-		msg = ((err != NULL) && (*err != NULL)) ? *err : "unspecified runtime error";
+		/* A message may quote a sample value, so it is escaped here. */
+		msg = ((err != NULL) && (*err != NULL)) ? flt_otel_str_escape(buffer, sizeof(buffer), *err) : "unspecified runtime error";
 
 		if (rt_ctx->flag_harderr) {
 			rt_ctx->flag_disabled = 1;
