@@ -626,7 +626,8 @@ extract <name-prefix> [use-vars | use-headers]
 
   The default carrier is HTTP headers.  If OTEL_USE_VARS is enabled at compile
   time, the 'use-vars' option can be used instead to extract context from
-  HAProxy variables.
+  HAProxy variables.  A header whose name is only the prefix itself is ignored,
+  as stripping the prefix would leave an empty data name.
 
   When the OpenTelemetry context is transferred via the HTTP header and the
   first character of the context name is '-', the context name is excluded

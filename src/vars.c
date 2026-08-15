@@ -956,6 +956,7 @@ static int flt_otel_vars_get_cb(struct sample *smp, size_t idx, const char *scop
 {
 	struct otelc_text_map **map = ptr;
 	struct sample           smp_ctx;
+	const char             *value;
 	char                    var_ctx[BUFSIZ], otel_var_name[BUFSIZ];
 	int                     var_ctx_len, retval = FLT_OTEL_RET_ERROR;
 
@@ -991,6 +992,9 @@ static int flt_otel_vars_get_cb(struct sample *smp, size_t idx, const char *scop
 			}
 		}
 
+		/* An empty value must not be read as a NUL terminated string. */
+		value = (b_data(&(smp_ctx.data.u.str)) == 0) ? "" : b_orig(&(smp_ctx.data.u.str));
+
 		/*
 		 * Eh, because the use of some characters is not allowed in the
 		 * variable name, the conversion of the replaced characters to
@@ -998,7 +1002,7 @@ static int flt_otel_vars_get_cb(struct sample *smp, size_t idx, const char *scop
 		 */
 		retval = flt_otel_denormalize_name(name, otel_var_name, sizeof(otel_var_name), err);
 		if (retval >= 0)
-			retval = OTELC_TEXT_MAP_ADD(*map, otel_var_name, retval, b_orig(&(smp_ctx.data.u.str)), b_data(&(smp_ctx.data.u.str)), OTELC_TEXT_MAP_AUTO);
+			retval = OTELC_TEXT_MAP_ADD(*map, otel_var_name, retval, value, b_data(&(smp_ctx.data.u.str)), OTELC_TEXT_MAP_AUTO);
 		if (retval == FLT_OTEL_RET_ERROR) {
 			FLT_OTEL_ERR_MAP_ADD();
 
@@ -1217,7 +1221,7 @@ struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, co
 
 		for ( ; node != NULL; node = cebu64_imm_next(&(vars->name_root[i]), node)) {
 			struct var *var = container_of(node, struct var, name_node);
-			const char *key;
+			const char *key, *value;
 			int         otel_name_len;
 
 			if ((var->name == NULL) ||
@@ -1256,7 +1260,10 @@ struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, co
 				}
 			}
 
-			if (OTELC_TEXT_MAP_ADD(retptr, otel_name, otel_name_len, b_orig(&(var->data.u.str)), b_data(&(var->data.u.str)), OTELC_TEXT_MAP_AUTO) == -1) {
+			/* An empty value must not be read as a NUL terminated string. */
+			value = (b_data(&(var->data.u.str)) == 0) ? "" : b_orig(&(var->data.u.str));
+
+			if (OTELC_TEXT_MAP_ADD(retptr, otel_name, otel_name_len, value, b_data(&(var->data.u.str)), OTELC_TEXT_MAP_AUTO) == -1) {
 				FLT_OTEL_ERR_MAP_ADD();
 
 				otelc_text_map_destroy(&retptr);

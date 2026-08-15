@@ -577,7 +577,9 @@ inject/extract operations:
 
 flt_otel_http_headers_get() (http.c) reads headers from the HTX buffer with
 prefix matching.  The prefix is stripped from header names in the returned
-text_map.  A special prefix character ('-') matches all headers without prefix
+text_map.  A header whose name is only the prefix is skipped: the stripped key
+would be empty, and the text map reads a zero-length key as a NUL-terminated
+string.  A special prefix character ('-') matches all headers without prefix
 filtering.
 
 flt_otel_http_header_set() constructs a "prefix-name" header, removes all
@@ -612,6 +614,9 @@ Two implementation paths exist based on the USE_OTEL_VARS_NAME compile flag:
 
 The choice is auto-detected at build time by checking whether struct var has
 a 'name' member.
+
+On extraction, both paths add an empty variable value as an empty string, as
+the text map would read a zero-length buffer as a NUL-terminated string.
 
 
 9  Debug Infrastructure

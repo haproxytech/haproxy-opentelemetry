@@ -705,7 +705,9 @@ be used simultaneously.
   flt_otel_http_headers_get(chn, prefix, prefix_len, err):
     Iterates the HTX message headers.  Headers whose name starts with the given
     prefix are collected into an otelc_text_map.  The prefix is stripped from
-    the names in the returned map.
+    the names in the returned map; a header whose name is only the prefix is
+    skipped, as the stripped name would be empty and a zero-length key is read
+    as a NUL-terminated string.
 
   flt_otel_http_header_set(chn, prefix, name, value, err):
     Removes any existing header matching "prefix" + "name", then adds a new

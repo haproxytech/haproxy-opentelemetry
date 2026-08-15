@@ -455,7 +455,9 @@ Supported keywords:
       'use-vars' option requires OTEL_USE_VARS=1 at compile time.  A stream
       that carries no matching context data is not an error -- the extraction
       is simply skipped.  A span that then names the missing context as its
-      parent fails to resolve the reference and is not created.
+      parent fails to resolve the reference and is not created.  A header whose
+      name is only the prefix itself is ignored, as stripping the prefix would
+      leave an empty data name.
 
       When extracting context from HTTP headers, if the first character of the
       context name is '-', the context name is excluded from the header.  This

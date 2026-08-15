@@ -85,9 +85,11 @@ void flt_otel_http_headers_dump(const struct channel *chn)
  *   zero, all headers are extracted.  If the prefix starts with
  *   FLT_OTEL_PARSE_CTX_IGNORE_NAME, prefix matching is bypassed.  The prefix
  *   (including the separator dash) is stripped from header names before storing
- *   in the text map.  Empty header values are replaced with an empty string to
- *   avoid misinterpretation by otelc_text_map_add().  This function is used by
- *   the "extract" keyword to read span context from incoming request headers.
+ *   in the text map; a header whose name is only the prefix is skipped, as the
+ *   stripped name would be empty.  Empty header values are replaced with an
+ *   empty string to avoid misinterpretation by otelc_text_map_add().  This
+ *   function is used by the "extract" keyword to read span context from the
+ *   incoming request headers.
  *
  * RETURN VALUE
  *   Returns a pointer to the populated text map, or NULL on failure or when
@@ -134,7 +136,11 @@ struct otelc_text_map *flt_otel_http_headers_get(struct channel *chn, const char
 		if (type == HTX_BLK_HDR) {
 			struct ist v, n = htx_get_blk_name(htx, blk);
 
-			if ((prefix_len == 0) || ((n.len >= prefix_len) && (strncasecmp(n.ptr, prefix, len) == 0))) {
+			/*
+			 * The name must be longer than the prefix; a zero
+			 * length key is read as a NUL terminated string.
+			 */
+			if ((prefix_len == 0) || ((n.len > prefix_len) && (strncasecmp(n.ptr, prefix, len) == 0))) {
 				if (retptr == NULL) {
 					retptr = OTELC_TEXT_MAP_NEW(NULL, 8);
 					if (retptr == NULL) {
