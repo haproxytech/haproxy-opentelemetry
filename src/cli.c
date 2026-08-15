@@ -19,17 +19,25 @@
  *   Sets the CLI response message and state for the given <appctx>.  If <err>
  *   is non-NULL, it is passed to cli_dynerr() and <msg> is freed; otherwise
  *   <msg> is passed to cli_dynmsg() at LOG_INFO severity.  When neither message
- *   is available, the function returns 0 without changing state.
+ *   is available, the function returns 0 without changing state.  A NULL
+ *   <appctx> releases both strings and returns 0.
  *
  * RETURN VALUE
- *   Returns 1 when a message was set, or 0 when both pointers were NULL.
+ *   Returns 1 when a message was set, or 0 when nothing was set.
  */
 static int flt_otel_cli_set_msg(struct appctx *appctx, char *err, char *msg)
 {
 	OTELC_FUNC("%p, %p, %p", appctx, err, msg);
 
-	if ((appctx == NULL) || ((err == NULL) && (msg == NULL)))
+	if (appctx == NULL) {
+		OTELC_SFREE(err);
+		OTELC_SFREE(msg);
+
 		OTELC_RETURN_INT(0);
+	}
+	else if ((err == NULL) && (msg == NULL)) {
+		OTELC_RETURN_INT(0);
+	}
 
 	if (err != NULL) {
 		OTELC_DBG(INFO, "err(%u): '%s'", appctx->st0, err);
