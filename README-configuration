@@ -1,7 +1,7 @@
                    -----------------------------------------
                     HAProxy OTel filter configuration guide
                                Version 2.1.2
-                        ( Last update: 2026-08-13 )
+                        ( Last update: 2026-08-15 )
                    -----------------------------------------
                          Author : Miroslav Zagorac
                    Contact : mzagorac at haproxy dot com
@@ -171,7 +171,10 @@ Keywords (mandatory):
   config <file> [context]
       Path to the YAML configuration file for the OpenTelemetry SDK and, as an
       optional second argument, the name of the signals context to select within
-      that file.  Without the argument, the 'default' context is served.
+      that file.  Without the argument, the 'default' context is served.  The
+      file is parsed and the context resolution is verified already when the
+      configuration is loaded: 'haproxy -c' rejects a broken file or a context
+      name that matches no signal section.
 
 Keywords (optional):
 

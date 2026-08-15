@@ -1,7 +1,7 @@
                    -----------------------------------------
                       The HAProxy OpenTelemetry filter (OTel)
                                  Version 2.1.2
-                          ( Last update: 2026-08-13 )
+                          ( Last update: 2026-08-15 )
                    -----------------------------------------
                            Author : Miroslav Zagorac
                      Contact : mzagorac at haproxy dot com
@@ -74,7 +74,7 @@ supports all HAProxy versions from 3.4 onward; the sources are available at
 https://github.com/haproxy/haproxy/ .
 
 To communicate with an OpenTelemetry compatible backend, the OTel filter uses
-version 3.2.0 of the OpenTelemetry C Wrapper library (which in turn uses the
+version 3.3.0 of the OpenTelemetry C Wrapper library (which in turn uses the
 OpenTelemetry C++ SDK version 1.26.0 or newer).  This means that we must have
 the library installed on the system on which we want to compile or use HAProxy.
 
@@ -157,7 +157,7 @@ After HAProxy is compiled, we can check if the OTel filter is enabled:
 
   % ./haproxy -vv | grep -i opentelemetry
   --- command output ----------
-  Built with OpenTelemetry support (filter version 2.1.2, C++ version 1.28.0, C Wrapper version 3.2.0-994).
+  Built with OpenTelemetry support (filter version 2.1.2, C++ version 1.28.0, C Wrapper version 3.3.0-995).
           [OTEL] opentelemetry
   --- command output ----------
 
@@ -187,7 +187,7 @@ C++ version as "none", which tells it apart from a real build:
 
   % ./haproxy -vv | grep -i opentelemetry
   --- command output ----------
-  Built with OpenTelemetry support (filter version 2.1.2, C++ version none, C Wrapper version 3.2.0-0).
+  Built with OpenTelemetry support (filter version 2.1.2, C++ version none, C Wrapper version 3.3.0-0).
           [OTEL] opentelemetry
   --- command output ----------
 
@@ -352,6 +352,9 @@ config <file> [context]
   within that file.  Without the argument, the wrapper serves the 'default'
   context.  The YAML file defines the complete telemetry pipeline including
   the exporters, samplers, processors, readers, providers and signal routing.
+  The file is parsed and the context resolution is verified already when the
+  configuration is loaded: 'haproxy -c' rejects a broken file or a context name
+  that matches no signal section.
 
   The YAML configuration file supports the following top-level sections:
 
@@ -1749,7 +1752,7 @@ the 'counters' block appear only in a debug build):
   --- command output ----------
    opentelemetry filter status
   ------------------------------------------------------------------------------
-     library:         C++ 1.28.0, C wrapper 3.2.0-994
+     library:         C++ 1.28.0, C wrapper 3.3.0-995
      debug level:     0x7f
      export pipeline:
        signal   queued  dropped  exported  failed  last export

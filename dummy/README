@@ -15,7 +15,7 @@ to the filter still builds, or working on the filter on a machine where the SDK
 is not available.  It is not a replacement library.  An executable built against
 it parses its configuration and runs, but produces no telemetry at all.
 
-The API reproduced here is that of wrapper version 3.2.0.
+The API reproduced here is that of wrapper version 3.3.0.
 
 
 2  Layout
@@ -92,7 +92,7 @@ An executable built this way identifies itself in the build options:
 
   % ./haproxy -vv | grep -i opentelemetry
   --- command output ----------
-  Built with OpenTelemetry support (filter version 2.1.2, C++ version none, C Wrapper version 3.2.0-0).
+  Built with OpenTelemetry support (filter version 2.1.2, C++ version none, C Wrapper version 3.3.0-0).
           [OTEL] opentelemetry
   --- command output ----------
 

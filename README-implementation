@@ -156,6 +156,13 @@ An optional trailing name on the filter line selects the [<name>] section of
 the file: flt_otel_parse_check_scope() compares it, or the filter id when it
 is absent, against HAProxy's cfg_scope while the file is parsed.
 
+Before flt_otel_parse_cfg() returns, the instrumentation's YAML configuration
+is validated by the wrapper's otelc_cfg_validate(), which parses the document
+and probes the context-name resolution per signal without creating a library
+context.  The library itself is initialized in the init callback that check
+mode never runs, so this validation is what makes 'haproxy -c' reject a broken
+YAML file.
+
 4.1  Instrumentation Section
 
   otel-instrumentation <name>

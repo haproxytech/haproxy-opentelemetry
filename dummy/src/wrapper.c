@@ -847,6 +847,15 @@ static const struct otelc_logger_ops otel_logger_ops = {
 };
 
 
+/* No configuration is read, so any configuration validates. */
+int otelc_cfg_validate(const char *cfgfile, const char *name, char **err)
+{
+	OTELC_FUNC("\"%s\", \"%s\", %p:%p", OTELC_STR_ARG(cfgfile), OTELC_STR_ARG(name), OTELC_DPTR_ARGS(err));
+
+	OTELC_RETURN_INT(OTELC_RET_OK);
+}
+
+
 /* Library context and signal handles. */
 struct otelc_ctx *otelc_init(const char *cfgfile, const char *name, char **err)
 {

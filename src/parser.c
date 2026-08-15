@@ -2739,6 +2739,26 @@ static int flt_otel_parse_cfg(struct flt_otel_conf *conf, const char *flt_name, 
 	if (!(retval & ERR_CODE) && (conf->sec_name != NULL) && (conf->instr == NULL))
 		FLT_OTEL_PARSE_ERR(err, "'%s' : no instrumentation found in section '%s'", conf->cfg_file, conf->sec_name);
 
+	/*
+	 * Validate the OpenTelemetry YAML configuration now: the library is
+	 * initialized from the init callback, which check mode never runs, so
+	 * without this a broken file would pass 'haproxy -c' and fail the
+	 * later startup instead.
+	 */
+	if (!(retval & ERR_CODE) && (conf->instr != NULL) && (conf->instr->config != NULL)) {
+		char *verr = NULL;
+
+		/*
+		 * The library allocates the message with its own allocator,
+		 * which in a debug build is not the one HAProxy releases
+		 * <*err> with, so the message is copied and freed here.
+		 */
+		if (otelc_cfg_validate(conf->instr->config, conf->instr->ctx_name, &verr) == OTELC_RET_ERROR)
+			FLT_OTEL_PARSE_ERR(err, "%s", (verr != NULL) ? verr : "invalid OpenTelemetry configuration");
+
+		OTELC_SFREE(verr);
+	}
+
 	flt_otel_current_config = NULL;
 
 	OTELC_RETURN_INT(retval);
