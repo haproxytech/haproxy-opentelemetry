@@ -50,8 +50,9 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
 
   flt_otel_ops_deinit
       Filter deinit callback (flt_ops.deinit).  Saves the context, tracer, meter
-      and logger handles, frees the configuration and the memory pools, then
-      destroys the saved handles via otelc_deinit().
+      and logger handles and force-flushes them within one shared budget, frees
+      the configuration and the memory pools, then destroys the saved handles
+      via otelc_deinit().
 
   flt_otel_ops_check
       Filter check callback (flt_ops.check).  Validates the parsed
@@ -281,7 +282,8 @@ Runtime context, span and context lifecycle management.
 
   flt_otel_scope_finish_marked
       Ends all spans and destroys all contexts that have been marked for
-      finishing by flt_otel_scope_finish_mark().
+      finishing by flt_otel_scope_finish_mark().  An entry whose span creation
+      failed carries no OTel span and is skipped.
 
   flt_otel_scope_free_unused
       Removes scope spans with NULL OTel span and scope contexts with NULL OTel

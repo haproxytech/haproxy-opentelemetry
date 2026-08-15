@@ -107,7 +107,9 @@ void flt_otel_runtime_context_free(struct filter *f)
 		list_for_each_entry_safe(span, span_back, &(rt_ctx->spans), list) {
 			FLT_OTEL_DBG_SCOPE_SPAN("finishing span ", span);
 
-			OTELC_OPSR(span->span, end_with_options, &ts_steady, OTELC_SPAN_STATUS_IGNORE, NULL);
+			/* A span whose creation failed is only an empty entry. */
+			if (span->span != NULL)
+				OTELC_OPSR(span->span, end_with_options, &ts_steady, OTELC_SPAN_STATUS_IGNORE, NULL);
 			flt_otel_scope_span_free(&span);
 		}
 	}
@@ -696,7 +698,9 @@ void flt_otel_scope_finish_marked(const struct flt_otel_runtime_context *rt_ctx,
 		if (span->flag_finish) {
 			FLT_OTEL_DBG_SCOPE_SPAN("finishing span ", span);
 
-			OTELC_OPSR(span->span, end_with_options, ts_finish, OTELC_SPAN_STATUS_IGNORE, NULL);
+			/* A span whose creation failed is only an empty entry. */
+			if (span->span != NULL)
+				OTELC_OPSR(span->span, end_with_options, ts_finish, OTELC_SPAN_STATUS_IGNORE, NULL);
 
 			span->flag_finish = 0;
 		}

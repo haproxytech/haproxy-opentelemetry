@@ -32,6 +32,7 @@
 
 #define FLT_OTEL_INSTR_FAIL_MAX   3 /* Instrument creation attempts before it is given up. */
 #define FLT_OTEL_FLUSH_CLI_S      5 /* Total seconds the CLI 'flush' command may block. */
+#define FLT_OTEL_FLUSH_DEINIT_S   1 /* Total seconds the shutdown flush may block. */
 
 #endif /* _OTEL_CONFIG_H_ */
 

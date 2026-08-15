@@ -608,7 +608,8 @@ and response fetches.
     - Otherwise, marks by exact name.
 
   flt_otel_scope_finish_marked() iterates all marked entries:
-    - Spans are ended via span->end_with_options() which NULLs the span pointer.
+    - Spans are ended via span->end_with_options() which NULLs the span pointer;
+      an entry whose span creation failed carries none and is skipped.
     - Contexts are destroyed via context->destroy() which NULLs the context
       pointer.
 
@@ -1046,14 +1047,19 @@ FLT_OTEL_ALERT.
 18.3  Context, Tracer, Meter and Logger Shutdown
 
 At proxy deinit (flt_otel_ops_deinit, filter.c), the context, tracer,
-meter and logger handles are first saved into local variables, then the
-configuration tree is freed, and only afterwards are the handles
-destroyed:
+meter and logger handles are first saved into local variables and
+force-flushed, then the configuration tree is freed, and only afterwards
+are the handles destroyed:
 
   otel_ctx    = (*conf)->instr->ctx;
   otel_tracer = (*conf)->instr->tracer;
   otel_meter  = (*conf)->instr->meter;
   otel_logger = (*conf)->instr->logger;
+
+  /* tracer, meter and logger: force_flush sharing one deadline. */
+  if ((otel_tracer != NULL) && (flt_otel_flush_budget(&ts_deadline, &timeout) == 1))
+      (void)OTELC_OPS(otel_tracer, force_flush, &timeout);
+  ...
 
   flt_otel_conf_free(conf);
   flt_otel_pool_destroy();
@@ -1065,6 +1071,12 @@ its teardown never invokes the ext free callback, which serves only otelc_span
 and otelc_span_context objects released at runtime.  The otelc_deinit() call
 then flushes any pending spans, metric data and log records to the configured
 exporters and releases the SDK resources.
+
+The early flush bounds the shutdown time: each handle destruction inside
+otelc_deinit() runs a blocking flush of its own, so with the buffers already
+drained under the shared FLT_OTEL_FLUSH_DEINIT_S budget, an exporter that
+cannot be reached delays the stop by that budget instead of by the sum of the
+destruction timeouts.
 
 18.4  Span Lifecycle
 
@@ -1124,6 +1136,12 @@ span name, parent references and pool entry exist before the OTel
 resource is allocated.  Subsequent scope executions that reference the
 same span name find the existing entry (via memoization) and add their
 data to the already-created OTel span.
+
+A creation that fails -- the traces signal missing from the configuration,
+which is reported through the runtime log, or start_span_with_options()
+returning NULL -- leaves the listed entry without an OTel span; completion
+skips such an entry, and flt_otel_scope_free_unused() then removes it like
+an ended one.
 
 18.4.3  Span Data Population
 
@@ -1189,18 +1207,20 @@ serialized for downstream propagation (event.c).
 Spans are ended through the marking mechanism described in chapter 7.5.
 The actual end call in flt_otel_scope_finish_marked() (scope.c) is:
 
-  OTELC_OPSR(span->span, end_with_options,
-             ts_finish, OTELC_SPAN_STATUS_IGNORE, NULL);
+  if (span->span != NULL)
+      OTELC_OPSR(span->span, end_with_options,
+                 ts_finish, OTELC_SPAN_STATUS_IGNORE, NULL);
 
-The arguments are the monotonic timestamp, a status hint (IGNORE means
-"do not override the status already set on the span"), and NULL for
-error string.  After end_with_options returns, the OTELC_OPSR macro
-NULLs the span pointer, making the entry eligible for removal by
-flt_otel_scope_free_unused().
+The guard skips an entry whose OTel span creation failed, which carries
+only the identity.  The arguments are the monotonic timestamp, a status
+hint (IGNORE means "do not override the status already set on the
+span"), and NULL for error string.  After end_with_options returns, the
+OTELC_OPSR macro NULLs the span pointer, making the entry eligible for
+removal by flt_otel_scope_free_unused().
 
 On stream detach, flt_otel_runtime_context_free() (scope.c)
 force-ends any remaining active spans with the current monotonic
-timestamp and frees all pool entries.
+timestamp, under the same NULL-span guard, and frees all pool entries.
 
 18.5  Metric Instruments
 

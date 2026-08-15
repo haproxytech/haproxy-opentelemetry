@@ -535,6 +535,7 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 	struct otelc_tracer   *otel_tracer = NULL;
 	struct otelc_meter    *otel_meter = NULL;
 	struct otelc_logger   *otel_logger = NULL;
+	struct timespec        ts_deadline, timeout;
 #ifdef DEBUG_OTEL
 	char                   buffer[BUFSIZ];
 	int                    i;
@@ -572,6 +573,22 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 		otel_meter  = (*conf)->instr->meter;
 		otel_logger = (*conf)->instr->logger;
 	}
+
+	/*
+	 * Each handle is destroyed with a blocking flush of its own, so they
+	 * are flushed here first, sharing one budget.  An exporter that cannot
+	 * be reached then delays the shutdown by that budget instead of by the
+	 * sum of the timeouts the destruction would use.
+	 */
+	(void)clock_gettime(CLOCK_MONOTONIC, &ts_deadline);
+	ts_deadline.tv_sec += FLT_OTEL_FLUSH_DEINIT_S;
+
+	if ((otel_tracer != NULL) && (flt_otel_flush_budget(&ts_deadline, &timeout) == 1))
+		(void)OTELC_OPS(otel_tracer, force_flush, &timeout);
+	if ((otel_meter != NULL) && (flt_otel_flush_budget(&ts_deadline, &timeout) == 1))
+		(void)OTELC_OPS(otel_meter, force_flush, &timeout);
+	if ((otel_logger != NULL) && (flt_otel_flush_budget(&ts_deadline, &timeout) == 1))
+		(void)OTELC_OPS(otel_logger, force_flush, &timeout);
 
 	flt_otel_conf_free(conf);
 	OTELC_MEMINFO();
