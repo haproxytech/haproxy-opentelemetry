@@ -1,7 +1,7 @@
                    -----------------------------------------
                       The HAProxy OpenTelemetry filter (OTel)
                                  Version 2.1.2
-                          ( Last update: 2026-08-15 )
+                          ( Last update: 2026-08-16 )
                    -----------------------------------------
                            Author : Miroslav Zagorac
                      Contact : mzagorac at haproxy dot com
@@ -1826,8 +1826,11 @@ non-printable bytes reach the log escaped in the '#XX' form and its length is
 bounded.
 
 'flt-otel flush' forces every filter instance to export its buffered telemetry
-at once, calling force_flush on the active tracer, meter and logger, each one
-bounded by a five-second timeout.  It requires admin access.
+at once, calling force_flush on the active tracer, meter and logger.  All of
+these calls share a single five-second budget, so an exporter that does not
+respond cannot stall the command for the sum of per-call timeouts; a call that
+finds the budget spent is skipped, and its data stays buffered for the regular
+periodic export.  It requires admin access.
 
 'flt-otel reset-errors' clears the 'runtime err' counters and the runtime-log
 rate-limiter state for every filter instance, so a fresh fault is reported again
@@ -1837,9 +1840,10 @@ is retained.  It requires admin access.
 'flt-otel instruments' lists the metric instruments declared in each scope.  A
 create-form instrument is shown with its type, unit and creation state -- 'not
 created' before first use, 'created (idx N)' once the meter has built it (which
-happens lazily, on the first record), or 'pending' while another thread builds
-it.  An update-form instrument has no unit or creation state of its own, so
-only its name and 'update' type are shown:
+happens lazily, on the first record), 'pending' while another thread builds it,
+or 'failed' when the creation kept failing and was given up.  An update-form
+instrument has no unit or creation state of its own, so only its name and the
+'update' type are shown:
 
   % echo "flt-otel instruments" | socat - UNIX-CONNECT:/tmp/haproxy.sock
   --- command output ----------

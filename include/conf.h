@@ -234,6 +234,7 @@ struct flt_otel_conf_exception {
 struct flt_otel_conf_instrument {
 	FLT_OTEL_CONF_HDR(id);                          /* The name of the instrument. */
 	int64_t                            idx;         /* Meter instrument index (-1 if not yet created). */
+	uint                               fail_num;    /* Number of failed creation attempts. */
 	otelc_metric_instrument_t          type;        /* Instrument type (or UPDATE). */
 	otelc_metric_aggregation_type_t    aggr_type;   /* Aggregation type for the view (create only). */
 	char                              *description; /* Instrument description (create only). */

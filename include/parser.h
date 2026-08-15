@@ -119,6 +119,9 @@
 /* Sentinel: instrument creation is in progress by another thread. */
 #define OTELC_METRIC_INSTRUMENT_PENDING       -2
 
+/* Sentinel: instrument creation failed too often and is no longer retried. */
+#define OTELC_METRIC_INSTRUMENT_FAILED        -3
+
 /* Sentinel: update-form instrument (re-evaluates an existing one). */
 #define OTELC_METRIC_INSTRUMENT_UPDATE        0xff
 

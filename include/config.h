@@ -30,6 +30,9 @@
 #define FLT_OTEL_ATTR_INIT_SIZE   8 /* Initial attribute array capacity. */
 #define FLT_OTEL_ATTR_INC_SIZE    4 /* Attribute array growth increment. */
 
+#define FLT_OTEL_INSTR_FAIL_MAX   3 /* Instrument creation attempts before it is given up. */
+#define FLT_OTEL_FLUSH_CLI_S      5 /* Total seconds the CLI 'flush' command may block. */
+
 #endif /* _OTEL_CONFIG_H_ */
 
 /*

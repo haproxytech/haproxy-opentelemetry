@@ -205,18 +205,20 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
  *   The instrument index is claimed with HA_ATOMIC_CAS so that only one
  *   thread performs the creation: the winning thread registers the
  *   bucket-bounds view (if any) and the instrument via <meter>, then stores
- *   the resulting index, or OTELC_METRIC_INSTRUMENT_UNSET on failure; a
- *   losing thread returns immediately and its caller waits out the PENDING
- *   index.  A view or instrument whose creation fails is reported through
- *   the rate-limited runtime log.
+ *   the resulting index; a losing thread returns immediately and its caller
+ *   waits out the PENDING index.  A failure stores UNSET so that a transient
+ *   one is retried, but only up to FLT_OTEL_INSTR_FAIL_MAX attempts, after
+ *   which the index becomes OTELC_METRIC_INSTRUMENT_FAILED and the
+ *   instrument is given up.  A view or instrument whose creation fails is
+ *   reported through the rate-limited runtime log.
  *
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
  */
 static int flt_otel_scope_instrument_create(struct flt_otel_conf *conf, struct otelc_meter *meter, struct flt_otel_conf_instrument *conf_instr)
 {
-	int64_t expected = OTELC_METRIC_INSTRUMENT_UNSET;
-	int     rc, retval = FLT_OTEL_RET_OK;
+	int64_t expected = OTELC_METRIC_INSTRUMENT_UNSET, rc;
+	int     retval = FLT_OTEL_RET_OK;
 
 	OTELC_FUNC("%p, %p, %p", conf, meter, conf_instr);
 
@@ -236,14 +238,26 @@ static int flt_otel_scope_instrument_create(struct flt_otel_conf *conf, struct o
 			FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, "failed to add view for instrument '%s'", conf_instr->id);
 
 	rc = OTELC_OPS(meter, create_instrument, conf_instr->id, conf_instr->description, conf_instr->unit, conf_instr->type, NULL);
-	if (rc == OTELC_RET_ERROR) {
+	if (rc != OTELC_RET_ERROR) {
+		HA_ATOMIC_STORE(&(conf_instr->idx), rc);
+	}
+	else if (HA_ATOMIC_ADD_FETCH(&(conf_instr->fail_num), 1) < FLT_OTEL_INSTR_FAIL_MAX) {
 		FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, "failed to create instrument '%s'", conf_instr->id);
 
 		HA_ATOMIC_STORE(&(conf_instr->idx), OTELC_METRIC_INSTRUMENT_UNSET);
 
 		retval = FLT_OTEL_RET_ERROR;
-	} else {
-		HA_ATOMIC_STORE(&(conf_instr->idx), rc);
+	}
+	else {
+		/*
+		 * A definition the SDK keeps rejecting must not be retried by
+		 * every stream: each attempt takes a process-wide lock.
+		 */
+		FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, "failed to create instrument '%s', no longer retried", conf_instr->id);
+
+		HA_ATOMIC_STORE(&(conf_instr->idx), OTELC_METRIC_INSTRUMENT_FAILED);
+
+		retval = FLT_OTEL_RET_ERROR;
 	}
 
 	OTELC_RETURN_INT(retval);

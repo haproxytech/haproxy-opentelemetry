@@ -323,15 +323,19 @@ performs the creation:
       HA_ATOMIC_STORE(&instr->idx, idx);
   }
 
-The three states are:
+The states are:
   UNSET   (-1)  Not yet created.  The CAS target.
   PENDING (-2)  Creation in progress by another thread.
+  FAILED  (-3)  Creation failed too often; the instrument is given up.
   >= 0          Valid meter index.  Ready for recording.
 
-Threads that lose the CAS skip creation.  Update-form instruments check the
-referenced create-form's idx before recording: an idx that is still PENDING is
-waited for until the creating thread resolves it, then recorded; an idx of UNSET
-(never created, or a creation that failed) is skipped.
+Threads that lose the CAS skip creation.  A failure stores UNSET again, so a
+transient fault is retried by a later scope execution, though not more than
+FLT_OTEL_INSTR_FAIL_MAX times; the idx then becomes FAILED and the creation is
+never tried again, as every attempt takes a process-wide lock.  Update-form
+instruments check the referenced create-form's idx before recording: an idx
+that is still PENDING is waited for until the creating thread resolves it, then
+recorded; a negative idx (never created, failed, or given up) is skipped.
 
 4.3  Per-Thread Initialization Guard
 
@@ -835,9 +839,13 @@ the column-oriented table builder (util.c).  The report contains:
 The "flt-otel flush" command iterates every configured filter instance with
 the FLT_OTEL_PROXIES_LIST_START / FLT_OTEL_PROXIES_LIST_END macros and, rather
 than changing state, forces output: it calls force_flush on each instance's
-tracer, meter and logger handles, each bounded by a five-second timeout, and
-skips any handle that is not yet initialized.  The "@<filter>" target token
-limits the flush to the one matching instance.
+tracer, meter and logger handles, and skips any handle not yet initialized.
+As force_flush blocks the calling thread, all of these calls share the single
+FLT_OTEL_FLUSH_CLI_S budget that flt_otel_flush_budget() (util.c) measures;
+a call that finds it spent is skipped, because the SDK reads a non-positive
+timeout as no timeout at all.  An exporter that cannot be reached therefore
+stalls the command for the budget, not for the sum of the per-call timeouts.
+The "@<filter>" target token limits the flush to the one matching instance.
 
 The "flt-otel instruments" command reports, for every filter instance, the
 instruments declared in each scope.  A create-form instrument is shown with

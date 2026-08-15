@@ -189,10 +189,10 @@ Event dispatching, metrics recording and scope/span execution engine.
       flt_otel_scope_run_instrument_record().  An instrument another thread is
       creating right now (PENDING index) is waited for until that creation
       completes rather than skipped, so a concurrent first use does not lose its
-      measurement; one not created at all (UNSET index) is skipped.  A
-      measurement is recorded only when the create-form and update-form
-      if/unless conditions pass; instrument creation produces no data point and
-      is never gated.
+      measurement; one not created at all (UNSET index) or given up after too
+      many failed creation attempts (FAILED index) is skipped.  A measurement is
+      recorded only when the create-form and update-form if/unless conditions
+      pass; instrument creation produces no data point and is never gated.
 
   flt_otel_scope_run_log_record
       Emits log records for a scope.  Iterates over the configured log-record
@@ -678,7 +678,8 @@ HAProxy CLI command handlers for runtime filter management.
 
   flt_otel_cli_parse_flush
       CLI handler for "flt-otel flush".  Force-exports the buffered telemetry
-      for all OTel filter instances, or for the targeted one only.
+      for all OTel filter instances, or for the targeted one only, with all the
+      force_flush calls sharing one time budget.
 
   flt_otel_cli_parse_instruments
       CLI handler for "flt-otel instruments".  Initializes the CLI dump
@@ -930,6 +931,11 @@ Utility and conversion functions.
   flt_otel_args_concat
       Concatenates arguments starting from a given index into a single
       space-separated string.
+
+  flt_otel_flush_budget
+      Fills a timeout with the time left until a telemetry flush deadline and
+      reports whether any budget remains; a spent budget must skip the flush,
+      as the SDK reads a non-positive timeout as no timeout at all.
 
   flt_otel_str_escape
       Escapes the non-printable characters of a string into a bounded buffer,

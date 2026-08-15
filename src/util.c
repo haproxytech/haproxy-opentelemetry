@@ -349,6 +349,48 @@ int flt_otel_args_concat(const char **args, int idx, int n, char **str)
 
 /***
  * NAME
+ *   flt_otel_flush_budget - remaining time of a telemetry flush budget
+ *
+ * SYNOPSIS
+ *   int flt_otel_flush_budget(const struct timespec *deadline, struct timespec *timeout)
+ *
+ * ARGUMENTS
+ *   deadline - the monotonic time at which the budget ends
+ *   timeout  - the timeout to fill with the time left until <deadline>
+ *
+ * DESCRIPTION
+ *   Sets <timeout> to the time remaining until <deadline>.  The flush that
+ *   follows must be skipped once that moment has passed, because the SDK
+ *   reads a non-positive timeout as no timeout at all and would then wait
+ *   without limit.  This keeps a series of flushes within one budget however
+ *   many signals and filter instances it visits.
+ *
+ * RETURN VALUE
+ *   Returns 1 if time is left in the budget, 0 if it is spent.
+ */
+int flt_otel_flush_budget(const struct timespec *deadline, struct timespec *timeout)
+{
+	struct timespec ts_now;
+
+	(void)clock_gettime(CLOCK_MONOTONIC, &ts_now);
+
+	timeout->tv_sec  = deadline->tv_sec - ts_now.tv_sec;
+	timeout->tv_nsec = deadline->tv_nsec - ts_now.tv_nsec;
+
+	if (timeout->tv_nsec < 0) {
+		timeout->tv_sec--;
+		timeout->tv_nsec += 1000000000L;
+	}
+
+	if (timeout->tv_sec < 0)
+		return 0;
+
+	return ((timeout->tv_sec > 0) || (timeout->tv_nsec > 0)) ? 1 : 0;
+}
+
+
+/***
+ * NAME
  *   flt_otel_str_escape - escapes the non-printable characters of a string
  *
  * SYNOPSIS

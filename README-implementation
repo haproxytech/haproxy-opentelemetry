@@ -512,7 +512,8 @@ and response fetches.
        runs two passes: the first lazily creates create-form instruments using
        HA_ATOMIC_CAS for thread-safe one-time initialization; the second records
        measurements for update-form instruments, waiting for any still being
-       created (PENDING) and skipping any never created (UNSET).
+       created (PENDING) and skipping any never created (UNSET) or given up
+       after repeated creation failures (FAILED).
     7. Emits log records via flt_otel_scope_run_log_record(), which iterates
        the scope's log-record list, skips entries below the logger's severity
        threshold, evaluates sample expressions into a body string, resolves
@@ -1266,7 +1267,11 @@ The flt_otel_conf_instrument structure (conf.h) holds:
   idx          Meter instrument index.  Initially set to
                OTELC_METRIC_INSTRUMENT_UNSET (-1).  Transitions to
                OTELC_METRIC_INSTRUMENT_PENDING (-2) during creation,
-               then to the positive meter index on success.
+               then to the positive meter index on success, or to
+               OTELC_METRIC_INSTRUMENT_FAILED (-3) once the creation
+               failed FLT_OTEL_INSTR_FAIL_MAX times and is given up.
+  fail_num     Number of failed creation attempts, counted up to
+               FLT_OTEL_INSTR_FAIL_MAX.
   type         The otelc_metric_instrument_t type constant, or
                OTELC_METRIC_INSTRUMENT_UPDATE (0xff) for update-form.
   aggr_type    The otelc_metric_aggregation_type_t constant.
@@ -1306,7 +1311,10 @@ passes during scope execution.
     b. Instrument creation: meter->create_instrument() is called with
        the instrument name, description, unit, type and callback data.
        On success, the returned index is stored atomically; on failure,
-       the idx is reset to UNSET.  If the instrument carries histogram
+       the idx is reset to UNSET so a transient fault is retried, but
+       only up to FLT_OTEL_INSTR_FAIL_MAX attempts, after which the idx
+       becomes FAILED and the creation is no longer tried (each attempt
+       takes a process-wide lock).  If the instrument carries histogram
        bucket boundaries, meter->add_view() is called before instrument
        creation to register a view with the configured aggregation
        strategy and those bounds; with bounds present and no explicit
@@ -1320,10 +1328,12 @@ passes during scope execution.
     a. Reference validation: the ref pointer must be non-NULL (resolved
        at check time to the create-form instrument).
 
-    b. Index check: if the create-form instrument's idx is PENDING, the
-       thread waits with ha_thread_relax() until the creating thread
-       resolves it; an idx that is (or becomes) UNSET means creation
-       never happened or failed, and the measurement is skipped.
+    b. Index check: an idx that is still UNSET (the create-form's scope
+       has not executed) is created now from the referenced definition,
+       so the measurement is not lost; if it is PENDING, the thread
+       waits with ha_thread_relax() until the creating thread resolves
+       it.  An idx that stays negative (UNSET or FAILED) means the
+       creation failed or was given up, and the measurement is skipped.
 
     c. Recording: flt_otel_scope_run_instrument_record() evaluates the
        sample expression, converts it to an otelc_value, and calls
@@ -1360,7 +1370,8 @@ fails.
 
   First scope execution (any thread):
     idx transitions:  UNSET -> PENDING -> meter_index  (success)
-                      UNSET -> PENDING -> UNSET       (failure)
+                      UNSET -> PENDING -> UNSET        (failure, retried)
+                      UNSET -> PENDING -> FAILED       (retries exhausted)
 
   Subsequent scope executions:
     Create-form: skipped (idx is already a valid meter index).

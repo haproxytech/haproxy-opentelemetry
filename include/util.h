@@ -107,6 +107,9 @@ int         flt_otel_args_count(const char **args);
 /* Concatenate argument array elements into a single string. */
 int         flt_otel_args_concat(const char **args, int idx, int n, char **str);
 
+/* Compute the time left until a telemetry flush deadline. */
+int         flt_otel_flush_budget(const struct timespec *deadline, struct timespec *timeout);
+
 /* Escape the non-printable characters of a string for logging. */
 const char *flt_otel_str_escape(char *dst, size_t size, const char *src);
 

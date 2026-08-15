@@ -1135,10 +1135,11 @@ static int flt_otel_cli_io_status(struct appctx *appctx)
  *   An optional "@<filter>" token at args[2] restricts the operation to the
  *   named filter; otherwise every OTel filter instance across all proxies is
  *   visited.  For each visited instance, forces the export of buffered
- *   telemetry by calling force_flush on the active tracer, meter and logger,
- *   each bounded by a five-second timeout.  Handles that are not yet
- *   initialized are skipped.  A target that matches no filter produces a
- *   "no such filter" error.
+ *   telemetry by calling force_flush on the active tracer, meter and logger.
+ *   As force_flush blocks the calling thread, all of these calls share a
+ *   single FLT_OTEL_FLUSH_CLI_S budget, after which they return at once.
+ *   Handles that are not yet initialized are skipped.  A target that matches
+ *   no filter produces a "no such filter" error.
  *
  * RETURN VALUE
  *   Returns 1, or 0 if no OTel filter instances are configured (and no target
@@ -1146,7 +1147,7 @@ static int flt_otel_cli_io_status(struct appctx *appctx)
  */
 static int flt_otel_cli_parse_flush(char **args, char *payload, struct appctx *appctx, void *private)
 {
-	const struct timespec  timeout = { .tv_sec = 5, .tv_nsec = 0 };
+	struct timespec        ts_deadline, timeout;
 	const char            *id = NULL;
 	char                  *err = NULL, *msg = NULL;
 	int                    n = 0;
@@ -1161,12 +1162,19 @@ static int flt_otel_cli_parse_flush(char **args, char *payload, struct appctx *a
 	if (flt_otel_cli_args_target(args, &id, NULL, &err) < 0)
 		OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, err, msg));
 
+	/*
+	 * force_flush() blocks the calling thread, so all the signals of all
+	 * the visited filters share one budget instead of spending it each.
+	 */
+	(void)clock_gettime(CLOCK_MONOTONIC, &ts_deadline);
+	ts_deadline.tv_sec += FLT_OTEL_FLUSH_CLI_S;
+
 	FLT_OTEL_PROXIES_LIST_START(id) {
-		if (conf->instr->tracer != NULL)
+		if ((conf->instr->tracer != NULL) && (flt_otel_flush_budget(&ts_deadline, &timeout) == 1))
 			(void)OTELC_OPS(conf->instr->tracer, force_flush, &timeout);
-		if (conf->instr->meter != NULL)
+		if ((conf->instr->meter != NULL) && (flt_otel_flush_budget(&ts_deadline, &timeout) == 1))
 			(void)OTELC_OPS(conf->instr->meter, force_flush, &timeout);
-		if (conf->instr->logger != NULL)
+		if ((conf->instr->logger != NULL) && (flt_otel_flush_budget(&ts_deadline, &timeout) == 1))
 			(void)OTELC_OPS(conf->instr->logger, force_flush, &timeout);
 
 		(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : flushed proxy %s, filter %s", FLT_OTEL_CLI_MSG_CAT(msg), px->id, conf->id);
@@ -1322,6 +1330,8 @@ static int flt_otel_cli_io_instruments(struct appctx *appctx)
 					(void)chunk_appendf(&trash, "not created\n");
 				else if (idx == OTELC_METRIC_INSTRUMENT_PENDING)
 					(void)chunk_appendf(&trash, "pending\n");
+				else if (idx == OTELC_METRIC_INSTRUMENT_FAILED)
+					(void)chunk_appendf(&trash, "failed\n");
 				else
 					(void)chunk_appendf(&trash, "created (idx %" PRId64 ")\n", idx);
 			}

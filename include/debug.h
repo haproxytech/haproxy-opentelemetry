@@ -35,9 +35,11 @@
  */
 #define FLT_OTEL_LOG(l,f, ...)                                                                                                   \
 	do {                                                                                                                     \
-		if (!(conf->instr->log.type & FLT_OTEL_LOGGING_ON))                                                              \
+		uint8_t log_type = _HA_ATOMIC_LOAD(&(conf->instr->log.type));                                                    \
+		                                                                                                                 \
+		if (!(log_type & FLT_OTEL_LOGGING_ON))                                                                           \
 			OTELC_DBG(DEBUG, "NOLOG[%d]: [" FLT_OTEL_SCOPE "]: [%s] " f, (l), conf->id, ##__VA_ARGS__);              \
-		else if ((conf->instr->log.type & FLT_OTEL_LOGGING_NOLOGNORM) && ((l) > LOG_ERR))                                \
+		else if ((log_type & FLT_OTEL_LOGGING_NOLOGNORM) && ((l) > LOG_ERR))                                             \
 			OTELC_DBG(DEBUG, "NOLOG[%d]: [" FLT_OTEL_SCOPE "]: [%s] " f, (l), conf->id, ##__VA_ARGS__);              \
 		else {                                                                                                           \
 			send_log(&(conf->instr->log.proxy), (l), "[" FLT_OTEL_SCOPE "]: [%s] " f "\n", conf->id, ##__VA_ARGS__); \
