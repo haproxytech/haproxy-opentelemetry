@@ -13,6 +13,11 @@
 	FLT_OTEL_HTTP_METH_DEF(TRACE)   \
 	FLT_OTEL_HTTP_METH_DEF(CONNECT)
 
+/* Format the error for sample data that does not fit the output buffer. */
+#define FLT_OTEL_ERR_SMP_SIZE()    FLT_OTEL_ERR("sample data too large for buffer")
+/* Format the error for a sample data type that cannot be converted. */
+#define FLT_OTEL_ERR_SMP_TYPE(t)   FLT_OTEL_ERR("invalid sample data type %d", (t))
+
 /* Iterate over the global list of visible proxies. */
 #ifdef USE_OTEL_MAIN_PROXIES
 #  define FLT_OTEL_PROXIES_LIST_FOREACH(px)   list_for_each_entry((px), &main_proxies, el)

@@ -228,7 +228,7 @@ static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
 	instr->ctx = otelc_init(path_ptr, instr->ctx_name, err);
 	if (instr->ctx == NULL) {
 		if (*err == NULL)
-			FLT_OTEL_ERR("%s", "failed to initialize tracing library");
+			FLT_OTEL_ERR("failed to initialize tracing library");
 
 		OTELC_RETURN_INT(retval);
 	}
@@ -266,7 +266,7 @@ static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
 		instr->tracer = otelc_tracer_create(instr->ctx, err);
 		if (instr->tracer == NULL) {
 			if (*err == NULL)
-				FLT_OTEL_ERR("%s", "failed to initialize OpenTelemetry tracer");
+				FLT_OTEL_ERR("failed to initialize OpenTelemetry tracer");
 
 			OTELC_RETURN_INT(retval);
 		}
@@ -276,7 +276,7 @@ static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
 		instr->meter = otelc_meter_create(instr->ctx, err);
 		if (instr->meter == NULL) {
 			if (*err == NULL)
-				FLT_OTEL_ERR("%s", "failed to initialize OpenTelemetry meter");
+				FLT_OTEL_ERR("failed to initialize OpenTelemetry meter");
 
 			OTELC_RETURN_INT(retval);
 		}
@@ -286,7 +286,7 @@ static int flt_otel_lib_init(struct flt_otel_conf_instr *instr, char **err)
 		instr->logger = otelc_logger_create(instr->ctx, err);
 		if (instr->logger == NULL) {
 			if (*err == NULL)
-				FLT_OTEL_ERR("%s", "failed to initialize OpenTelemetry logger");
+				FLT_OTEL_ERR("failed to initialize OpenTelemetry logger");
 
 			OTELC_RETURN_INT(retval);
 		}
@@ -647,7 +647,7 @@ static int flt_otel_check_cond_loc(const struct flt_otel_conf *conf, const struc
 #endif
 
 	if (err != NULL)
-		FLT_OTEL_WARNING("''%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' %s condition at %s on proxy '%s': %s'", conf->id, conf_scope->id, kind, trigger, p->id, err);
+		FLT_OTEL_WARNING("'%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' %s condition at %s on proxy '%s': %s", conf->id, conf_scope->id, kind, trigger, p->id, err);
 
 	ha_free(&err);
 
@@ -718,7 +718,7 @@ static int flt_otel_check_sample_list(const struct flt_otel_conf *conf, const st
 			else if ((conf_expr->expr->fetch->val & where) != 0)
 				continue;
 
-			FLT_OTEL_WARNING("''%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' %s fetch '%s' extracts from '%s', not usable at %s on proxy '%s''", conf->id, conf_scope->id, kind, conf_expr->expr->fetch->kw, sample_src_names(conf_expr->expr->fetch->use), trigger, p->id);
+			FLT_OTEL_WARNING("'%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' %s fetch '%s' extracts from '%s', not usable at %s on proxy '%s'", conf->id, conf_scope->id, kind, conf_expr->expr->fetch->kw, sample_src_names(conf_expr->expr->fetch->use), trigger, p->id);
 
 			retval |= ERR_WARN;
 		}
@@ -771,38 +771,38 @@ int flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt_
 	if (where == 0)
 		OTELC_RETURN_INT(retval);
 
-	retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_scope->cond, "otel-event", trigger);
-	retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_scope->stop_cond, "otel-stop", trigger);
+	retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_scope->cond, FLT_OTEL_PARSE_KW_ON_EVENT, trigger);
+	retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_scope->stop_cond, FLT_OTEL_PARSE_KW_STOP, trigger);
 
 	list_for_each_entry(conf_span, &(conf_scope->spans), list) {
-		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->attributes), "attribute", trigger);
-		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->events), "event", trigger);
-		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->baggages), "baggage", trigger);
-		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->statuses), "status", trigger);
+		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->attributes), FLT_OTEL_PARSE_KW_ATTRIBUTE, trigger);
+		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->events), FLT_OTEL_PARSE_KW_EVENT, trigger);
+		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->baggages), FLT_OTEL_PARSE_KW_BAGGAGE, trigger);
+		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->statuses), FLT_OTEL_PARSE_KW_STATUS, trigger);
 		list_for_each_entry(conf_link, &(conf_span->links), list)
-			retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_link->attributes), "link attribute", trigger);
+			retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_link->attributes), FLT_OTEL_PARSE_KW_LINK " attribute", trigger);
 		list_for_each_entry(conf_exception, &(conf_span->exceptions), list) {
-			retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_exception->message), "exception message", trigger);
-			retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_exception->attributes), "exception attribute", trigger);
-			retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_exception->cond, "exception", trigger);
+			retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_exception->message), FLT_OTEL_PARSE_KW_EXCEPTION " message", trigger);
+			retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_exception->attributes), FLT_OTEL_PARSE_KW_EXCEPTION " attribute", trigger);
+			retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_exception->cond, FLT_OTEL_PARSE_KW_EXCEPTION, trigger);
 		}
 	}
 	list_for_each_entry(conf_instrument, &(conf_scope->instruments), list) {
-		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_instrument->samples), "instrument value", trigger);
-		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_instrument->attributes), "instrument attribute", trigger);
-		retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_instrument->cond, "instrument", trigger);
+		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_instrument->samples), FLT_OTEL_PARSE_KW_INSTRUMENT " value", trigger);
+		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_instrument->attributes), FLT_OTEL_PARSE_KW_INSTRUMENT " attribute", trigger);
+		retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_instrument->cond, FLT_OTEL_PARSE_KW_INSTRUMENT, trigger);
 	}
 	list_for_each_entry(conf_log_record, &(conf_scope->log_records), list) {
-		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_log_record->time), "log-record time", trigger);
-		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_log_record->attributes), "log-record attribute", trigger);
-		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_log_record->samples), "log-record body", trigger);
-		retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_log_record->cond, "log-record", trigger);
+		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_log_record->time), FLT_OTEL_PARSE_KW_LOG_RECORD " time", trigger);
+		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_log_record->attributes), FLT_OTEL_PARSE_KW_LOG_RECORD " attribute", trigger);
+		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_log_record->samples), FLT_OTEL_PARSE_KW_LOG_RECORD " body", trigger);
+		retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_log_record->cond, FLT_OTEL_PARSE_KW_LOG_RECORD, trigger);
 	}
-	retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_scope->set_vars), "set-var", trigger);
+	retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_scope->set_vars), FLT_OTEL_PARSE_KW_SET_VAR, trigger);
 	list_for_each_entry(conf_set_var_ctx, &(conf_scope->set_var_ctxs), list)
-		retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_set_var_ctx->cond, "set-var-ctx", trigger);
+		retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_set_var_ctx->cond, FLT_OTEL_PARSE_KW_SET_VAR_CTX, trigger);
 	list_for_each_entry(conf_unset_var, &(conf_scope->unset_vars), list)
-		retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_unset_var->cond, "unset-var", trigger);
+		retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_unset_var->cond, FLT_OTEL_PARSE_KW_UNSET_VAR, trigger);
 
 	OTELC_RETURN_INT(retval);
 }
@@ -893,7 +893,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 				OTELC_DBG(DEBUG, "  check OTEL filter '%s'", conf_tmp->id);
 
 				if (strcmp(conf_tmp->id, conf->id) == 0) {
-					FLT_OTEL_ALERT("''%s' : duplicated filter ID'", conf_tmp->id);
+					FLT_OTEL_ALERT("'%s' : duplicated filter ID", conf_tmp->id);
 
 					retval++;
 				}
@@ -901,13 +901,13 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	}
 
 	if (FLT_OTEL_DEREF(conf->instr, id, NULL) == NULL) {
-		FLT_OTEL_ALERT("''%s' : no instrumentation found'", conf->id);
+		FLT_OTEL_ALERT("'%s' : no instrumentation found", conf->id);
 
 		retval++;
 	}
 
 	if ((conf->instr != NULL) && (conf->instr->config == NULL)) {
-		FLT_OTEL_ALERT("''%s' : no configuration file specified'", conf->instr->id);
+		FLT_OTEL_ALERT("'%s' : no configuration file specified", conf->instr->id);
 
 		retval++;
 	}
@@ -920,7 +920,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 
 		list_for_each_entry(conf_group_tmp, &(conf->groups), list) {
 			if ((conf_group_tmp != conf_group) && (strcmp(conf_group_tmp->id, conf_group->id) == 0)) {
-				FLT_OTEL_ALERT("''%s' : duplicated " FLT_OTEL_PARSE_SECTION_GROUP_ID " '%s''", conf->id, conf_group->id);
+				FLT_OTEL_ALERT("'%s' : duplicated " FLT_OTEL_PARSE_SECTION_GROUP_ID " '%s'", conf->id, conf_group->id);
 
 				retval++;
 
@@ -937,7 +937,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 
 		list_for_each_entry(conf_scope_tmp, &(conf->scopes), list) {
 			if ((conf_scope_tmp != conf_scope) && (strcmp(conf_scope_tmp->id, conf_scope->id) == 0)) {
-				FLT_OTEL_ALERT("''%s' : duplicated " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s''", conf->id, conf_scope->id);
+				FLT_OTEL_ALERT("'%s' : duplicated " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s'", conf->id, conf_scope->id);
 
 				retval++;
 
@@ -951,7 +951,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	 */
 	list_for_each_entry(conf_group, &(conf->groups), list)
 		if (LIST_ISEMPTY(&(conf_group->ph_scopes))) {
-			FLT_OTEL_ALERT("''%s' : " FLT_OTEL_PARSE_SECTION_GROUP_ID " '%s' has no scopes'", conf->id, conf_group->id);
+			FLT_OTEL_ALERT("'%s' : " FLT_OTEL_PARSE_SECTION_GROUP_ID " '%s' has no scopes", conf->id, conf_group->id);
 
 			retval++;
 		}
@@ -975,7 +975,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 				}
 
 			if (!flag_found) {
-				FLT_OTEL_ALERT("'" FLT_OTEL_PARSE_SECTION_GROUP_ID " '%s' : references undefined " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s''", conf_group->id, ph_scope->id);
+				FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_GROUP_ID " '%s' : references undefined " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s'", conf_group->id, ph_scope->id);
 
 				retval++;
 			}
@@ -999,7 +999,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 				}
 
 			if (!flag_found) {
-				FLT_OTEL_ALERT("'" FLT_OTEL_PARSE_SECTION_INSTR_ID " '%s' : references undefined " FLT_OTEL_PARSE_SECTION_GROUP_ID " '%s''", conf->instr->id, ph_group->id);
+				FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_INSTR_ID " '%s' : references undefined " FLT_OTEL_PARSE_SECTION_GROUP_ID " '%s'", conf->instr->id, ph_group->id);
 
 				retval++;
 			}
@@ -1022,7 +1022,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 				}
 
 			if (!flag_found) {
-				FLT_OTEL_ALERT("'" FLT_OTEL_PARSE_SECTION_INSTR_ID " '%s' : references undefined " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s''", conf->instr->id, ph_scope->id);
+				FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_INSTR_ID " '%s' : references undefined " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s'", conf->instr->id, ph_scope->id);
 
 				retval++;
 			}
@@ -1088,7 +1088,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 			 * event-bound scopes are rejected here.
 			 */
 			if (conf->instr->flag_reqctx && (conf_scope->event != FLT_OTEL_EVENT__NONE) && !flt_otel_event_data[conf_scope->event].flag_context) {
-				FLT_OTEL_ALERT("''%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' uses event '%s' that runs before the request context can be read with 'require-context' set'", conf->id, conf_scope->id, flt_otel_event_data[conf_scope->event].name);
+				FLT_OTEL_ALERT("'%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' uses event '%s' that runs before the request context can be read with 'require-context' set", conf->id, conf_scope->id, flt_otel_event_data[conf_scope->event].name);
 
 				retval++;
 			}
@@ -1115,7 +1115,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 			 * would silently yield nothing at runtime.
 			 */
 			if ((p->mode != PR_MODE_HTTP) && flt_otel_event_data[conf_scope->event].flag_http_only)
-				FLT_OTEL_WARNING("''%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' uses HTTP event '%s' that does not fire on non-HTTP proxy '%s''", conf->id, conf_scope->id, flt_otel_event_data[conf_scope->event].name, p->id);
+				FLT_OTEL_WARNING("'%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' uses HTTP event '%s' that does not fire on non-HTTP proxy '%s'", conf->id, conf_scope->id, flt_otel_event_data[conf_scope->event].name, p->id);
 			else if (where != 0) {
 				char trigger[160];
 
@@ -1124,7 +1124,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 				(void)flt_otel_check_scope_loc(conf, conf_scope, p, where, trigger);
 			}
 		} else {
-			FLT_OTEL_WARNING("''%s' : unused " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s''", conf->id, conf_scope->id);
+			FLT_OTEL_WARNING("'%s' : unused " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s'", conf->id, conf_scope->id);
 
 			scope_unused_cnt++;
 		}
@@ -1146,7 +1146,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 
 			list_for_each_entry(conf_span, &(conf_scope->spans), list)
 				if (conf_span->ctx_flags & FLT_OTEL_CTX_USE_HEADERS) {
-					FLT_OTEL_ALERT("''%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : 'inject use-headers' needs an HTTP-mode proxy'", conf->id, conf_scope->id);
+					FLT_OTEL_ALERT("'%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : 'inject use-headers' needs an HTTP-mode proxy", conf->id, conf_scope->id);
 
 					retval++;
 
@@ -1155,7 +1155,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 
 			list_for_each_entry(conf_ctx, &(conf_scope->contexts), list)
 				if (conf_ctx->flags & FLT_OTEL_CTX_USE_HEADERS) {
-					FLT_OTEL_ALERT("''%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : 'extract use-headers' needs an HTTP-mode proxy'", conf->id, conf_scope->id);
+					FLT_OTEL_ALERT("'%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : 'extract use-headers' needs an HTTP-mode proxy", conf->id, conf_scope->id);
 
 					retval++;
 
@@ -1169,14 +1169,14 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	 * starting HAProxy.
 	 */
 	if (scope_unused_cnt > 0)
-		FLT_OTEL_WARNING("''%s' : %d scope(s) not in use'", conf->id, scope_unused_cnt);
+		FLT_OTEL_WARNING("'%s' : %d scope(s) not in use", conf->id, scope_unused_cnt);
 
 	if (span_cnt == 0)
 		/* No defined spans, so the root-span check does not apply. */;
 	else if (span_root_cnt == 0)
-		FLT_OTEL_WARNING("''%s' : no span is marked as the root span'", conf->id);
+		FLT_OTEL_WARNING("'%s' : no span is marked as the root span", conf->id);
 	else if (span_root_cnt > 1)
-		FLT_OTEL_WARNING("''%s' : multiple spans are marked as the root span'", conf->id);
+		FLT_OTEL_WARNING("'%s' : multiple spans are marked as the root span", conf->id);
 
 	/*
 	 * With 'require-context' at least one used scope must carry an
@@ -1184,7 +1184,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	 * valid upstream context and the filter would stay silent.
 	 */
 	if ((conf->instr != NULL) && conf->instr->flag_reqctx && (ctx_extract_cnt == 0)) {
-		FLT_OTEL_ALERT("''%s' : 'require-context' is set but no used " FLT_OTEL_PARSE_SECTION_SCOPE_ID " has an 'extract' context'", conf->id);
+		FLT_OTEL_ALERT("'%s' : 'require-context' is set but no used " FLT_OTEL_PARSE_SECTION_SCOPE_ID " has an 'extract' context", conf->id);
 
 		retval++;
 	}
@@ -1239,7 +1239,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 					}
 
 				if (conf_instr->ref == NULL) {
-					FLT_OTEL_ALERT("''%s' : update-form instrument has no matching create-form definition'", conf_instr->id);
+					FLT_OTEL_ALERT("'%s' : update-form instrument has no matching create-form definition", conf_instr->id);
 
 					retval++;
 				}
@@ -1249,7 +1249,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 				FLT_OTEL_DBG_CONF_INSTRUMENT("  create ", conf_instr);
 
 				if (LIST_ISEMPTY(&(conf_instr->samples))) {
-					FLT_OTEL_ALERT("''%s' : create-form instrument '%s' has no value expression'", conf->id, conf_instr->id);
+					FLT_OTEL_ALERT("'%s' : create-form instrument '%s' has no value expression", conf->id, conf_instr->id);
 
 					retval++;
 				}
@@ -1282,7 +1282,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 							continue;
 						}
 						else if ((strcasecmp(instr->id, conf_instr->id) == 0) && (instr->type != conf_instr->type)) {
-							FLT_OTEL_ALERT("''%s' : create-form instrument '%s' repeated with a different type'", conf->id, conf_instr->id);
+							FLT_OTEL_ALERT("'%s' : create-form instrument '%s' repeated with a different type", conf->id, conf_instr->id);
 
 							retval++;
 
@@ -1328,7 +1328,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 				}
 
 				if (!flag_found) {
-					FLT_OTEL_ALERT("'" FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : log-record references undefined span '%s''", conf_scope->id, conf_log->span);
+					FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : log-record references undefined span '%s'", conf_scope->id, conf_log->span);
 
 					retval++;
 				}
@@ -1340,7 +1340,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 			 * configuration error.
 			 */
 			if ((conf_log->event_id == 0) != (conf_log->event_name == NULL)) {
-				FLT_OTEL_ALERT("'" FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : log-record must define both event id and event name, or neither'", conf_scope->id);
+				FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : log-record must define both event id and event name, or neither", conf_scope->id);
 
 				retval++;
 			}
@@ -1879,7 +1879,7 @@ static int flt_otel_ops_channel_start_analyze(struct stream *s, struct filter *f
 	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, (chn->flags & CF_ISRESP) ? FLT_OTEL_EVENT_RES_SERVER_SESS_START : FLT_OTEL_EVENT_REQ_CLIENT_SESS_START)))
 		OTELC_RETURN_INT(FLT_OTEL_RET_OK);
 
-	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s)", flt_otel_chn_label(chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s));
+	FLT_OTEL_DBG_CHN(chn, s);
 
 	if (chn->flags & CF_ISRESP) {
 		/*
@@ -2087,7 +2087,7 @@ static int flt_otel_ops_channel_end_analyze(struct stream *s, struct filter *f, 
 	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, (chn->flags & CF_ISRESP) ? FLT_OTEL_EVENT_RES_SERVER_SESS_END : FLT_OTEL_EVENT_REQ_CLIENT_SESS_END)))
 		OTELC_RETURN_INT(FLT_OTEL_RET_OK);
 
-	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s)", flt_otel_chn_label(chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s));
+	FLT_OTEL_DBG_CHN(chn, s);
 
 	if (chn->flags & CF_ISRESP) {
 		/* The response channel, event 'on-server-session-end'. */
@@ -2142,7 +2142,7 @@ static int flt_otel_ops_http_headers(struct stream *s, struct filter *f, struct 
 	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, event)))
 		OTELC_RETURN_INT(retval);
 
-	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s)", flt_otel_chn_label(msg->chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s));
+	FLT_OTEL_DBG_CHN(msg->chn, s);
 
 	(void)flt_otel_event_run(s, f, msg->chn, event, &err);
 
@@ -2226,7 +2226,7 @@ static int flt_otel_ops_http_end(struct stream *s, struct filter *f, struct http
 	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, event)))
 		OTELC_RETURN_INT(retval);
 
-	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s)", flt_otel_chn_label(msg->chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s));
+	FLT_OTEL_DBG_CHN(msg->chn, s);
 
 	(void)flt_otel_event_run(s, f, msg->chn, event, &err);
 
@@ -2303,7 +2303,7 @@ static void flt_otel_ops_http_reset(struct stream *s, struct filter *f, struct h
 	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, -1)))
 		OTELC_RETURN();
 
-	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s)", flt_otel_chn_label(msg->chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s));
+	FLT_OTEL_DBG_CHN(msg->chn, s);
 
 	flt_otel_return_void(f, &err);
 

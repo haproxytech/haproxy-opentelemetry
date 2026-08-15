@@ -9,16 +9,16 @@ struct pool_head *pool_head_otel_runtime_context __read_mostly = NULL;
 struct pool_head *pool_head_otel_span_context __read_mostly = NULL;
 
 #ifdef USE_POOL_OTEL_SCOPE_SPAN
-REGISTER_POOL(&pool_head_otel_scope_span, "otel_scope_span", sizeof(struct flt_otel_scope_span));
+REGISTER_POOL(&pool_head_otel_scope_span, FLT_OTEL_POOL_SCOPE_SPAN_NAME, FLT_OTEL_POOL_SCOPE_SPAN_SIZE);
 #endif
 #ifdef USE_POOL_OTEL_SCOPE_CONTEXT
-REGISTER_POOL(&pool_head_otel_scope_context, "otel_scope_context", sizeof(struct flt_otel_scope_context));
+REGISTER_POOL(&pool_head_otel_scope_context, FLT_OTEL_POOL_SCOPE_CONTEXT_NAME, FLT_OTEL_POOL_SCOPE_CONTEXT_SIZE);
 #endif
 #ifdef USE_POOL_OTEL_RUNTIME_CONTEXT
-REGISTER_POOL(&pool_head_otel_runtime_context, "otel_runtime_context", sizeof(struct flt_otel_runtime_context));
+REGISTER_POOL(&pool_head_otel_runtime_context, FLT_OTEL_POOL_RUNTIME_CONTEXT_NAME, FLT_OTEL_POOL_RUNTIME_CONTEXT_SIZE);
 #endif
 #ifdef USE_POOL_OTEL_SPAN_CONTEXT
-REGISTER_POOL(&pool_head_otel_span_context, "otel_span_context", MAX(sizeof(struct otelc_span), sizeof(struct otelc_span_context)));
+REGISTER_POOL(&pool_head_otel_span_context, FLT_OTEL_POOL_SPAN_CONTEXT_NAME, FLT_OTEL_POOL_SPAN_CONTEXT_SIZE);
 #endif
 
 
@@ -146,16 +146,16 @@ int flt_otel_pool_init(void)
 	OTELC_FUNC("");
 
 #ifdef USE_POOL_OTEL_SCOPE_SPAN
-	FLT_OTEL_POOL_INIT(pool_head_otel_scope_span, "otel_scope_span", sizeof(struct flt_otel_scope_span), retval);
+	FLT_OTEL_POOL_INIT(pool_head_otel_scope_span, FLT_OTEL_POOL_SCOPE_SPAN_NAME, FLT_OTEL_POOL_SCOPE_SPAN_SIZE, retval);
 #endif
 #ifdef USE_POOL_OTEL_SCOPE_CONTEXT
-	FLT_OTEL_POOL_INIT(pool_head_otel_scope_context, "otel_scope_context", sizeof(struct flt_otel_scope_context), retval);
+	FLT_OTEL_POOL_INIT(pool_head_otel_scope_context, FLT_OTEL_POOL_SCOPE_CONTEXT_NAME, FLT_OTEL_POOL_SCOPE_CONTEXT_SIZE, retval);
 #endif
 #ifdef USE_POOL_OTEL_RUNTIME_CONTEXT
-	FLT_OTEL_POOL_INIT(pool_head_otel_runtime_context, "otel_runtime_context", sizeof(struct flt_otel_runtime_context), retval);
+	FLT_OTEL_POOL_INIT(pool_head_otel_runtime_context, FLT_OTEL_POOL_RUNTIME_CONTEXT_NAME, FLT_OTEL_POOL_RUNTIME_CONTEXT_SIZE, retval);
 #endif
 #ifdef USE_POOL_OTEL_SPAN_CONTEXT
-	FLT_OTEL_POOL_INIT(pool_head_otel_span_context, "otel_span_context", OTELC_MAX(sizeof(struct otelc_span), sizeof(struct otelc_span_context)), retval);
+	FLT_OTEL_POOL_INIT(pool_head_otel_span_context, FLT_OTEL_POOL_SPAN_CONTEXT_NAME, FLT_OTEL_POOL_SPAN_CONTEXT_SIZE, retval);
 #endif
 
 	OTELC_RETURN_INT(retval);

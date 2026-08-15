@@ -3,6 +3,20 @@
 #ifndef _OTEL_POOL_H_
 #define _OTEL_POOL_H_
 
+/* Single source for each pool's registered name and element size. */
+#define FLT_OTEL_POOL_SCOPE_SPAN_NAME        "otel_scope_span"
+#define FLT_OTEL_POOL_SCOPE_SPAN_SIZE        sizeof(struct flt_otel_scope_span)
+#define FLT_OTEL_POOL_SCOPE_CONTEXT_NAME     "otel_scope_context"
+#define FLT_OTEL_POOL_SCOPE_CONTEXT_SIZE     sizeof(struct flt_otel_scope_context)
+#define FLT_OTEL_POOL_RUNTIME_CONTEXT_NAME   "otel_runtime_context"
+#define FLT_OTEL_POOL_RUNTIME_CONTEXT_SIZE   sizeof(struct flt_otel_runtime_context)
+#define FLT_OTEL_POOL_SPAN_CONTEXT_NAME      "otel_span_context"
+/*
+ * MAX() rather than OTELC_MAX(), whose statement expression cannot appear in
+ * the file-scope constant expression that REGISTER_POOL() requires.
+ */
+#define FLT_OTEL_POOL_SPAN_CONTEXT_SIZE      MAX(sizeof(struct otelc_span), sizeof(struct otelc_span_context))
+
 #define FLT_OTEL_POOL_INIT(p,n,s,r)                                                       \
 	do {                                                                              \
 		if (((r) == FLT_OTEL_RET_OK) && ((p) == NULL)) {                          \

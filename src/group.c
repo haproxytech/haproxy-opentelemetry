@@ -102,7 +102,7 @@ static enum act_return flt_otel_group_action(struct act_rule *rule, struct proxy
 			break;
 
 	if (i >= OTELC_TABLESIZE(flt_otel_group_data)) {
-		FLT_OTEL_LOG(LOG_ERR, FLT_OTEL_ACTION_GROUP ": internal error, invalid rule->from=%d", rule->from);
+		FLT_OTEL_LOG(LOG_ERR, FLT_OTEL_ACTION_GROUP ": internal error, unexpected rule->from=%d", rule->from);
 
 		OTELC_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
 	}
@@ -249,7 +249,7 @@ static int flt_otel_group_check(struct act_rule *rule, struct proxy *px, char **
 	}
 
 	if (fconf == NULL) {
-		FLT_OTEL_ERR("unable to find the OpenTelemetry filter '%s' used by the " FLT_OTEL_ACTION_GROUP " '%s'", filter_id, group_id);
+		FLT_OTEL_ERR("cannot find the OpenTelemetry filter '%s' used by the " FLT_OTEL_ACTION_GROUP " '%s'", filter_id, group_id);
 
 		OTELC_RETURN_INT(0);
 	}
@@ -277,7 +277,7 @@ static int flt_otel_group_check(struct act_rule *rule, struct proxy *px, char **
 		}
 
 	if (!flag_found) {
-		FLT_OTEL_ERR("unable to find group '%s' in the OpenTelemetry filter '%s' configuration", group_id, filter_id);
+		FLT_OTEL_ERR("cannot find group '%s' in the OpenTelemetry filter '%s' configuration", group_id, filter_id);
 
 		OTELC_RETURN_INT(0);
 	}
@@ -374,7 +374,7 @@ static enum act_parse_ret flt_otel_group_parse(const char **args, int *cur_arg, 
 	    (FLT_OTEL_ARG_ISVALID(*cur_arg + 2) &&
 	     !FLT_OTEL_PARSE_KEYWORD(*cur_arg + 2, FLT_OTEL_CONDITION_IF) &&
 	     !FLT_OTEL_PARSE_KEYWORD(*cur_arg + 2, FLT_OTEL_CONDITION_UNLESS))) {
-		FLT_OTEL_ERR("expects: <filter-id> <group-id> [{ if | unless } ...]");
+		FLT_OTEL_ERR("expects: <filter-id> <group-id>" FLT_OTEL_PARSE_USAGE_COND);
 
 		OTELC_RETURN_EX(ACT_RET_PRS_ERR, enum act_parse_ret, "%d");
 	}

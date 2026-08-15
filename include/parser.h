@@ -47,24 +47,39 @@
 #define FLT_OTEL_PARSE_OPTION_NOLOGNORM       "dontlog-normal"
 #define FLT_OTEL_PARSE_OPTION_REQCTX          "require-context"
 
+/* Scope keywords that are also spelled outside the parser tables. */
+#define FLT_OTEL_PARSE_KW_LINK                "link"
+#define FLT_OTEL_PARSE_KW_ATTRIBUTE           "attribute"
+#define FLT_OTEL_PARSE_KW_EVENT               "event"
+#define FLT_OTEL_PARSE_KW_BAGGAGE             "baggage"
+#define FLT_OTEL_PARSE_KW_STATUS              "status"
+#define FLT_OTEL_PARSE_KW_EXCEPTION           "exception"
+#define FLT_OTEL_PARSE_KW_STOP                "otel-stop"
+#define FLT_OTEL_PARSE_KW_INSTRUMENT          "instrument"
+#define FLT_OTEL_PARSE_KW_LOG_RECORD          "log-record"
+#define FLT_OTEL_PARSE_KW_ON_EVENT            "otel-event"
+#define FLT_OTEL_PARSE_KW_SET_VAR             "set-var"
+#define FLT_OTEL_PARSE_KW_SET_VAR_CTX         "set-var-ctx"
+#define FLT_OTEL_PARSE_KW_UNSET_VAR           "unset-var"
+
 /*
  * A description of the macro arguments can be found in the structure
  * flt_otel_parse_data definition
  */
-#define FLT_OTEL_PARSE_INSTR_DEFINES                                                                                                                                      \
-	FLT_OTEL_PARSE_INSTR_DEF(         ID, 0, CHAR, 2, 2, "otel-instrumentation", " <name>")                                                                           \
-	FLT_OTEL_PARSE_INSTR_DEF(        ACL, 0, CHAR, 3, 0, "acl",                  " <aclname> <criterion> [flags] [operator] <value> ...")                             \
-	FLT_OTEL_PARSE_INSTR_DEF(        LOG, 0, NONE, 1, 0, "log",                  " { global | <addr> [len <len>] [format <fmt>] <facility> [<level> [<minlevel>]] }") \
-	FLT_OTEL_PARSE_INSTR_DEF(     CONFIG, 0, NONE, 2, 3, "config",               " <file> [context]")                                                                 \
-	FLT_OTEL_PARSE_INSTR_DEF(     GROUPS, 0, NONE, 2, 0, "groups",               " <name> ...")                                                                       \
-	FLT_OTEL_PARSE_INSTR_DEF(     SCOPES, 0, NONE, 2, 0, "scopes",               " <name> ...")                                                                       \
-	FLT_OTEL_PARSE_INSTR_DEF( RATE_LIMIT, 0, NONE, 2, 2, "rate-limit",           " <value>")                                                                          \
-	FLT_OTEL_PARSE_INSTR_DEF(     OPTION, 0, NONE, 2, 2, "option",               " { disabled | dontlog-normal | hard-errors | require-context }")                    \
-	FLT_OTEL_PARSE_INSTR_DEF(DEBUG_LEVEL, 0, NONE, 2, 2, "debug-level",          " <value>")
+#define FLT_OTEL_PARSE_INSTR_DEFINES                                                                                                                                               \
+	FLT_OTEL_PARSE_INSTR_DEF(         ID, 0, CHAR, 2, 2, FLT_OTEL_PARSE_SECTION_INSTR_ID, " <name>")                                                                           \
+	FLT_OTEL_PARSE_INSTR_DEF(        ACL, 0, CHAR, 3, 0, "acl",                           " <aclname> <criterion> [flags] [operator] <value> ...")                             \
+	FLT_OTEL_PARSE_INSTR_DEF(        LOG, 0, NONE, 1, 0, "log",                           " { global | <addr> [len <len>] [format <fmt>] <facility> [<level> [<minlevel>]] }") \
+	FLT_OTEL_PARSE_INSTR_DEF(     CONFIG, 0, NONE, 2, 3, "config",                        " <file> [context]")                                                                 \
+	FLT_OTEL_PARSE_INSTR_DEF(     GROUPS, 0, NONE, 2, 0, "groups",                        " <name> ...")                                                                       \
+	FLT_OTEL_PARSE_INSTR_DEF(     SCOPES, 0, NONE, 2, 0, "scopes",                        " <name> ...")                                                                       \
+	FLT_OTEL_PARSE_INSTR_DEF( RATE_LIMIT, 0, NONE, 2, 2, "rate-limit",                    " <value>")                                                                          \
+	FLT_OTEL_PARSE_INSTR_DEF(     OPTION, 0, NONE, 2, 2, "option",                        " { disabled | dontlog-normal | hard-errors | require-context }")                    \
+	FLT_OTEL_PARSE_INSTR_DEF(DEBUG_LEVEL, 0, NONE, 2, 2, "debug-level",                   " <value>")
 
-#define FLT_OTEL_PARSE_GROUP_DEFINES                                             \
-	FLT_OTEL_PARSE_GROUP_DEF(    ID, 0, CHAR, 2, 2, "otel-group", " <name>") \
-	FLT_OTEL_PARSE_GROUP_DEF(SCOPES, 0, NONE, 2, 0, "scopes",   " <name> ...")
+#define FLT_OTEL_PARSE_GROUP_DEFINES                                                                  \
+	FLT_OTEL_PARSE_GROUP_DEF(    ID, 0, CHAR, 2, 2, FLT_OTEL_PARSE_SECTION_GROUP_ID, " <name>")   \
+	FLT_OTEL_PARSE_GROUP_DEF(SCOPES, 0, NONE, 2, 0, "scopes",                        " <name> ...")
 
 #ifdef USE_OTEL_VARS
 #  define FLT_OTEL_PARSE_SCOPE_INJECT_HELP    " <name-prefix> [use-vars] [use-headers]"
@@ -73,6 +88,9 @@
 #  define FLT_OTEL_PARSE_SCOPE_INJECT_HELP    " <name-prefix> [use-headers]"
 #  define FLT_OTEL_PARSE_SCOPE_EXTRACT_HELP   " <name-prefix> [use-headers]"
 #endif
+
+/* Usage-text tail for the keywords that accept a trailing condition. */
+#define FLT_OTEL_PARSE_USAGE_COND             " [{ " FLT_OTEL_CONDITION_IF " | " FLT_OTEL_CONDITION_UNLESS " } <condition>]"
 
 /*
  * The first argument of the FLT_OTEL_PARSE_SCOPE_STATUS_DEF() macro is defined
@@ -129,27 +147,27 @@
  * because in this case the 'use-vars' argument cannot be entered anyway,
  * so I will not complicate it here with additional definitions.
  */
-#define FLT_OTEL_PARSE_SCOPE_DEFINES                                                                                                                                           \
-	FLT_OTEL_PARSE_SCOPE_DEF(          ID, 0, CHAR, 2, 2, "otel-scope",   " <name>")                                                                                       \
-	FLT_OTEL_PARSE_SCOPE_DEF(        SPAN, 0, NONE, 2, 9, "span",         " <name> [parent <ref>] [link <ref>] [root] [kind <kind>]")                                      \
-	FLT_OTEL_PARSE_SCOPE_DEF(        LINK, 1, NONE, 2, 0,   "link",       " { <ref> ... | <ref> attr <key> <sample> ... }")                                                                              \
-	FLT_OTEL_PARSE_SCOPE_DEF(   ATTRIBUTE, 1, NONE, 3, 0,   "attribute",  " <key> <sample> ... [{ if | unless } <condition>]")                                                                           \
-	FLT_OTEL_PARSE_SCOPE_DEF(       EVENT, 1, NONE, 4, 0,   "event",      " <name> [time [<unit>] <sample>] <key> <sample> ... [{ if | unless } <condition>]")                                           \
-	FLT_OTEL_PARSE_SCOPE_DEF(     BAGGAGE, 1,  VAR, 3, 0,   "baggage",    " <key> <sample> ... [{ if | unless } <condition>]")                                                                           \
-	FLT_OTEL_PARSE_SCOPE_DEF(      INJECT, 1,  CTX, 2, 4,   "inject",     FLT_OTEL_PARSE_SCOPE_INJECT_HELP)                                                                                              \
-	FLT_OTEL_PARSE_SCOPE_DEF(     EXTRACT, 0,  CTX, 2, 3,   "extract",    FLT_OTEL_PARSE_SCOPE_EXTRACT_HELP)                                                                                             \
-	FLT_OTEL_PARSE_SCOPE_DEF(      STATUS, 1, NONE, 2, 0,   "status",     " <code> [<sample> ...] [{ if | unless } <condition>]")                                                                        \
-	FLT_OTEL_PARSE_SCOPE_DEF(   EXCEPTION, 1, NONE, 2, 0,   "exception",  " <type> [message <sample> ...] [attr <key> <sample> ...] [{ if | unless } <condition>]")                                      \
-	FLT_OTEL_PARSE_SCOPE_DEF(      FINISH, 0, NONE, 2, 0,   "finish",     " <name> ...")                                                                                                                 \
-	FLT_OTEL_PARSE_SCOPE_DEF(        STOP, 0, NONE, 1, 0, "otel-stop",    " [{ if | unless } <condition>]")                                                                                              \
-	FLT_OTEL_PARSE_SCOPE_DEF(  INSTRUMENT, 0, NONE, 3, 0, "instrument",   " { update <name> [<attr> ...] | <type> <name> [<aggr>] [<desc>] [<unit>] <value> [<bounds>] } [{ if | unless } <condition>]") \
-	FLT_OTEL_PARSE_SCOPE_DEF(  LOG_RECORD, 0, NONE, 3, 0, "log-record",   " <severity> [<id> <event>] [<time>] [<span>] [<attr>] <sample> ... [{ if | unless } <condition>]")                            \
-	FLT_OTEL_PARSE_SCOPE_DEF(IDLE_TIMEOUT, 0, NONE, 2, 2, "idle-timeout", " <time>")                                                                                                                     \
-	FLT_OTEL_PARSE_SCOPE_DEF(         ACL, 0, CHAR, 3, 0, "acl",          " <aclname> <criterion> [flags] [operator] <value> ...")                                                                       \
-	FLT_OTEL_PARSE_SCOPE_DEF(    ON_EVENT, 0, NONE, 2, 0, "otel-event",   " <name> [{ if | unless } <condition>]")                                                                                       \
-	FLT_OTEL_PARSE_SCOPE_DEF(     SET_VAR, 0, NONE, 3, 0, "set-var",      " <var-name> <sample> ... [{ if | unless } <condition>]")                                                                      \
-	FLT_OTEL_PARSE_SCOPE_DEF( SET_VAR_CTX, 0, NONE, 4, 0, "set-var-ctx",  " <var-name> <ref> <field> [{ if | unless } <condition>]")                                                                     \
-	FLT_OTEL_PARSE_SCOPE_DEF(   UNSET_VAR, 0, NONE, 2, 0, "unset-var",    " <var-name> ... [{ if | unless } <condition>]")
+#define FLT_OTEL_PARSE_SCOPE_DEFINES                                                                                                                                                                                      \
+	FLT_OTEL_PARSE_SCOPE_DEF(          ID, 0, CHAR, 2, 2, FLT_OTEL_PARSE_SECTION_SCOPE_ID, " <name>")                                                                                                                 \
+	FLT_OTEL_PARSE_SCOPE_DEF(        SPAN, 0, NONE, 2, 9, "span",                          " <name> [parent <ref>] [link <ref>] [root] [kind <kind>]")                                                                \
+	FLT_OTEL_PARSE_SCOPE_DEF(        LINK, 1, NONE, 2, 0,   FLT_OTEL_PARSE_KW_LINK,        " { <ref> ... | <ref> attr <key> <sample> ... }")                                                                          \
+	FLT_OTEL_PARSE_SCOPE_DEF(   ATTRIBUTE, 1, NONE, 3, 0,   FLT_OTEL_PARSE_KW_ATTRIBUTE,   " <key> <sample> ..." FLT_OTEL_PARSE_USAGE_COND)                                                                           \
+	FLT_OTEL_PARSE_SCOPE_DEF(       EVENT, 1, NONE, 4, 0,   FLT_OTEL_PARSE_KW_EVENT,       " <name> [time [<unit>] <sample>] <key> <sample> ..." FLT_OTEL_PARSE_USAGE_COND)                                           \
+	FLT_OTEL_PARSE_SCOPE_DEF(     BAGGAGE, 1,  VAR, 3, 0,   FLT_OTEL_PARSE_KW_BAGGAGE,     " <key> <sample> ..." FLT_OTEL_PARSE_USAGE_COND)                                                                           \
+	FLT_OTEL_PARSE_SCOPE_DEF(      INJECT, 1,  CTX, 2, 4,   "inject",                      FLT_OTEL_PARSE_SCOPE_INJECT_HELP)                                                                                          \
+	FLT_OTEL_PARSE_SCOPE_DEF(     EXTRACT, 0,  CTX, 2, 3,   "extract",                     FLT_OTEL_PARSE_SCOPE_EXTRACT_HELP)                                                                                         \
+	FLT_OTEL_PARSE_SCOPE_DEF(      STATUS, 1, NONE, 2, 0,   FLT_OTEL_PARSE_KW_STATUS,      " <code> [<sample> ...]" FLT_OTEL_PARSE_USAGE_COND)                                                                        \
+	FLT_OTEL_PARSE_SCOPE_DEF(   EXCEPTION, 1, NONE, 2, 0,   FLT_OTEL_PARSE_KW_EXCEPTION,   " <type> [message <sample> ...] [attr <key> <sample> ...]" FLT_OTEL_PARSE_USAGE_COND)                                      \
+	FLT_OTEL_PARSE_SCOPE_DEF(      FINISH, 0, NONE, 2, 0,   "finish",                      " <name> ...")                                                                                                             \
+	FLT_OTEL_PARSE_SCOPE_DEF(        STOP, 0, NONE, 1, 0, FLT_OTEL_PARSE_KW_STOP,          FLT_OTEL_PARSE_USAGE_COND)                                                                                                 \
+	FLT_OTEL_PARSE_SCOPE_DEF(  INSTRUMENT, 0, NONE, 3, 0, FLT_OTEL_PARSE_KW_INSTRUMENT,    " { update <name> [<attr> ...] | <type> <name> [<aggr>] [<desc>] [<unit>] <value> [<bounds>] }" FLT_OTEL_PARSE_USAGE_COND) \
+	FLT_OTEL_PARSE_SCOPE_DEF(  LOG_RECORD, 0, NONE, 3, 0, FLT_OTEL_PARSE_KW_LOG_RECORD,    " <severity> [<id> <event>] [<time>] [<span>] [<attr>] <sample> ..." FLT_OTEL_PARSE_USAGE_COND)                            \
+	FLT_OTEL_PARSE_SCOPE_DEF(IDLE_TIMEOUT, 0, NONE, 2, 2, "idle-timeout",                  " <time>")                                                                                                                 \
+	FLT_OTEL_PARSE_SCOPE_DEF(         ACL, 0, CHAR, 3, 0, "acl",                           " <aclname> <criterion> [flags] [operator] <value> ...")                                                                   \
+	FLT_OTEL_PARSE_SCOPE_DEF(    ON_EVENT, 0, NONE, 2, 0, FLT_OTEL_PARSE_KW_ON_EVENT,      " <name>" FLT_OTEL_PARSE_USAGE_COND)                                                                                       \
+	FLT_OTEL_PARSE_SCOPE_DEF(     SET_VAR, 0, NONE, 3, 0, FLT_OTEL_PARSE_KW_SET_VAR,       " <var-name> <sample> ..." FLT_OTEL_PARSE_USAGE_COND)                                                                      \
+	FLT_OTEL_PARSE_SCOPE_DEF( SET_VAR_CTX, 0, NONE, 4, 0, FLT_OTEL_PARSE_KW_SET_VAR_CTX,   " <var-name> <ref> <field>" FLT_OTEL_PARSE_USAGE_COND)                                                                     \
+	FLT_OTEL_PARSE_SCOPE_DEF(   UNSET_VAR, 0, NONE, 2, 0, FLT_OTEL_PARSE_KW_UNSET_VAR,     " <var-name> ..." FLT_OTEL_PARSE_USAGE_COND)
 
 /* Invalid character check modes for identifier validation. */
 enum FLT_OTEL_PARSE_INVCHAR_enum {
@@ -248,6 +266,16 @@ struct flt_otel_kw_map {
 
 /* Format the standard out-of-memory parse error with a context label. */
 #define FLT_OTEL_PARSE_ERR_NOMEM(e,p)         FLT_OTEL_PARSE_ERR((e), "'%s' : out of memory", (p))
+
+/* Format a parse error that reports the keyword usage text. */
+#define FLT_OTEL_PARSE_ERR_USE(e,s,a,p)       FLT_OTEL_PARSE_ERR((e), "'%s' : " s " (use '%s%s')", (a), (p)->name, (p)->usage)
+#define FLT_OTEL_PARSE_ERR_FEWARGS(e,a,p)     FLT_OTEL_PARSE_ERR_USE((e), "too few arguments", (a), (p))
+#define FLT_OTEL_PARSE_ERR_MANYARGS(e,a,p)    FLT_OTEL_PARSE_ERR_USE((e), "too many arguments", (a), (p))
+#define FLT_OTEL_PARSE_ERR_ALRSET(e,a,p)      FLT_OTEL_PARSE_ERR_USE((e), "already set", (a), (p))
+#define FLT_OTEL_PARSE_ERR_INVARG(e,a,p)      FLT_OTEL_PARSE_ERR_USE((e), "invalid argument", (a), (p))
+
+/* Format the parse error for a directive outside its configuration section. */
+#define FLT_OTEL_PARSE_ERR_NOSEC(e,s,a)       FLT_OTEL_PARSE_ERR((e), "'%s' : " s " section not opened in this scope", (a))
 
 #define FLT_OTEL_PARSE_IFERR_ALERT()                         \
 	do {                                                 \

@@ -30,7 +30,7 @@ int flt_otel_var_register_byname(const char *name, char **err)
 	OTELC_FUNC("\"%s\", %p:%p", OTELC_STR_ARG(name), OTELC_DPTR_ARGS(err));
 
 	if (!OTELC_STR_IS_VALID(name)) {
-		FLT_OTEL_ERR("variable name not set");
+		FLT_OTEL_ERR_VAR_UNSET();
 
 		OTELC_RETURN_INT(retval);
 	}
@@ -105,7 +105,7 @@ int flt_otel_var_set_byname(struct stream *s, const char *name, const char *valu
 	OTELC_FUNC("%p, \"%s\", \"%s\", %u, %p:%p", s, OTELC_STR_ARG(name), OTELC_STR_ARG(value), opt, OTELC_DPTR_ARGS(err));
 
 	if (!OTELC_STR_IS_VALID(name)) {
-		FLT_OTEL_ERR("variable name not set");
+		FLT_OTEL_ERR_VAR_UNSET();
 
 		OTELC_RETURN_INT(retval);
 	}
@@ -156,7 +156,7 @@ int flt_otel_var_unset_byname(struct stream *s, const char *name, uint opt, char
 	OTELC_FUNC("%p, \"%s\", %u, %p:%p", s, OTELC_STR_ARG(name), opt, OTELC_DPTR_ARGS(err));
 
 	if (!OTELC_STR_IS_VALID(name)) {
-		FLT_OTEL_ERR("variable name not set");
+		FLT_OTEL_ERR_VAR_UNSET();
 
 		OTELC_RETURN_INT(retval);
 	}
@@ -305,7 +305,7 @@ static int flt_otel_normalize_name(char *var_name, size_t size, int *len, const 
 	else if (*len < (size - 1))
 		var_name[(*len)++] = '.';
 	else {
-		FLT_OTEL_ERR("failed to normalize variable name, buffer too small");
+		FLT_OTEL_ERR_VAR_NORM();
 
 		retval = FLT_OTEL_RET_ERROR;
 	}
@@ -317,7 +317,7 @@ static int flt_otel_normalize_name(char *var_name, size_t size, int *len, const 
 		/* Copy variable name without modification. */
 		retval = strlen(name);
 		if ((*len + retval + 1) > size) {
-			FLT_OTEL_ERR("failed to normalize variable name, buffer too small");
+			FLT_OTEL_ERR_VAR_NORM();
 
 			retval = FLT_OTEL_RET_ERROR;
 
@@ -337,7 +337,7 @@ static int flt_otel_normalize_name(char *var_name, size_t size, int *len, const 
 		 */
 		while (retval != FLT_OTEL_RET_ERROR)
 			if (*len >= (size - 1)) {
-				FLT_OTEL_ERR("failed to normalize variable name, buffer too small");
+				FLT_OTEL_ERR_VAR_NORM();
 
 				retval = FLT_OTEL_RET_ERROR;
 			} else {
@@ -396,7 +396,7 @@ static int flt_otel_denormalize_name(const char *var_name, char *name, size_t si
 	/* Reverse character substitutions applied during normalization. */
 	for (len = 0; var_name[len] != '\0'; len++) {
 		if (len >= (size - 1)) {
-			FLT_OTEL_ERR("failed to reverse variable name, buffer too small");
+			FLT_OTEL_ERR_VAR_REV();
 
 			return FLT_OTEL_RET_ERROR;
 		}
@@ -536,7 +536,7 @@ static int flt_otel_smp_add(struct sample_data *data, const char *name, size_t l
 
 	/* Verify the buffer allocation succeeded. */
 	if (b_orig(&(data->u.str)) == NULL) {
-		FLT_OTEL_ERR("failed to add ctx '%.*s', not enough memory", (int)len, name);
+		FLT_OTEL_ERR("failed to add ctx '%.*s', out of memory", (int)len, name);
 	}
 	else if (len > ((UINT64_C(1) << ((sizeof(FLT_OTEL_VAR_CTX_SIZE) << 3) - 1)) - 1)) {
 		FLT_OTEL_ERR("failed to add ctx '%.*s', name too long", (int)len, name);
@@ -985,7 +985,7 @@ static int flt_otel_vars_get_cb(struct sample *smp, size_t idx, const char *scop
 		if (*map == NULL) {
 			*map = OTELC_TEXT_MAP_NEW(NULL, 8);
 			if (*map == NULL) {
-				FLT_OTEL_ERR("failed to create map data");
+				FLT_OTEL_ERR_MAP_CREATE();
 
 				OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
 			}
@@ -1000,7 +1000,7 @@ static int flt_otel_vars_get_cb(struct sample *smp, size_t idx, const char *scop
 		if (retval >= 0)
 			retval = OTELC_TEXT_MAP_ADD(*map, otel_var_name, retval, b_orig(&(smp_ctx.data.u.str)), b_data(&(smp_ctx.data.u.str)), OTELC_TEXT_MAP_AUTO);
 		if (retval == FLT_OTEL_RET_ERROR) {
-			FLT_OTEL_ERR("failed to add map data");
+			FLT_OTEL_ERR_MAP_ADD();
 
 			otelc_text_map_destroy(map);
 		} else {
@@ -1230,7 +1230,7 @@ struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, co
 
 			otel_name_len = flt_otel_denormalize_name(key, otel_name, sizeof(otel_name), err);
 			if (otel_name_len == FLT_OTEL_RET_ERROR) {
-				FLT_OTEL_ERR("failed to reverse variable name, buffer too small");
+				FLT_OTEL_ERR_VAR_REV();
 
 				flag_abort = true;
 
@@ -1248,7 +1248,7 @@ struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, co
 			if (retptr == NULL) {
 				retptr = OTELC_TEXT_MAP_NEW(NULL, 8);
 				if (retptr == NULL) {
-					FLT_OTEL_ERR("failed to create map data");
+					FLT_OTEL_ERR_MAP_CREATE();
 
 					flag_abort = true;
 
@@ -1257,7 +1257,7 @@ struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, co
 			}
 
 			if (OTELC_TEXT_MAP_ADD(retptr, otel_name, otel_name_len, b_orig(&(var->data.u.str)), b_data(&(var->data.u.str)), OTELC_TEXT_MAP_AUTO) == -1) {
-				FLT_OTEL_ERR("failed to add map data");
+				FLT_OTEL_ERR_MAP_ADD();
 
 				otelc_text_map_destroy(&retptr);
 

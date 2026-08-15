@@ -923,7 +923,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 
 	OTELC_FUNC("%p, %p, %p, %p, %p, %p, %u, %p:%p", s, f, chn, conf_scope, ts_steady, ts_system, dir, OTELC_DPTR_ARGS(err));
 
-	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s)", flt_otel_chn_label(chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s));
+	FLT_OTEL_DBG_CHN(chn, s);
 	OTELC_DBG(INFO, "run scope '%s' %d", conf_scope->id, conf_scope->event);
 	FLT_OTEL_DBG_CONF_SCOPE("run scope ", conf_scope);
 
@@ -1288,7 +1288,7 @@ int flt_otel_event_run(struct stream *s, struct filter *f, struct channel *chn, 
 
 	OTELC_FUNC("%p, %p, %p, %d, %p:%p", s, f, chn, event, OTELC_DPTR_ARGS(err));
 
-	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s)", flt_otel_chn_label(chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s));
+	FLT_OTEL_DBG_CHN(chn, s);
 	OTELC_DBG(INFO, "run event '%s' %d %s", flt_otel_event_data[event].name, event, flt_otel_event_data[event].an_name);
 
 #ifdef DEBUG_OTEL

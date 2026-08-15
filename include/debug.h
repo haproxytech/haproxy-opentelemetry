@@ -21,6 +21,9 @@
 #  define FLT_OTEL_DBG_BUF(...)       while (0)
 #endif /* DEBUG_OTEL */
 
+/* Log the channel and the stream mode/position of a filter callback. */
+#define FLT_OTEL_DBG_CHN(c,s)         OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s)", flt_otel_chn_label(c), flt_otel_pr_mode(s), flt_otel_stream_pos(s))
+
 /*
  *  ON  | NOLOGNORM |
  * -----+-----------+-------------

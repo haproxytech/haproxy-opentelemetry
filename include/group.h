@@ -3,7 +3,8 @@
 #ifndef _OTEL_GROUP_H_
 #define _OTEL_GROUP_H_
 
-#define FLT_OTEL_ACTION_GROUP   "otel-group"
+/* The action keyword deliberately matches the otel-group section name. */
+#define FLT_OTEL_ACTION_GROUP   FLT_OTEL_PARSE_SECTION_GROUP_ID
 
 /* Argument indices for the otel-group action rule. */
 enum FLT_OTEL_ARG_enum {

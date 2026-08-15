@@ -18,6 +18,7 @@
 #define FLT_OTEL_STR_DASH_72         "------------------------------------------------------------------------"
 #define FLT_OTEL_STR_DASH_78         FLT_OTEL_STR_DASH_72 "------"
 #define FLT_OTEL_STR_FLAG_YN(a)      ((a) ? "yes" : "no")
+#define FLT_OTEL_STR_ACTIVE(a)       (((a) != NULL) ? "active" : "not initialized")
 
 /* Compile-time string length excluding the null terminator. */
 #define FLT_OTEL_STR_SIZE(a)         (sizeof(a) - 1)

@@ -489,11 +489,11 @@ int flt_otel_sample_to_str(const struct sample_data *data, char *value, size_t s
 
 	/* Convert the sample value to a string based on its type. */
 	if (data->type == SMP_T_ANY) {
-		FLT_OTEL_ERR("invalid sample data type %d", data->type);
+		FLT_OTEL_ERR_SMP_TYPE(data->type);
 	}
 	else if (data->type == SMP_T_BOOL) {
 		if (size < 2) {
-			FLT_OTEL_ERR("sample data size too large");
+			FLT_OTEL_ERR_SMP_SIZE();
 		} else {
 			value[0] = data->u.sint ? '1' : '0';
 			value[1] = '\0';
@@ -504,7 +504,7 @@ int flt_otel_sample_to_str(const struct sample_data *data, char *value, size_t s
 	else if (data->type == SMP_T_SINT) {
 		retval = snprintf(value, size, "%lld", data->u.sint);
 		if ((retval < 0) || ((size_t)retval >= size)) {
-			FLT_OTEL_ERR("sample data size too large");
+			FLT_OTEL_ERR_SMP_SIZE();
 
 			retval = FLT_OTEL_RET_ERROR;
 		}
@@ -514,7 +514,7 @@ int flt_otel_sample_to_str(const struct sample_data *data, char *value, size_t s
 	}
 	else if (data->type == SMP_T_IPV4) {
 		if (INET_ADDRSTRLEN > size)
-			FLT_OTEL_ERR("sample data size too large");
+			FLT_OTEL_ERR_SMP_SIZE();
 		else if (inet_ntop(AF_INET, &(data->u.ipv4), value, INET_ADDRSTRLEN) == NULL)
 			FLT_OTEL_ERR("invalid IPv4 address");
 		else
@@ -522,7 +522,7 @@ int flt_otel_sample_to_str(const struct sample_data *data, char *value, size_t s
 	}
 	else if (data->type == SMP_T_IPV6) {
 		if (INET6_ADDRSTRLEN > size)
-			FLT_OTEL_ERR("sample data size too large");
+			FLT_OTEL_ERR_SMP_SIZE();
 		else if (inet_ntop(AF_INET6, &(data->u.ipv6), value, INET6_ADDRSTRLEN) == NULL)
 			FLT_OTEL_ERR("invalid IPv6 address");
 		else
@@ -530,7 +530,7 @@ int flt_otel_sample_to_str(const struct sample_data *data, char *value, size_t s
 	}
 	else if (data->type == SMP_T_STR) {
 		if (data->u.str.data >= size) {
-			FLT_OTEL_ERR("sample data size too large");
+			FLT_OTEL_ERR_SMP_SIZE();
 		}
 		else if (data->u.str.data > 0) {
 			retval = data->u.str.data;
@@ -546,10 +546,10 @@ int flt_otel_sample_to_str(const struct sample_data *data, char *value, size_t s
 		}
 	}
 	else if (data->type == SMP_T_BIN) {
-		FLT_OTEL_ERR("invalid sample data type %d", data->type);
+		FLT_OTEL_ERR_SMP_TYPE(data->type);
 	}
 	else if (data->type != SMP_T_METH) {
-		FLT_OTEL_ERR("invalid sample data type %d", data->type);
+		FLT_OTEL_ERR_SMP_TYPE(data->type);
 	}
 	else if (OTELC_IN_RANGE(data->u.meth.meth, HTTP_METH_OPTIONS, HTTP_METH_CONNECT)) {
 #define FLT_OTEL_HTTP_METH_DEF(a)   { #a, FLT_OTEL_STR_SIZE(#a) },
@@ -560,7 +560,7 @@ int flt_otel_sample_to_str(const struct sample_data *data, char *value, size_t s
 #undef FLT_OTEL_HTTP_METH_DEF
 
 		if (http_meth_str[data->u.meth.meth].len >= size) {
-			FLT_OTEL_ERR("sample data size too large");
+			FLT_OTEL_ERR_SMP_SIZE();
 		} else {
 			retval = http_meth_str[data->u.meth.meth].len;
 			(void)memcpy(value, http_meth_str[data->u.meth.meth].str, retval + 1);
@@ -568,7 +568,7 @@ int flt_otel_sample_to_str(const struct sample_data *data, char *value, size_t s
 	}
 	else if (data->u.meth.meth == HTTP_METH_OTHER) {
 		if (data->u.meth.str.data >= size) {
-			FLT_OTEL_ERR("sample data size too large");
+			FLT_OTEL_ERR_SMP_SIZE();
 		} else {
 			retval = data->u.meth.str.data;
 			(void)memcpy(value, data->u.meth.str.area, retval);
@@ -1185,7 +1185,7 @@ int flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample 
 		retval = flt_otel_sample_set_status(&(data->status), sample, &value, err);
 	}
 	else {
-		FLT_OTEL_ERR("invalid event sample type: %d", type);
+		FLT_OTEL_ERR("invalid event sample type %d", type);
 
 		retval = FLT_OTEL_RET_ERROR;
 	}

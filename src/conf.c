@@ -376,7 +376,7 @@ struct flt_otel_conf_sample *flt_otel_conf_sample_init_ex(const char **args, int
 		retptr->extra.u.value_int32 = extra->u.value_int32;
 	}
 	else {
-		FLT_OTEL_ERR("invalid sample extra data type: %d", extra->u_type);
+		FLT_OTEL_ERR("invalid sample extra data type %d", extra->u_type);
 		flt_otel_conf_sample_free(&retptr);
 
 		OTELC_RETURN_PTR(retptr);

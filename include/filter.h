@@ -6,8 +6,8 @@
 #define FLT_OTEL_FMT_NAME           "'" FLT_OTEL_OPT_NAME "' : "
 #define FLT_OTEL_FMT_TYPE           "'filter' : "
 #define FLT_OTEL_VAR_UUID           "sess", "otel", "uuid"
-#define FLT_OTEL_ALERT(f, ...)      ha_alert(FLT_OTEL_FMT_TYPE FLT_OTEL_FMT_NAME f "\n", ##__VA_ARGS__)
-#define FLT_OTEL_WARNING(f, ...)    ha_warning(FLT_OTEL_FMT_TYPE FLT_OTEL_FMT_NAME f "\n", ##__VA_ARGS__)
+#define FLT_OTEL_ALERT(f, ...)      ha_alert(FLT_OTEL_FMT_TYPE FLT_OTEL_FMT_NAME "'" f "'\n", ##__VA_ARGS__)
+#define FLT_OTEL_WARNING(f, ...)    ha_warning(FLT_OTEL_FMT_TYPE FLT_OTEL_FMT_NAME "'" f "'\n", ##__VA_ARGS__)
 
 #define FLT_OTEL_CONDITION_IF       "if"
 #define FLT_OTEL_CONDITION_UNLESS   "unless"

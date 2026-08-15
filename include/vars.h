@@ -7,6 +7,13 @@
 #define FLT_OTEL_VAR_CHAR_DASH    'D'
 #define FLT_OTEL_VAR_CHAR_SPACE   'S'
 
+/* Errors shared by the variable-name and context-map helpers. */
+#define FLT_OTEL_ERR_VAR_UNSET()     FLT_OTEL_ERR("variable name not set")
+#define FLT_OTEL_ERR_VAR_NORM()      FLT_OTEL_ERR("failed to normalize variable name, buffer too small")
+#define FLT_OTEL_ERR_VAR_REV()       FLT_OTEL_ERR("failed to reverse variable name, buffer too small")
+#define FLT_OTEL_ERR_MAP_CREATE()    FLT_OTEL_ERR("failed to create map data")
+#define FLT_OTEL_ERR_MAP_ADD()       FLT_OTEL_ERR("failed to add map data")
+
 #ifdef USE_OTEL_VARS
 
 #ifndef USE_OTEL_VARS_NAME

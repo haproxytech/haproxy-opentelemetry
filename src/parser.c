@@ -269,7 +269,7 @@ static int flt_otel_parse_cfg_check(const char *file, int line, char **args, con
 	 */
 	if (!(retval & ERR_CODE))
 		if (argc < (*pdata)->args_min)
-			FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[0], (*pdata)->name, (*pdata)->usage);
+			FLT_OTEL_PARSE_ERR_FEWARGS(err, args[0], *pdata);
 
 	/*
 	 * Checking that more arguments are specified in the configuration
@@ -277,7 +277,7 @@ static int flt_otel_parse_cfg_check(const char *file, int line, char **args, con
 	 */
 	if (!(retval & ERR_CODE) && ((*pdata)->args_max > 0))
 		if (argc > (*pdata)->args_max)
-			FLT_OTEL_PARSE_ERR(err, "'%s' : too many arguments (use '%s%s')", args[0], (*pdata)->name, (*pdata)->usage);
+			FLT_OTEL_PARSE_ERR_MANYARGS(err, args[0], *pdata);
 
 	/* Checking that the first argument has only allowed characters. */
 	if (!(retval & ERR_CODE) && ((*pdata)->check_name != FLT_OTEL_PARSE_INVALID_NONE)) {
@@ -530,7 +530,7 @@ static int flt_otel_parse_cfg_time(const char *file, int line, char **args, int 
 		offset = 1;
 
 	if (!FLT_OTEL_ARG_ISVALID(*idx + offset)) {
-		FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[*idx], pdata->name, pdata->usage);
+		FLT_OTEL_PARSE_ERR_FEWARGS(err, args[*idx], pdata);
 	} else {
 		retval = flt_otel_parse_cfg_sample(file, line, args, *idx + offset, 1, &extra, head, err);
 		if (!(retval & ERR_CODE))
@@ -579,6 +579,42 @@ static int flt_otel_parse_cfg_str(const char *file, int line, char **args, struc
 
 /***
  * NAME
+ *   flt_otel_cfg_file_check - configuration file path validation
+ *
+ * SYNOPSIS
+ *   static int flt_otel_cfg_file_check(const char *path, char **err)
+ *
+ * ARGUMENTS
+ *   path - configuration file path to validate
+ *   err  - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Checks that <path> is readable and names a regular file.  On failure, an
+ *   error message is stored via <err>.
+ *
+ * RETURN VALUE
+ *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
+ */
+static int flt_otel_cfg_file_check(const char *path, char **err)
+{
+	struct stat st;
+	int         retval = FLT_OTEL_RET_ERROR;
+
+	OTELC_FUNC("\"%s\", %p:%p", OTELC_STR_ARG(path), OTELC_DPTR_ARGS(err));
+
+	if (access(path, R_OK) == -1)
+		FLT_OTEL_ERR("'%s' : %s", path, strerror(errno));
+	else if ((stat(path, &st) == 0) && !S_ISREG(st.st_mode))
+		FLT_OTEL_ERR("'%s' : not a regular file", path);
+	else
+		retval = FLT_OTEL_RET_OK;
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_parse_cfg_file - file path argument parser
  *
  * SYNOPSIS
@@ -603,8 +639,7 @@ static int flt_otel_parse_cfg_str(const char *file, int line, char **args, struc
  */
 static int flt_otel_parse_cfg_file(char **ptr, const char *file, int line, char **args, char **err, const char *err_msg)
 {
-	struct stat st;
-	int         retval = ERR_NONE;
+	int retval = ERR_NONE;
 
 	OTELC_FUNC("%p:%p, \"%s\", %d, %p, %p:%p, \"%s\"", OTELC_DPTR_ARGS(ptr), OTELC_STR_ARG(file), line, args, OTELC_DPTR_ARGS(err), err_msg);
 
@@ -612,10 +647,8 @@ static int flt_otel_parse_cfg_file(char **ptr, const char *file, int line, char 
 		FLT_OTEL_PARSE_ERR(err, "'%s' : no %s specified", flt_otel_current_instr->id, err_msg);
 	else if (alertif_too_many_args(2, file, line, args, &retval))
 		retval |= ERR_ABORT | ERR_ALERT;
-	else if (access(args[1], R_OK) == -1)
-		FLT_OTEL_PARSE_ERR(err, "'%s' : %s", args[1], strerror(errno));
-	else if ((stat(args[1], &st) == 0) && !S_ISREG(st.st_mode))
-		FLT_OTEL_PARSE_ERR(err, "'%s' : not a regular file", args[1]);
+	else if (flt_otel_cfg_file_check(args[1], err) == FLT_OTEL_RET_ERROR)
+		retval |= ERR_ABORT | ERR_ALERT;
 	else
 		retval = flt_otel_parse_keyword(ptr, args, 0, 0, err, err_msg);
 
@@ -757,7 +790,7 @@ static int flt_otel_parse_cfg_instr(const char *file, int line, char **args, int
 	 * without an open section object.
 	 */
 	if ((pdata->keyword != FLT_OTEL_PARSE_INSTR_ID) && (flt_otel_current_instr == NULL)) {
-		FLT_OTEL_PARSE_ERR(&err, "'%s' : " FLT_OTEL_PARSE_SECTION_INSTR_ID " section not opened in this scope", args[0]);
+		FLT_OTEL_PARSE_ERR_NOSEC(&err, FLT_OTEL_PARSE_SECTION_INSTR_ID, args[0]);
 		FLT_OTEL_PARSE_IFERR_ALERT();
 
 		OTELC_RETURN_INT(retval);
@@ -945,7 +978,7 @@ static int flt_otel_parse_cfg_group(const char *file, int line, char **args, int
 	 * without an open section object.
 	 */
 	if ((pdata->keyword != FLT_OTEL_PARSE_GROUP_ID) && (flt_otel_current_group == NULL)) {
-		FLT_OTEL_PARSE_ERR(&err, "'%s' : " FLT_OTEL_PARSE_SECTION_GROUP_ID " section not opened in this scope", args[0]);
+		FLT_OTEL_PARSE_ERR_NOSEC(&err, FLT_OTEL_PARSE_SECTION_GROUP_ID, args[0]);
 		FLT_OTEL_PARSE_IFERR_ALERT();
 
 		OTELC_RETURN_INT(retval);
@@ -1548,7 +1581,7 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 
 			if (flag_add_attr) {
 				if (!FLT_OTEL_ARG_ISVALID(i) || !FLT_OTEL_ARG_ISVALID(i + 1))
-					FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+					FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
 				else {
 					retval = flt_otel_parse_cfg_sample(file, line, args, i + 1, 1, NULL, &(instr->attributes), err);
 					if (!(retval & ERR_CODE))
@@ -1559,12 +1592,12 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 				flag_add_attr = true;
 			}
 			else {
-				FLT_OTEL_PARSE_ERR(err, "'%s' : invalid argument (use '%s%s')", args[i], pdata->name, pdata->usage);
+				FLT_OTEL_PARSE_ERR_INVARG(err, args[i], pdata);
 			}
 		}
 
 		if (flag_add_attr && LIST_ISEMPTY(&(instr->attributes)))
-			FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+			FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
 	}
 	else {
 		instr->type = (otelc_metric_instrument_t)(kw->code);
@@ -1582,9 +1615,9 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 
 			if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_INSTRUMENT_AGGR)) {
 				if (!FLT_OTEL_ARG_ISVALID(i + 1))
-					FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+					FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
 				else if (instr->aggr_type != OTELC_METRIC_AGGREGATION_UNSET)
-					FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+					FLT_OTEL_PARSE_ERR_ALRSET(err, args[i], pdata);
 				else {
 					otelc_metric_aggregation_type_t type = otelc_meter_aggr_parse(args[++i]);
 
@@ -1596,25 +1629,25 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 			}
 			else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_INSTRUMENT_DESC)) {
 				if (!FLT_OTEL_ARG_ISVALID(i + 1))
-					FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+					FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
 				else if (instr->description == NULL)
 					retval = flt_otel_parse_strdup(&(instr->description), NULL, args[++i], err, args[0]);
 				else
-					FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+					FLT_OTEL_PARSE_ERR_ALRSET(err, args[i], pdata);
 			}
 			else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_INSTRUMENT_UNIT)) {
 				if (!FLT_OTEL_ARG_ISVALID(i + 1))
-					FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+					FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
 				else if (instr->unit == NULL)
 					retval = flt_otel_parse_strdup(&(instr->unit), NULL, args[++i], err, args[0]);
 				else
-					FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+					FLT_OTEL_PARSE_ERR_ALRSET(err, args[i], pdata);
 			}
 			else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_INSTRUMENT_VALUE)) {
 				if (!FLT_OTEL_ARG_ISVALID(i + 1))
-					FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+					FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
 				else if (!LIST_ISEMPTY(&(instr->samples)))
-					FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+					FLT_OTEL_PARSE_ERR_ALRSET(err, args[i], pdata);
 				else {
 					retval = flt_otel_parse_cfg_sample(file, line, args, ++i, 1, NULL, &(instr->samples), err);
 
@@ -1624,16 +1657,16 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 			}
 			else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_INSTRUMENT_BOUNDS)) {
 				if (!FLT_OTEL_ARG_ISVALID(i + 1))
-					FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+					FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
 				else if (instr->type != OTELC_METRIC_INSTRUMENT_HISTOGRAM_UINT64)
 					FLT_OTEL_PARSE_ERR(err, "'%s' : bounds only valid for hist_int instruments", args[i]);
 				else if (instr->bounds != NULL)
-					FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+					FLT_OTEL_PARSE_ERR_ALRSET(err, args[i], pdata);
 				else
 					retval = flt_otel_parse_bounds(args[++i], &(instr->bounds), &(instr->bounds_num), err, args[0]);
 			}
 			else {
-				FLT_OTEL_PARSE_ERR(err, "'%s' : invalid argument (use '%s%s')", args[i], pdata->name, pdata->usage);
+				FLT_OTEL_PARSE_ERR_INVARG(err, args[i], pdata);
 			}
 		}
 	}
@@ -1684,7 +1717,7 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
 		OTELC_RETURN_INT(retval);
 	}
 
-	log = flt_otel_conf_log_record_init(FLT_OTEL_CONF_HDR_SPECIAL "log-record", line, &(flt_otel_current_scope->log_records), err);
+	log = flt_otel_conf_log_record_init(FLT_OTEL_CONF_HDR_SPECIAL FLT_OTEL_PARSE_KW_LOG_RECORD, line, &(flt_otel_current_scope->log_records), err);
 	if (log == NULL) {
 		retval |= ERR_ABORT | ERR_ALERT;
 
@@ -1697,40 +1730,40 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
 	for (i = 2; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++) {
 		if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_ID)) {
 			if (!FLT_OTEL_ARG_ISVALID(i + 1))
-				FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+				FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
 			else if (log->event_id != 0)
-				FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+				FLT_OTEL_PARSE_ERR_ALRSET(err, args[i], pdata);
 			/* Id 0 is the 'omit' sentinel; accept only >= 1. */
 			else if (!flt_otel_strtoll(args[++i], &(log->event_id), 1, LLONG_MAX, err))
 				retval |= ERR_ABORT | ERR_ALERT;
 		}
 		else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_EVENT)) {
 			if (!FLT_OTEL_ARG_ISVALID(i + 1))
-				FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+				FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
 			else if (log->event_name != NULL)
-				FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+				FLT_OTEL_PARSE_ERR_ALRSET(err, args[i], pdata);
 			else
 				retval = flt_otel_parse_strdup(&(log->event_name), NULL, args[++i], err, args[0]);
 		}
 		else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_TIME)) {
 			if (!FLT_OTEL_ARG_ISVALID(i + 1))
-				FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+				FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
 			else if (!LIST_ISEMPTY(&(log->time)))
-				FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+				FLT_OTEL_PARSE_ERR_ALRSET(err, args[i], pdata);
 			else
 				retval = flt_otel_parse_cfg_time(file, line, args, &i, pdata, &(log->time), err);
 		}
 		else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_SPAN)) {
 			if (!FLT_OTEL_ARG_ISVALID(i + 1))
-				FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+				FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
 			else if (log->span != NULL)
-				FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+				FLT_OTEL_PARSE_ERR_ALRSET(err, args[i], pdata);
 			else
 				retval = flt_otel_parse_strdup(&(log->span), NULL, args[++i], err, args[0]);
 		}
 		else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_ATTR)) {
 			if (!FLT_OTEL_ARG_ISVALID(i + 1) || !FLT_OTEL_ARG_ISVALID(i + 2))
-				FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+				FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
 			else {
 				retval = flt_otel_parse_cfg_sample(file, line, args, i + 2, 1, NULL, &(log->attributes), err);
 				if (!(retval & ERR_CODE))
@@ -1798,7 +1831,7 @@ static int flt_otel_parse_cfg_exception(const char *file, int line, char **args,
 
 	OTELC_FUNC("\"%s\", %d, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, pdata, OTELC_DPTR_ARGS(err));
 
-	exc = flt_otel_conf_exception_init(FLT_OTEL_CONF_HDR_SPECIAL "exception", line, &(flt_otel_current_span->exceptions), err);
+	exc = flt_otel_conf_exception_init(FLT_OTEL_CONF_HDR_SPECIAL FLT_OTEL_PARSE_KW_EXCEPTION, line, &(flt_otel_current_span->exceptions), err);
 	if (exc == NULL) {
 		retval |= ERR_ABORT | ERR_ALERT;
 
@@ -1814,7 +1847,7 @@ static int flt_otel_parse_cfg_exception(const char *file, int line, char **args,
 			int j;
 
 			if (!LIST_ISEMPTY(&(exc->message))) {
-				FLT_OTEL_PARSE_ERR(err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+				FLT_OTEL_PARSE_ERR_ALRSET(err, args[i], pdata);
 
 				break;
 			}
@@ -1825,7 +1858,7 @@ static int flt_otel_parse_cfg_exception(const char *file, int line, char **args,
 					break;
 
 			if (j == (i + 1))
-				FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+				FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
 			else
 				retval = flt_otel_parse_cfg_sample(file, line, args, i + 1, j - (i + 1), NULL, &(exc->message), err);
 
@@ -1833,7 +1866,7 @@ static int flt_otel_parse_cfg_exception(const char *file, int line, char **args,
 		}
 		else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_ATTR)) {
 			if (!FLT_OTEL_ARG_ISVALID(i + 1) || !FLT_OTEL_ARG_ISVALID(i + 2))
-				FLT_OTEL_PARSE_ERR(err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+				FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
 			else {
 				retval = flt_otel_parse_cfg_sample(file, line, args, i + 2, 1, NULL, &(exc->attributes), err);
 				if (!(retval & ERR_CODE))
@@ -1988,7 +2021,7 @@ static int flt_otel_parse_cfg_unset_var(const char *file, int line, char **args,
 
 	OTELC_FUNC("\"%s\", %d, %p, %p:%p", OTELC_STR_ARG(file), line, args, OTELC_DPTR_ARGS(err));
 
-	unset_var = flt_otel_conf_unset_var_init(FLT_OTEL_CONF_HDR_SPECIAL "unset-var", line, &(flt_otel_current_scope->unset_vars), err);
+	unset_var = flt_otel_conf_unset_var_init(FLT_OTEL_CONF_HDR_SPECIAL FLT_OTEL_PARSE_KW_UNSET_VAR, line, &(flt_otel_current_scope->unset_vars), err);
 	if (unset_var == NULL) {
 		retval |= ERR_ABORT | ERR_ALERT;
 
@@ -2066,7 +2099,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 	 * without an open section object.
 	 */
 	if (!(retval & ERR_CODE) && (pdata->keyword != FLT_OTEL_PARSE_SCOPE_ID) && (flt_otel_current_scope == NULL))
-		FLT_OTEL_PARSE_ERR(&err, "'%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " section not opened in this scope", args[0]);
+		FLT_OTEL_PARSE_ERR_NOSEC(&err, FLT_OTEL_PARSE_SECTION_SCOPE_ID, args[0]);
 
 	/*
 	 * Keywords that set flag_check_id attach to a span, so name the 'span'
@@ -2114,15 +2147,15 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			for (i = 2; (i < pdata->args_max) && FLT_OTEL_ARG_ISVALID(i); i++) {
 				if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_SPAN_ROOT)) {
 					if (flt_otel_current_span->flag_root)
-						FLT_OTEL_PARSE_ERR(&err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+						FLT_OTEL_PARSE_ERR_ALRSET(&err, args[i], pdata);
 					else
 						flt_otel_current_span->flag_root = 1;
 				}
 				else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_SPAN_PARENT)) {
 					if (!FLT_OTEL_ARG_ISVALID(i + 1))
-						FLT_OTEL_PARSE_ERR(&err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+						FLT_OTEL_PARSE_ERR_FEWARGS(&err, args[i], pdata);
 					else if (flt_otel_current_span->ref_id != NULL)
-						FLT_OTEL_PARSE_ERR(&err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+						FLT_OTEL_PARSE_ERR_ALRSET(&err, args[i], pdata);
 					else
 						retval |= flt_otel_parse_strdup(&(flt_otel_current_span->ref_id), &(flt_otel_current_span->ref_id_len), args[++i], &err, args[1]);
 				}
@@ -2134,7 +2167,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 						if (flt_otel_conf_link_init(args[++i], line, &(flt_otel_current_span->links), &err) == NULL)
 							retval |= ERR_ABORT | ERR_ALERT;
 					} else {
-						FLT_OTEL_PARSE_ERR(&err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+						FLT_OTEL_PARSE_ERR_FEWARGS(&err, args[i], pdata);
 					}
 				}
 				else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_SPAN_KIND)) {
@@ -2143,10 +2176,10 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 #undef FLT_OTEL_PARSE_SPAN_KIND_DEF
 
 					if (!FLT_OTEL_ARG_ISVALID(i + 1)) {
-						FLT_OTEL_PARSE_ERR(&err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+						FLT_OTEL_PARSE_ERR_FEWARGS(&err, args[i], pdata);
 					}
 					else if (flag_kind) {
-						FLT_OTEL_PARSE_ERR(&err, "'%s' : already set (use '%s%s')", args[i], pdata->name, pdata->usage);
+						FLT_OTEL_PARSE_ERR_ALRSET(&err, args[i], pdata);
 					}
 					else {
 						kw = flt_otel_kw_lookup(span_kind, OTELC_TABLESIZE(span_kind), args[i + 1]);
@@ -2161,7 +2194,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 					}
 				}
 				else {
-					FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid argument (use '%s%s')", args[i], pdata->name, pdata->usage);
+					FLT_OTEL_PARSE_ERR_INVARG(&err, args[i], pdata);
 				}
 			}
 		}
@@ -2204,7 +2237,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 					retval |= ERR_ABORT | ERR_ALERT;
 		}
 		else if (!FLT_OTEL_ARG_ISVALID(3)) {
-			FLT_OTEL_PARSE_ERR(&err, "'%s' : too few arguments (use '%s%s')", args[2], pdata->name, pdata->usage);
+			FLT_OTEL_PARSE_ERR_FEWARGS(&err, args[2], pdata);
 		}
 		else {
 			struct flt_otel_conf_link *conf_link;
@@ -2219,7 +2252,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			} else {
 				for (i = 3; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++) {
 					if (!FLT_OTEL_ARG_ISVALID(i + 1)) {
-						FLT_OTEL_PARSE_ERR(&err, "'%s' : too few arguments (use '%s%s')", args[i], pdata->name, pdata->usage);
+						FLT_OTEL_PARSE_ERR_FEWARGS(&err, args[i], pdata);
 					} else {
 						retval = flt_otel_parse_cfg_sample(file, line, args, i + 1, 1, NULL, &(conf_link->attributes), &err);
 						if (!(retval & ERR_CODE))
@@ -2247,7 +2280,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			int idx = 2;
 
 			if (!FLT_OTEL_ARG_ISVALID(3))
-				FLT_OTEL_PARSE_ERR(&err, "'%s' : too few arguments (use '%s%s')", args[2], pdata->name, pdata->usage);
+				FLT_OTEL_PARSE_ERR_FEWARGS(&err, args[2], pdata);
 			else
 				retval = flt_otel_parse_cfg_time(file, line, args, &idx, pdata, &time_list, &err);
 
@@ -2418,7 +2451,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 
 		res = parse_time_err(args[1], &timeout, TIME_UNIT_MS);
 		if (flt_otel_current_scope->idle_timeout != 0)
-			FLT_OTEL_PARSE_ERR(&err, "'%s' : already set (use '%s%s')", args[0], pdata->name, pdata->usage);
+			FLT_OTEL_PARSE_ERR_ALRSET(&err, args[0], pdata);
 		else if (res == PARSE_TIME_OVER)
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : timer overflow in argument '%s'", args[0], args[1]);
 		else if (res == PARSE_TIME_UNDER)
@@ -2433,7 +2466,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_ON_EVENT) {
 		/* Scope can only have one event defined. */
 		if (flt_otel_current_scope->event != FLT_OTEL_EVENT__NONE) {
-			FLT_OTEL_PARSE_ERR(&err, "'%s' : already set (use '%s%s')", args[0], pdata->name, pdata->usage);
+			FLT_OTEL_PARSE_ERR_ALRSET(&err, args[0], pdata);
 		} else {
 			/* Check the event name. */
 			for (i = 0; i < OTELC_TABLESIZE(flt_otel_event_data); i++)
@@ -2671,7 +2704,6 @@ static int flt_otel_parse_cfg(struct flt_otel_conf *conf, const char *flt_name, 
 {
 	struct list    backup_sections;
 	struct cfgfile cfg_file;
-	struct stat    st;
 	int            retval = ERR_ABORT | ERR_ALERT;
 
 	OTELC_FUNC("%p, \"%s\", %p:%p", conf, OTELC_STR_ARG(flt_name), OTELC_DPTR_ARGS(err));
@@ -2689,10 +2721,8 @@ static int flt_otel_parse_cfg(struct flt_otel_conf *conf, const char *flt_name, 
 		/* Do nothing. */;
 	else if (!cfg_register_section(FLT_OTEL_PARSE_SECTION_SCOPE_ID, flt_otel_parse_cfg_scope, flt_otel_post_parse_cfg_scope))
 		/* Do nothing. */;
-	else if (access(conf->cfg_file, R_OK) == -1)
-		FLT_OTEL_PARSE_ERR(err, "'%s' : %s", conf->cfg_file, strerror(errno));
-	else if ((stat(conf->cfg_file, &st) == 0) && !S_ISREG(st.st_mode))
-		FLT_OTEL_PARSE_ERR(err, "'%s' : not a regular file", conf->cfg_file);
+	else if (flt_otel_cfg_file_check(conf->cfg_file, err) == FLT_OTEL_RET_ERROR)
+		/* Do nothing. */;
 	else {
 		struct list saved_args = LIST_HEAD_INIT(saved_args);
 

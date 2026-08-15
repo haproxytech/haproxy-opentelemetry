@@ -1089,9 +1089,9 @@ static int flt_otel_cli_io_status(struct appctx *appctx)
 		(void)chunk_appendf(&trash, "     groups/scopes: %d/%d\n\n", n_groups, n_scopes);
 		(void)chunk_appendf(&trash, "     instrumentation %s\n", conf->instr->id);
 		(void)chunk_appendf(&trash, "       configuration: %s\n", conf->instr->config);
-		(void)chunk_appendf(&trash, "       tracer:        %s\n", (conf->instr->tracer != NULL) ? "active" : "not initialized");
-		(void)chunk_appendf(&trash, "       meter:         %s\n", (conf->instr->meter != NULL) ? "active" : "not initialized");
-		(void)chunk_appendf(&trash, "       logger:        %s\n", (conf->instr->logger != NULL) ? "active" : "not initialized");
+		(void)chunk_appendf(&trash, "       tracer:        %s\n", FLT_OTEL_STR_ACTIVE(conf->instr->tracer));
+		(void)chunk_appendf(&trash, "       meter:         %s\n", FLT_OTEL_STR_ACTIVE(conf->instr->meter));
+		(void)chunk_appendf(&trash, "       logger:        %s\n", FLT_OTEL_STR_ACTIVE(conf->instr->logger));
 		(void)chunk_appendf(&trash, "       rate limit:    %.2f %%\n", FLT_OTEL_U32_FLOAT(_HA_ATOMIC_LOAD(&(conf->instr->rate_limit))));
 		(void)chunk_appendf(&trash, "       hard errors:   %s\n", FLT_OTEL_STR_FLAG_YN(_HA_ATOMIC_LOAD(&(conf->instr->flag_harderr))));
 		(void)chunk_appendf(&trash, "       disabled:      %s\n", FLT_OTEL_STR_FLAG_YN(_HA_ATOMIC_LOAD(&(conf->instr->flag_disabled))));
