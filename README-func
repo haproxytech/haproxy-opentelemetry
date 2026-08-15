@@ -26,16 +26,18 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
 
   flt_otel_lib_init
       Initializes the OTel C wrapper library: verifies the library version,
-      constructs the configuration path, calls otelc_init(), and creates the
-      tracer, meter and logger instances.
+      constructs the configuration path, calls otelc_init(), checks how the
+      context name resolved per signal, and creates the tracer, meter and logger
+      instances for the usable signals.
 
   flt_otel_is_disabled
       Checks whether the filter instance is disabled for the current stream.
       Logs the event name when DEBUG_OTEL is enabled.
 
   flt_otel_return_int
-      Error handler for callbacks returning int.  In hard-error mode, disables
-      the filter; in soft-error mode, clears the error and returns OK.
+      Error handler for callbacks returning int.  Hard-error mode disables the
+      filter, soft-error mode continues; the error is logged rate-limited and
+      freed, and both modes return OK.
 
   flt_otel_return_void
       Error handler for callbacks returning void.  Same logic as
@@ -47,8 +49,9 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
       declares HTX filtering (FLT_CFG_FL_HTX) for an HTTP-mode proxy.
 
   flt_otel_ops_deinit
-      Filter deinit callback (flt_ops.deinit).  Destroys the tracer, meter and
-      logger, frees the configuration, and calls otelc_deinit().
+      Filter deinit callback (flt_ops.deinit).  Saves the context, tracer, meter
+      and logger handles, frees the configuration and the memory pools, then
+      destroys the saved handles via otelc_deinit().
 
   flt_otel_ops_check
       Filter check callback (flt_ops.check).  Validates the parsed

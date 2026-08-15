@@ -1039,27 +1039,28 @@ claim return success without repeating the start.  If any start operation
 fails, the error string from the failing handle is forwarded via
 FLT_OTEL_ALERT.
 
-18.3  Tracer, Meter and Logger Shutdown
+18.3  Context, Tracer, Meter and Logger Shutdown
 
-At proxy deinit (flt_otel_ops_deinit, filter.c), the tracer, meter
-and logger handles are first saved into local variables, then the
+At proxy deinit (flt_otel_ops_deinit, filter.c), the context, tracer,
+meter and logger handles are first saved into local variables, then the
 configuration tree is freed, and only afterwards are the handles
 destroyed:
 
+  otel_ctx    = (*conf)->instr->ctx;
   otel_tracer = (*conf)->instr->tracer;
   otel_meter  = (*conf)->instr->meter;
   otel_logger = (*conf)->instr->logger;
 
   flt_otel_conf_free(conf);
   flt_otel_pool_destroy();
-  otelc_deinit(&otel_tracer, &otel_meter, &otel_logger);
+  otelc_deinit(&otel_ctx, &otel_tracer, &otel_meter, &otel_logger);
 
-The ordering matters: flt_otel_conf_free() must run while the wrapper's
-ext callbacks still point to the HAProxy pool allocator, and otelc_deinit()
-resets those callbacks, so it runs last.  Saving the handles into locals
-first avoids dereferencing the already-freed instr structure.  The
-otelc_deinit() call flushes any pending spans, metric data and log records
-to the configured exporters, then releases the SDK resources.
+Saving the handles into locals first avoids dereferencing the already-freed
+instr structure.  Destroying the memory pools before otelc_deinit() is safe:
+its teardown never invokes the ext free callback, which serves only otelc_span
+and otelc_span_context objects released at runtime.  The otelc_deinit() call
+then flushes any pending spans, metric data and log records to the configured
+exporters and releases the SDK resources.
 
 18.4  Span Lifecycle
 

@@ -131,9 +131,10 @@ that the wrapper API uses for a field which does not apply, so the CLI status
 table shows -1 counters on the trace and log rows and reports that nothing has
 ever been exported.
 
-The OTel configuration file is not read.  The path handed to otelc_init() is
-accepted without being opened, so any mistake in the YAML configuration goes
-unreported and a configuration that the real library would reject passes here.
+The OTel configuration file is not read.  The paths handed to otelc_init() and
+otelc_cfg_validate() are accepted without being opened, so any mistake in the
+YAML configuration goes unreported: the parse-time validation that rejects a
+broken file under the real library always succeeds here.
 
 Context extraction never yields a valid span context.  A request that carries
 propagation headers is handled without error, but no parent linkage results

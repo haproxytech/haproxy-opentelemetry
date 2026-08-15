@@ -172,8 +172,9 @@ Macros in define.h manage error messages:
     error with a cascading secondary error.
 
   FLT_OTEL_ERR_APPEND(f, ...)
-    Unconditionally appends to the error message regardless of prior content.
-    Used when a function must report multiple issues.
+    Formats the error message unconditionally, regardless of prior content.
+    Used to wrap an existing message with additional context by passing the
+    old *err among the format arguments.
 
   FLT_OTEL_ERR_FREE(p)
     Emits the accumulated error message as a debug-build trace (OTELC_DBG at
@@ -184,13 +185,26 @@ All source functions that can fail accept a char **err parameter.  The
 convention is: set *err on error, leave it alone on success.  Callers check
 both the return value and *err to detect problems.
 
+An error message string has two possible origins: HAProxy's memprintf(), or
+the wrapper's own allocator, used by otelc_init() and the tracer, meter and
+logger create calls for their diagnostics.  FLT_OTEL_ERR_FREE() releases the
+string through OTELC_SFREE_CLEAR() so that one macro covers both origins: in
+a debug build the wrapper's free first probes for its metadata header below
+the payload and transparently plain-frees a foreign (memprintf-allocated) block.
+The reverse pairing is not safe: a wrapper-allocated string must never reach
+free(), ha_free() or an occupied memprintf() argument, whose internal free()
+would abort a debug build.  Where such a string crosses over to HAProxy -- the
+otelc_cfg_validate() diagnostic at parse time -- it is copied via memprintf()
+first and the original is freed with OTELC_SFREE().
+
 3.2  Parse-Time Error Reporting
 
 Configuration parsing (parser.c) uses additional macros:
 
   FLT_OTEL_PARSE_ERR(e, f, ...)
     Sets the error string and ORs ERR_ABORT | ERR_ALERT into the return value.
-    Used inside section parser switch statements.
+    Like FLT_OTEL_ERR, it fills *e only while it is still NULL, so the first
+    error wins.  Used inside the section parsers' keyword dispatch chains.
 
   FLT_OTEL_PARSE_ALERT(f, ...)
     Issues a ha_alert() with the current file and line, then sets the error
