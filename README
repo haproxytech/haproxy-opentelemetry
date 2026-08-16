@@ -1,7 +1,7 @@
                    -----------------------------------------
                       The HAProxy OpenTelemetry filter (OTel)
-                                 Version 2.1.2
-                          ( Last update: 2026-08-16 )
+                                 Version 2.2.0
+                          ( Last update: 2026-08-17 )
                    -----------------------------------------
                            Author : Miroslav Zagorac
                      Contact : mzagorac at haproxy dot com
@@ -70,7 +70,7 @@ connections that are of interest to us.
 ----------------------
 
 OTel is the HAProxy filter and as such is compiled together with HAProxy.  It
-supports all HAProxy versions from 3.4 onward; the sources are available at
+supports all HAProxy versions from 3.2 onward; the sources are available at
 https://github.com/haproxy/haproxy/ .
 
 To communicate with an OpenTelemetry compatible backend, the OTel filter uses
@@ -157,7 +157,7 @@ After HAProxy is compiled, we can check if the OTel filter is enabled:
 
   % ./haproxy -vv | grep -i opentelemetry
   --- command output ----------
-  Built with OpenTelemetry support (filter version 2.1.2, C++ version 1.28.0, C Wrapper version 3.3.0-995).
+  Built with OpenTelemetry support (filter version 2.2.0, C++ version 1.26.0, C Wrapper version 3.3.0-1005).
           [OTEL] opentelemetry
   --- command output ----------
 
@@ -187,7 +187,7 @@ C++ version as "none", which tells it apart from a real build:
 
   % ./haproxy -vv | grep -i opentelemetry
   --- command output ----------
-  Built with OpenTelemetry support (filter version 2.1.2, C++ version none, C Wrapper version 3.3.0-0).
+  Built with OpenTelemetry support (filter version 2.2.0, C++ version none, C Wrapper version 3.3.0-0).
           [OTEL] opentelemetry
   --- command output ----------
 
@@ -1766,7 +1766,7 @@ the 'counters' block appear only in a debug build):
   --- command output ----------
    opentelemetry filter status
   ------------------------------------------------------------------------------
-     library:         C++ 1.28.0, C wrapper 3.3.0-995
+     library:         C++ 1.26.0, C wrapper 3.3.0-1005
      debug level:     0x7f
      export pipeline:
        signal   queued  dropped  exported  failed  last export

@@ -6,6 +6,59 @@ commits, with directly related commits folded into a single bullet, and the
 git log keeps the full descriptions.
 
 
+Version 2.2.0 (2026-08-17)
+--------------------------
+
+Fixes a crash that a single request could trigger: a span entry is listed before
+the OpenTelemetry span behind it is created, and when that creation failed,
+ending the entry read the operations table through a null pointer and killed
+the process.  The contexts already had this guard; now the spans have it too.
+
+An unreachable exporter no longer stalls the proxy.  The CLI 'flush' command
+shares one time budget across the visited signals instead of five seconds for
+each, and the handles are flushed under a short shared budget before they are
+destroyed at shutdown.  The 'noflush' instrumentation option, also settable
+at runtime with the new 'flt-otel noflush' CLI command, skips the final flush
+altogether and drops the buffered telemetry, so a shutdown or a reload proceeds
+at once.
+
+The configuration check is stricter, and the bytes a peer sends are handled
+more carefully.  The OpenTelemetry YAML is validated at configuration parse
+time, so a broken YAML file fails the 'haproxy -c' check instead of the later
+startup, and a directory or a device given as a configuration file is rejected.
+A header whose name is exactly the context extract prefix is skipped instead of
+being read far past its end, and the runtime error text is escaped before it is
+written to the log, so a quoted sample value cannot reach a terminal verbatim.
+
+The filter now builds against HAProxy 3.2 as well as 3.4.  The required wrapper
+version is raised to 3.3.0, which provides the YAML validation and the flush
+timeout operations.
+
+  * BUILD: Adapted the ACL condition conflict check to HAProxy 3.2.
+  * BUILD: Guarded the descriptor name release on older HAProxy.
+  * BUILD: Adapted the HTTP header addition to HAProxy 3.2.
+  * MINOR: Rejected non-regular configuration files, as a directory or a device
+    was parsed as an empty configuration with a misleading alert.
+  * MINOR: Validated the OpenTelemetry YAML at configuration parse time, so a
+    broken YAML configuration fails the 'haproxy -c' check instead of the later
+    startup.
+  * MINOR: Freed the CLI messages on the defensive NULL-appctx path.
+  * DOC: Refreshed the error-handling and shutdown documentation.
+  * MINOR: Unified the repeated message strings into macro definitions.
+  * BUG/MEDIUM: Skipped the header whose name is only the extract prefix, which
+    left an empty key and read the HTX buffer far past the header.
+  * BUG/MINOR: Escaped the runtime error text written to the log, so the bytes
+    a peer sent cannot reach a terminal verbatim.
+  * BUG/MEDIUM: Bounded the time the CLI 'flush' command may block with one
+    budget shared by all the visited signals.
+  * BUG/MAJOR: Guarded the span whose creation failed before ending it, which
+    killed the process on the first request.
+  * MINOR: Added the 'noflush' instrumentation option, which skips the final
+    flush and drops the buffered telemetry, so a shutdown proceeds at once.
+  * DOC: Completed the instrumentation field table.
+  * VERSION: Bumped the filter version to 2.2.0.
+
+
 Version 2.1.2 (2026-08-13)
 --------------------------
 

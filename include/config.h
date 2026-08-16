@@ -4,7 +4,7 @@
 #define _OTEL_CONFIG_H_
 
 /* Filter version, reported in the build options string. */
-#define FLT_OTEL_VERSION          "2.1.2"
+#define FLT_OTEL_VERSION          "2.2.0"
 
 /* Memory pool selection flags. */
 #define USE_POOL_BUFFER
