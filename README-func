@@ -50,9 +50,10 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
 
   flt_otel_ops_deinit
       Filter deinit callback (flt_ops.deinit).  Saves the context, tracer, meter
-      and logger handles and force-flushes them within one shared budget, frees
-      the configuration and the memory pools, then destroys the saved handles
-      via otelc_deinit().
+      and logger handles and force-flushes them within one shared budget (with
+      'option noflush' it sets a zero flush budget instead, dropping the
+      buffered telemetry), frees the configuration and the memory pools, then
+      destroys the saved handles via otelc_deinit().
 
   flt_otel_ops_check
       Filter check callback (flt_ops.check).  Validates the parsed
@@ -631,6 +632,10 @@ HAProxy CLI command handlers for runtime filter management.
   flt_otel_cli_parse_logging
       CLI handler for "flt-otel logging [state]".  Gets or sets the logging
       state (off/on/dontlog-normal).
+
+  flt_otel_cli_parse_noflush
+      CLI handler for "flt-otel noflush [state]".  Gets or sets the noflush
+      mode (off/on).
 
   flt_otel_cli_parse_rate
       CLI handler for "flt-otel rate [value]".  Gets or sets the rate limit

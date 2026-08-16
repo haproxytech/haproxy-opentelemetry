@@ -1,7 +1,7 @@
                    -----------------------------------------
                     HAProxy OTel filter configuration guide
                                Version 2.1.2
-                        ( Last update: 2026-08-15 )
+                        ( Last update: 2026-08-16 )
                    -----------------------------------------
                          Author : Miroslav Zagorac
                    Contact : mzagorac at haproxy dot com
@@ -217,6 +217,14 @@ Keywords (optional):
       dropped whole when its value or any of its attributes fails.  A log record
       whose body fails to evaluate is not emitted.  A span whose parent cannot
       be resolved is not created, and none of its samples are evaluated.
+
+  option noflush / no option noflush
+      Drop the telemetry still buffered in the exporters when the filter is
+      deinitialized, instead of flushing it.  The final flush waits for the
+      exporters, so an endpoint that is unreachable at that moment delays a
+      shutdown or a reload; with this option the teardown returns at once and
+      the pending telemetry is lost.  Default: disabled (buffered telemetry
+      is flushed on shutdown).
 
   option require-context / no option require-context
       Suppress all telemetry for a stream until a valid upstream trace context

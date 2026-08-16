@@ -333,6 +333,7 @@ otel-instrumentation <name>
       - [no] option disabled
       - [no] option dontlog-normal
       - [no] option hard-errors
+      - [no] option noflush
       - [no] option require-context
       - rate-limit
       - scopes
@@ -450,6 +451,17 @@ no option hard-errors
   for the stream in which the error occurred.  If the 'hard-errors' option is
   enabled, the operation error prohibits all further processing of events and
   groups in the stream in which the error occurred.
+
+
+option noflush
+no option noflush
+  When the filter is deinitialized, the telemetry still buffered in the OTel
+  library is flushed to the exporters, and that final flush waits for them,
+  so an unreachable endpoint at that moment delays the shutdown or the reload
+  by the export timeouts.  With this option enabled the teardown sets a zero
+  flush budget on the OTel handles instead: the exporters are shut down at once
+  and the buffered telemetry is dropped.  By default the option is disabled
+  and the buffered telemetry is flushed on deinitialization.
 
 
 option require-context
@@ -1718,6 +1730,7 @@ with a change in arguments when running the same):
   flt-otel hard-errors [@<filter>]        : enable hard-errors mode
   flt-otel reset-errors [@<filter>]       : reset runtime-error counters
   flt-otel logging [@<filter>] [state]    : set logging state (default: get current logging state)
+  flt-otel noflush [@<filter>] [state]    : set noflush mode (default: get current noflush mode)
   flt-otel rate [@<filter>] [value]       : set the rate limit (default: get current rate value)
   flt-otel status [@<filter>]             : show the OTEL filter status
   flt-otel flush [@<filter>]              : force-export buffered telemetry now
@@ -1831,6 +1844,13 @@ these calls share a single five-second budget, so an exporter that does not
 respond cannot stall the command for the sum of per-call timeouts; a call that
 finds the budget spent is skipped, and its data stays buffered for the regular
 periodic export.  It requires admin access.
+
+'flt-otel noflush' arms or disarms the noflush mode at runtime, with the same
+meaning as the 'option noflush' configuration keyword: when a collector is known
+to be down before a planned stop or reload, 'flt-otel noflush on' makes the
+teardown drop the buffered telemetry at once instead of waiting for the export
+timeouts, without any configuration change.  Without an argument the command
+reports the current mode.  Setting it requires admin access.
 
 'flt-otel reset-errors' clears the 'runtime err' counters and the runtime-log
 rate-limiter state for every filter instance, so a fresh fault is reported again

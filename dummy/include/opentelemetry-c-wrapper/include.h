@@ -417,6 +417,7 @@ struct otelc_tracer_ops {
 	struct otelc_span *(*start_span_with_options)(struct otelc_tracer *tracer, const char *operation_name, const struct otelc_span *parent_span, const struct otelc_span_context *parent_context, const struct timespec *ts_steady, const struct timespec *ts_system, otelc_span_kind_t kind, const struct otelc_span_link *links, size_t links_len);
 	struct otelc_span_context *(*extract_text_map)(struct otelc_tracer *tracer, const struct otelc_text_map_reader *carrier);
 	struct otelc_span_context *(*extract_http_headers)(struct otelc_tracer *tracer, const struct otelc_http_headers_reader *carrier);
+	int (*set_flush_timeout)(struct otelc_tracer *tracer, int flush_timeout);
 	int (*force_flush)(struct otelc_tracer *tracer, const struct timespec *timeout);
 	int (*start)(struct otelc_tracer *tracer);
 };
@@ -471,6 +472,7 @@ struct otelc_meter_ops {
 	int64_t (*create_instrument)(struct otelc_meter *meter, const char *name, const char *desc, const char *unit, otelc_metric_instrument_t type, struct otelc_metric_observable_cb *data);
 	int (*update_instrument_kv_n)(struct otelc_meter *meter, int idx, const struct otelc_value *value, const struct otelc_kv *kv, size_t kv_len);
 	int64_t (*add_view)(struct otelc_meter *meter, const char *view_name, const char *view_desc, const char *instrument_name, const char *instrument_unit, otelc_metric_instrument_t instrument_type, otelc_metric_aggregation_type_t aggregation_type, const double *bounds, size_t bounds_num);
+	int (*set_flush_timeout)(struct otelc_meter *meter, int flush_timeout);
 	int (*force_flush)(struct otelc_meter *meter, const struct timespec *timeout);
 	int (*start)(struct otelc_meter *meter);
 };
@@ -519,6 +521,7 @@ struct otelc_logger;
 struct otelc_logger_ops {
 	int (*enabled)(struct otelc_logger *logger, otelc_log_severity_t severity);
 	int (*log_span)(struct otelc_logger *logger, otelc_log_severity_t severity, int64_t event_id, const char *event_name, const struct otelc_span *span, const struct timespec *ts, const struct timespec *ts_obs, const struct otelc_kv *attr, size_t attr_len, const char *format, ...);
+	int (*set_flush_timeout)(struct otelc_logger *logger, int flush_timeout);
 	int (*force_flush)(struct otelc_logger *logger, const struct timespec *timeout);
 	int (*start)(struct otelc_logger *logger);
 };

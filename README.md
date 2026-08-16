@@ -263,12 +263,13 @@ Available via the HAProxy CLI socket (prefix: `flt-otel`):
 | `flt-otel soft-errors [@<filter>]`     | Disable hard-errors mode           |
 | `flt-otel reset-errors [@<filter>]`    | Reset runtime-error counters       |
 | `flt-otel logging [@<filter>] [state]` | Set logging state                  |
+| `flt-otel noflush [@<filter>] [state]` | Set noflush mode                   |
 | `flt-otel rate [@<filter>] [value]`    | Set or show the rate limit         |
 | `flt-otel flush [@<filter>]`           | Force-export buffered telemetry    |
 | `flt-otel debug [level]`               | Set debug level (debug build only) |
 
-When invoked without arguments, `rate`, `logging` and `debug` display the
-current value.  The optional `@<filter>` token, accepted by every command
+When invoked without arguments, `rate`, `logging`, `noflush` and `debug`
+display the current value.  The optional `@<filter>` token, accepted by every command
 except `debug`, restricts a command to the single filter instance whose id
 matches; without it, a command operates on every configured instance at once.
 Surplus arguments are rejected.

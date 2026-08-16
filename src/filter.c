@@ -536,6 +536,7 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 	struct otelc_meter    *otel_meter = NULL;
 	struct otelc_logger   *otel_logger = NULL;
 	struct timespec        ts_deadline, timeout;
+	bool                   flag_noflush = 0;
 #ifdef DEBUG_OTEL
 	char                   buffer[BUFSIZ];
 	int                    i;
@@ -572,23 +573,35 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 		otel_tracer = (*conf)->instr->tracer;
 		otel_meter  = (*conf)->instr->meter;
 		otel_logger = (*conf)->instr->logger;
+		flag_noflush = _HA_ATOMIC_LOAD(&((*conf)->instr->flag_noflush));
 	}
 
 	/*
 	 * Each handle is destroyed with a blocking flush of its own, so they
 	 * are flushed here first, sharing one budget.  An exporter that cannot
 	 * be reached then delays the shutdown by that budget instead of by the
-	 * sum of the timeouts the destruction would use.
+	 * sum of the timeouts the destruction would use.  With 'option noflush'
+	 * the flushes are skipped and a zero budget is set instead, so the
+	 * destruction drops the buffered telemetry without waiting.
 	 */
-	(void)clock_gettime(CLOCK_MONOTONIC, &ts_deadline);
-	ts_deadline.tv_sec += FLT_OTEL_FLUSH_DEINIT_S;
+	if (flag_noflush) {
+		if (otel_tracer != NULL)
+			(void)OTELC_OPS(otel_tracer, set_flush_timeout, 0);
+		if (otel_meter != NULL)
+			(void)OTELC_OPS(otel_meter, set_flush_timeout, 0);
+		if (otel_logger != NULL)
+			(void)OTELC_OPS(otel_logger, set_flush_timeout, 0);
+	} else {
+		(void)clock_gettime(CLOCK_MONOTONIC, &ts_deadline);
+		ts_deadline.tv_sec += FLT_OTEL_FLUSH_DEINIT_S;
 
-	if ((otel_tracer != NULL) && (flt_otel_flush_budget(&ts_deadline, &timeout) == 1))
-		(void)OTELC_OPS(otel_tracer, force_flush, &timeout);
-	if ((otel_meter != NULL) && (flt_otel_flush_budget(&ts_deadline, &timeout) == 1))
-		(void)OTELC_OPS(otel_meter, force_flush, &timeout);
-	if ((otel_logger != NULL) && (flt_otel_flush_budget(&ts_deadline, &timeout) == 1))
-		(void)OTELC_OPS(otel_logger, force_flush, &timeout);
+		if ((otel_tracer != NULL) && (flt_otel_flush_budget(&ts_deadline, &timeout) == 1))
+			(void)OTELC_OPS(otel_tracer, force_flush, &timeout);
+		if ((otel_meter != NULL) && (flt_otel_flush_budget(&ts_deadline, &timeout) == 1))
+			(void)OTELC_OPS(otel_meter, force_flush, &timeout);
+		if ((otel_logger != NULL) && (flt_otel_flush_budget(&ts_deadline, &timeout) == 1))
+			(void)OTELC_OPS(otel_logger, force_flush, &timeout);
+	}
 
 	flt_otel_conf_free(conf);
 	OTELC_MEMINFO();

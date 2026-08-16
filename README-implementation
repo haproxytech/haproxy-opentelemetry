@@ -318,6 +318,8 @@ and the keyword parser via INITCALL1 (parser.c).
       flt_otel_ops_init(), not here.
 
   flt_otel_ops_deinit():
+    - Force-flushes the tracer, meter and logger within one shared
+      budget, or sets a zero flush budget instead under 'option noflush'.
     - Destroys the tracer, meter and logger.
     - Frees the entire configuration tree.
     - Calls otelc_deinit() to shut down the wrapper library.
@@ -790,8 +792,9 @@ pool.  This ensures OTel objects benefit from HAProxy's pool allocator.
 
   cli.c registers commands under "flt-otel" for runtime control:
   - Introspection: status, instruments and scopes reports.
-  - Runtime switches: enable/disable, hard-errors/soft-errors, logging, rate,
-    reset-errors, and -- in a debug build -- the debug level.
+  - Runtime switches: enable/disable, hard-errors/soft-errors, logging,
+    noflush, rate, reset-errors, and -- in a debug build -- the debug
+    level.
   - Data control: flush, which force-exports the buffered telemetry.
 
 Logging can be independently controlled via the instrumentation's logging
@@ -1048,8 +1051,9 @@ FLT_OTEL_ALERT.
 
 At proxy deinit (flt_otel_ops_deinit, filter.c), the context, tracer,
 meter and logger handles are first saved into local variables and
-force-flushed, then the configuration tree is freed, and only afterwards
-are the handles destroyed:
+force-flushed (or, under 'option noflush', given a zero flush budget so
+the destruction drops the buffered telemetry), then the configuration
+tree is freed, and only afterwards are the handles destroyed:
 
   otel_ctx    = (*conf)->instr->ctx;
   otel_tracer = (*conf)->instr->tracer;

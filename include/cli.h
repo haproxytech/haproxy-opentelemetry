@@ -10,6 +10,10 @@
 #define FLT_OTEL_CLI_LOGGING_NOLOGNORM   FLT_OTEL_PARSE_OPTION_NOLOGNORM
 #define FLT_OTEL_CLI_LOGGING_STATE(a)    (((a) & FLT_OTEL_LOGGING_ON) ? (((a) & FLT_OTEL_LOGGING_NOLOGNORM) ? "enabled, " FLT_OTEL_CLI_LOGGING_NOLOGNORM : "enabled") : "disabled")
 
+#define FLT_OTEL_CLI_NOFLUSH_OFF         "off"
+#define FLT_OTEL_CLI_NOFLUSH_ON          "on"
+#define FLT_OTEL_CLI_NOFLUSH_STATE(a)    ((a) ? FLT_OTEL_CLI_NOFLUSH_ON : FLT_OTEL_CLI_NOFLUSH_OFF)
+
 #define FLT_OTEL_CLI_SCOPE               "scope"
 #define FLT_OTEL_CLI_INSTRUMENT          "instrument"
 #define FLT_OTEL_CLI_TYPE                "type"

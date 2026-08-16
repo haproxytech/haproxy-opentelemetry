@@ -286,6 +286,9 @@ The following fields are accessed atomically across threads:
   conf->instr->flag_harderr   Toggled by CLI "flt-otel hard-errors/soft-errors".
                               Copied to rt_ctx at attach time.
 
+  conf->instr->flag_noflush   Toggled by CLI "flt-otel noflush".
+                              Read in flt_otel_ops_deinit().
+
   conf->instr->rate_limit     Set by CLI "flt-otel rate".
                               Read in flt_otel_ops_attach().
 
@@ -797,6 +800,8 @@ keyword sequences to handler functions with access level requirements.
                           and the log rate-limiter state; the lifetime
                           suppressed total is retained.
   "flt-otel logging"      ACCESS_LVL_ADMIN for setting; any for reading.
+  "flt-otel noflush"      ACCESS_LVL_ADMIN for setting; any for reading.
+                          Sets or reads flag_noflush.
   "flt-otel rate"         ACCESS_LVL_ADMIN for setting; any for reading.
   "flt-otel debug"        ACCESS_LVL_ADMIN for setting; any for reading.
                           DEBUG_OTEL only.

@@ -146,6 +146,7 @@ list -- it is the unique root, owned by the filter instance.
   rate_limit             Rate limit as uint32 ([0..2^32-1] maps [0..100]%).
   flag_harderr           Hard-error mode flag.
   flag_disabled          Disabled flag.
+  flag_noflush           Drop buffered telemetry at deinit instead of flushing.
   flag_data_req          Request channel needs a data filter for http_end.
   flag_data_res          Response channel needs a data filter for http_end.
   flag_started           Atomic claim so the OTel SDK is started once.

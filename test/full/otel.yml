@@ -229,6 +229,7 @@ signals:
   traces:
     default:
       scope_name: "HAProxy OTEL - traces"
+#     flush_timeout: 5000
       exporters:  exporter_traces_otlp_http
       samplers:   sampler_traces
       processors: processor_traces_batch
@@ -237,6 +238,7 @@ signals:
   metrics:
     default:
       scope_name: "HAProxy OTEL - metrics"
+#     flush_timeout: 5000
       exporters:  exporter_metrics_otlp_http
       readers:    reader_metrics
       providers:  provider_metrics
@@ -244,6 +246,7 @@ signals:
   logs:
     default:
       scope_name: "HAProxy OTEL - logs"
+#     flush_timeout: 5000
       exporters:  exporter_logs_otlp_http
       processors: processor_logs_batch
       providers:  provider_logs

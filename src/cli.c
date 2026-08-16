@@ -361,6 +361,87 @@ static int flt_otel_cli_parse_option(char **args, char *payload, struct appctx *
 
 /***
  * NAME
+ *   flt_otel_cli_parse_noflush - CLI noflush mode handler
+ *
+ * SYNOPSIS
+ *   static int flt_otel_cli_parse_noflush(char **args, char *payload, struct appctx *appctx, void *private)
+ *
+ * ARGUMENTS
+ *   args    - CLI command arguments array
+ *   payload - CLI command payload string
+ *   appctx  - CLI application context
+ *   private - unused private data pointer
+ *
+ * DESCRIPTION
+ *   Handles the "flt-otel noflush [state]" CLI command.  An optional
+ *   "@<filter>" token at args[2] restricts the operation to the named filter;
+ *   the state argument then follows at args[3].  When a state argument is
+ *   present, it is matched against "off" or "on" and the flag_noflush field
+ *   is atomically updated for every matching OTel filter instance.  Setting
+ *   a value requires admin access level.  When no state argument is given,
+ *   reports the current noflush mode.  Invalid values produce an error with
+ *   the accepted options listed, and a target that matches no filter produces
+ *   a "no such filter" error.
+ *
+ * RETURN VALUE
+ *   Returns 1, or 0 if no OTel filter instances are configured (and no error
+ *   occurred and no target was given) or on memory allocation failure.
+ */
+static int flt_otel_cli_parse_noflush(char **args, char *payload, struct appctx *appctx, void *private)
+{
+	const char *id = NULL;
+	char       *err = NULL, *msg = NULL;
+	bool        flag_set = false, value = 0;
+	int         n = 0, value_idx;
+
+	OTELC_FUNC("%p, \"%s\", %p, %p", args, OTELC_STR_ARG(payload), appctx, private);
+
+	FLT_OTEL_ARGS_DUMP();
+
+	if (flt_otel_cli_args_target(args, &id, &value_idx, &err) < 0)
+		OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, err, msg));
+
+	if (FLT_OTEL_ARG_ISVALID(value_idx)) {
+		if (!cli_has_level(appctx, ACCESS_LVL_ADMIN))
+			OTELC_RETURN_INT(1);
+
+		if (strcasecmp(args[value_idx], FLT_OTEL_CLI_NOFLUSH_OFF) == 0) {
+			flag_set = true;
+			value    = 0;
+		}
+		else if (strcasecmp(args[value_idx], FLT_OTEL_CLI_NOFLUSH_ON) == 0) {
+			flag_set = true;
+			value    = 1;
+		}
+		else {
+			(void)memprintf(&err, "'%s' : invalid value, use <" FLT_OTEL_CLI_NOFLUSH_OFF " | " FLT_OTEL_CLI_NOFLUSH_ON ">", args[value_idx]);
+		}
+
+		if (flag_set) {
+			FLT_OTEL_PROXIES_LIST_START(id) {
+				_HA_ATOMIC_STORE(&(conf->instr->flag_noflush), value);
+
+				(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : filter %s noflush is %s", FLT_OTEL_CLI_MSG_CAT(msg), conf->id, FLT_OTEL_CLI_NOFLUSH_STATE(value));
+				n++;
+			} FLT_OTEL_PROXIES_LIST_END();
+		}
+	} else {
+		FLT_OTEL_PROXIES_LIST_START(id) {
+			value = _HA_ATOMIC_LOAD(&(conf->instr->flag_noflush));
+
+			(void)memprintf(&msg, "%s%s" FLT_OTEL_CLI_CMD " : filter %s noflush is currently %s", FLT_OTEL_CLI_MSG_CAT(msg), conf->id, FLT_OTEL_CLI_NOFLUSH_STATE(value));
+			n++;
+		} FLT_OTEL_PROXIES_LIST_END();
+	}
+
+	flt_otel_cli_target_missing(&err, id, n);
+
+	OTELC_RETURN_INT(flt_otel_cli_set_msg(appctx, err, msg));
+}
+
+
+/***
+ * NAME
  *   flt_otel_cli_parse_logging - CLI logging state handler
  *
  * SYNOPSIS
@@ -1096,6 +1177,7 @@ static int flt_otel_cli_io_status(struct appctx *appctx)
 		(void)chunk_appendf(&trash, "       hard errors:   %s\n", FLT_OTEL_STR_FLAG_YN(_HA_ATOMIC_LOAD(&(conf->instr->flag_harderr))));
 		(void)chunk_appendf(&trash, "       disabled:      %s\n", FLT_OTEL_STR_FLAG_YN(_HA_ATOMIC_LOAD(&(conf->instr->flag_disabled))));
 		(void)chunk_appendf(&trash, "       require ctx:   %s\n", FLT_OTEL_STR_FLAG_YN(conf->instr->flag_reqctx));
+		(void)chunk_appendf(&trash, "       noflush:       %s\n", FLT_OTEL_STR_FLAG_YN(_HA_ATOMIC_LOAD(&(conf->instr->flag_noflush))));
 		(void)chunk_appendf(&trash, "       logging:       %s\n", FLT_OTEL_CLI_LOGGING_STATE(_HA_ATOMIC_LOAD(&(conf->instr->log.type))));
 		(void)chunk_appendf(&trash, "       runtime err:   hard %" PRIu64 ", soft %" PRIu64 "\n", _HA_ATOMIC_LOAD(&(conf->instr->n_harderr)), _HA_ATOMIC_LOAD(&(conf->instr->n_softerr)));
 		(void)chunk_appendf(&trash, "       suppressed:    pending %u, total %" PRIu64 "\n", _HA_ATOMIC_LOAD(&(conf->instr->log.sup_pending)), _HA_ATOMIC_LOAD(&(conf->instr->log.sup_total)));
@@ -1588,6 +1670,7 @@ static struct cli_kw_list cli_kws = { { }, {
 	{ { FLT_OTEL_CLI_CMD, "hard-errors", NULL }, FLT_OTEL_CLI_CMD " hard-errors " FLT_OTEL_CLI_TARGET_FMT "        : enable hard-errors mode", flt_otel_cli_parse_option, NULL, NULL, (void *)1, ACCESS_LVL_ADMIN },
 	{ { FLT_OTEL_CLI_CMD, "reset-errors", NULL }, FLT_OTEL_CLI_CMD " reset-errors " FLT_OTEL_CLI_TARGET_FMT "       : reset runtime-error counters", flt_otel_cli_parse_reset_errors, NULL, NULL, NULL, ACCESS_LVL_ADMIN },
 	{ { FLT_OTEL_CLI_CMD, "logging",  NULL }, FLT_OTEL_CLI_CMD " logging " FLT_OTEL_CLI_TARGET_FMT " [state]    : set logging state (default: get current logging state)", flt_otel_cli_parse_logging, NULL, NULL, NULL, 0 },
+	{ { FLT_OTEL_CLI_CMD, "noflush",  NULL }, FLT_OTEL_CLI_CMD " noflush " FLT_OTEL_CLI_TARGET_FMT " [state]    : set noflush mode (default: get current noflush mode)", flt_otel_cli_parse_noflush, NULL, NULL, NULL, 0 },
 	{ { FLT_OTEL_CLI_CMD, "rate", NULL }, FLT_OTEL_CLI_CMD " rate " FLT_OTEL_CLI_TARGET_FMT " [value]       : set the rate limit (default: get current rate value)", flt_otel_cli_parse_rate, NULL, NULL, NULL, 0 },
 	{ { FLT_OTEL_CLI_CMD, "status", NULL }, FLT_OTEL_CLI_CMD " status " FLT_OTEL_CLI_TARGET_FMT "             : show the OTEL filter status", flt_otel_cli_parse_status, flt_otel_cli_io_status, flt_otel_cli_dump_release, NULL, 0 },
 	{ { FLT_OTEL_CLI_CMD, "flush", NULL }, FLT_OTEL_CLI_CMD " flush " FLT_OTEL_CLI_TARGET_FMT "              : force-export buffered telemetry now", flt_otel_cli_parse_flush, NULL, NULL, NULL, ACCESS_LVL_ADMIN },
@@ -1616,8 +1699,9 @@ static bool flt_otel_cli_registered = false;
  *   the keyword list must be appended only once per process; the first call
  *   registers it and the later calls return without doing anything.
  *   The keywords include commands for enable/disable, error mode, logging,
- *   rate limit, status display, telemetry flush, instrument and scope
- *   introspection, and (when DEBUG_OTEL is defined) debug level management.
+ *   noflush mode, rate limit, status display, telemetry flush, instrument
+ *   and scope introspection, and (when DEBUG_OTEL is defined) debug level
+ *   management.
  *
  * RETURN VALUE
  *   This function does not return a value.

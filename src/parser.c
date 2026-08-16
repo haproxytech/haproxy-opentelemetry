@@ -756,7 +756,8 @@ static int flt_otel_parse_cfg_acl(const char *file, int line, char **args, struc
  * DESCRIPTION
  *   Section parser for the otel-instrumentation configuration block.  Handles
  *   keywords: instrumentation ID, log, config, groups, scopes, acl, rate-limit,
- *   option (disabled/hard-errors/dontlog-normal), and debug-level.
+ *   option (disabled/dontlog-normal/hard-errors/noflush/require-context),
+ *   and debug-level.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -861,6 +862,9 @@ static int flt_otel_parse_cfg_instr(const char *file, int line, char **args, int
 		}
 		else if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_PARSE_OPTION_REQCTX)) {
 			flt_otel_current_instr->flag_reqctx = (kw_mod == KWM_NO) ? 0 : 1;
+		}
+		else if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_PARSE_OPTION_NOFLUSH)) {
+			flt_otel_current_instr->flag_noflush = (kw_mod == KWM_NO) ? 0 : 1;
 		}
 		else
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid option '%s'", args[0], args[1]);

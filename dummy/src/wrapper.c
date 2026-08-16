@@ -635,6 +635,14 @@ static struct otelc_span_context *otel_tracer_extract_http_headers(struct otelc_
 }
 
 
+static int otel_tracer_set_flush_timeout(struct otelc_tracer *tracer, int flush_timeout)
+{
+	OTELC_FUNC("%p, %d", tracer, flush_timeout);
+
+	OTELC_RETURN_INT(OTELC_RET_OK);
+}
+
+
 static int otel_tracer_force_flush(struct otelc_tracer *tracer, const struct timespec *timeout)
 {
 	OTELC_FUNC("%p, %p", tracer, timeout);
@@ -655,6 +663,7 @@ static const struct otelc_tracer_ops otel_tracer_ops = {
 	.start_span_with_options = otel_tracer_start_span_with_options,
 	.extract_text_map        = otel_tracer_extract_text_map,
 	.extract_http_headers    = otel_tracer_extract_http_headers,
+	.set_flush_timeout       = otel_tracer_set_flush_timeout,
 	.force_flush             = otel_tracer_force_flush,
 	.start                   = otel_tracer_start,
 };
@@ -781,6 +790,14 @@ static int64_t otel_meter_add_view(struct otelc_meter *meter, const char *view_n
 }
 
 
+static int otel_meter_set_flush_timeout(struct otelc_meter *meter, int flush_timeout)
+{
+	OTELC_FUNC("%p, %d", meter, flush_timeout);
+
+	OTELC_RETURN_INT(OTELC_RET_OK);
+}
+
+
 static int otel_meter_force_flush(struct otelc_meter *meter, const struct timespec *timeout)
 {
 	OTELC_FUNC("%p, %p", meter, timeout);
@@ -801,6 +818,7 @@ static const struct otelc_meter_ops otel_meter_ops = {
 	.create_instrument      = otel_meter_create_instrument,
 	.update_instrument_kv_n = otel_meter_update_instrument_kv_n,
 	.add_view               = otel_meter_add_view,
+	.set_flush_timeout      = otel_meter_set_flush_timeout,
 	.force_flush            = otel_meter_force_flush,
 	.start                  = otel_meter_start,
 };
@@ -818,6 +836,14 @@ static int otel_logger_enabled(struct otelc_logger *logger, otelc_log_severity_t
 static int otel_logger_log_span(struct otelc_logger *logger, otelc_log_severity_t severity, int64_t event_id, const char *event_name, const struct otelc_span *span, const struct timespec *ts, const struct timespec *ts_obs, const struct otelc_kv *attr, size_t attr_len, const char *format, ...)
 {
 	OTELC_FUNC("%p, %d, %" PRId64 ", \"%s\", %p, %p, %p, %p, %zu, \"%s\", ...", logger, severity, event_id, OTELC_STR_ARG(event_name), span, ts, ts_obs, attr, attr_len, OTELC_STR_ARG(format));
+
+	OTELC_RETURN_INT(OTELC_RET_OK);
+}
+
+
+static int otel_logger_set_flush_timeout(struct otelc_logger *logger, int flush_timeout)
+{
+	OTELC_FUNC("%p, %d", logger, flush_timeout);
 
 	OTELC_RETURN_INT(OTELC_RET_OK);
 }
@@ -842,6 +868,7 @@ static int otel_logger_start(struct otelc_logger *logger)
 static const struct otelc_logger_ops otel_logger_ops = {
 	.enabled     = otel_logger_enabled,
 	.log_span    = otel_logger_log_span,
+	.set_flush_timeout = otel_logger_set_flush_timeout,
 	.force_flush = otel_logger_force_flush,
 	.start       = otel_logger_start,
 };
