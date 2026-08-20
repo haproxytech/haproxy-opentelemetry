@@ -487,11 +487,7 @@ build_acl_cond() succeeds.  The callers pass the lists in this priority order:
   2. Instrumentation ACLs (declared in the otel-instrumentation section).
   3. Proxy ACLs (declared in the HAProxy frontend/backend section).
 
-If the condition fails at runtime:
-
-  - If the scope contains a root span, the entire stream is disabled
-    (rt_ctx->flag_disabled = 1) to avoid orphaned child spans.
-  - Otherwise, the scope is simply skipped.
+If the condition fails at runtime, the scope is simply skipped.
 
 6.3  Global Disable
 
