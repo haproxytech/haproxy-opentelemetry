@@ -1,7 +1,7 @@
                    -----------------------------------------
                       The HAProxy OpenTelemetry filter (OTel)
                                  Version 2.2.0
-                          ( Last update: 2026-08-17 )
+                          ( Last update: 2026-09-01 )
                    -----------------------------------------
                            Author : Miroslav Zagorac
                      Contact : mzagorac at haproxy dot com
@@ -640,6 +640,12 @@ extract <name-prefix> [use-vars | use-headers]
   time, the 'use-vars' option can be used instead to extract context from
   HAProxy variables.  A header whose name is only the prefix itself is ignored,
   as stripping the prefix would leave an empty data name.
+
+  Header extraction (use-headers) needs a channel to read from and is rejected
+  on the two events that fire without one, on-stream-start and on-stream-stop.
+  A scope that carries no 'otel-event' is not affected, since the 'otel-group'
+  action that runs it always brings a channel.  Variable extraction (use-vars)
+  carries no such restriction.
 
   When the OpenTelemetry context is transferred via the HTTP header and the
   first character of the context name is '-', the context name is excluded

@@ -1,7 +1,7 @@
                    -----------------------------------------
                     HAProxy OTel filter configuration guide
                                Version 2.2.0
-                        ( Last update: 2026-08-17 )
+                        ( Last update: 2026-09-01 )
                    -----------------------------------------
                          Author : Miroslav Zagorac
                    Contact : mzagorac at haproxy dot com
@@ -466,6 +466,14 @@ Supported keywords:
       parent fails to resolve the reference and is not created.  A header whose
       name is only the prefix itself is ignored, as stripping the prefix would
       leave an empty data name.
+
+      Header extraction (use-headers) needs a channel to read from, so it is a
+      configuration error on on-stream-start and on-stream-stop, the two events
+      that fire with no channel at all, and it needs an HTTP-mode proxy, the
+      no-event scope included.  A scope that carries no 'otel-event' is not
+      affected by the event rule, because the 'otel-group' action that runs
+      it always has a channel.  Variable extraction (use-vars) carries no such
+      restriction.
 
       When extracting context from HTTP headers, if the first character of the
       context name is '-', the context name is excluded from the header.  This

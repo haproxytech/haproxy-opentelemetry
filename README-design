@@ -20,7 +20,8 @@ a helper macro whose name is supplied by the expansion context.
 FLT_OTEL_EVENT_DEFINES (event.h) drives the event system.  Each entry has the
 form:
 
-  FLT_OTEL_EVENT_DEF(NAME, CHANNEL, SMP_FE, SMP_BE, INJECT, HTTP_ONLY, "string")
+  FLT_OTEL_EVENT_DEF(NAME, CHANNEL, SMP_FE, SMP_BE, INJECT, EXTRACT, HTTP_ONLY,
+                     "string")
 
 The same list is expanded twice:
 
@@ -33,8 +34,8 @@ The same list is expanded twice:
   - In the flt_otel_event_data[] initializer (event.c) to produce a const table
     of struct flt_otel_event_data entries carrying the analyzer bit and name,
     the sample fetch direction, the SMP_VAL_FE_* / SMP_VAL_BE_* fetch-validity
-    bits, the HTTP context-injection flag, the HTTP-only flag and the event
-    name string.
+    bits, the HTTP context-injection and context-extraction flags, the
+    HTTP-only flag and the event name string.
 
 Adding a new event requires a single line in the X-macro list.
 
