@@ -172,6 +172,11 @@ src/event.c
 
 Event dispatching, metrics recording and scope/span execution engine.
 
+  flt_otel_session_disable
+      Sets the disabled flag of the stream's runtime context, so that the stream
+      produces no further telemetry; the debug build logs the reason and counts
+      the disabling.
+
   flt_otel_cond_pass
       Evaluates an optional if/unless ACL condition against the stream,
       honouring the 'unless' polarity; a NULL condition always passes.
