@@ -1820,7 +1820,7 @@ data, so the 'exported' count climbs even when no instruments are configured.
 off), and 'analyzers' is the channel analyzer bitmask the filter registered.
 The 'counters' block tallies how streams attached -- run, rate-limited,
 disabled or errored -- and how many later had tracing disabled, by a scope
-decision (a failed condition or 'otel-stop') or by a hard error.
+decision ('otel-stop' or the 'require-context' option) or by a hard error.
 
 'runtime err' reports the data-path errors the filter met while processing
 streams: 'hard' counts the hard-error episodes that disabled the filter for a

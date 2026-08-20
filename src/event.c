@@ -1002,23 +1002,9 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 
 		OTELC_DBG(DEBUG, "the ACL rule %s", rc ? "matches" : "does not match");
 
-		/*
-		 * If the rule does not match, the current scope is skipped.
-		 *
-		 * If it is a root span, further processing of the session is
-		 * disabled.  As soon as the first span is encountered which
-		 * is marked as root, further search is interrupted.
-		 */
-		if (rc == 0) {
-			list_for_each_entry(conf_span, &(conf_scope->spans), list)
-				if (conf_span->flag_root) {
-					flt_otel_session_disable(f->ctx, conf, "session disabled");
-
-					break;
-				}
-
+		/* If the rule does not match, the current scope is skipped. */
+		if (rc == 0)
 			OTELC_RETURN_INT(retval);
-		}
 	}
 
 	/* Extract and initialize OpenTelemetry propagation contexts. */

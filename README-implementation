@@ -483,9 +483,8 @@ and response fetches.
       each used scope.
 
   flt_otel_scope_run() (event.c):
-    1. Evaluates the scope's ACL condition; if it fails:
-       - If the scope contains a root span, disables the stream.
-       - Returns without processing.
+    1. Evaluates the scope's ACL condition and, if it does not hold, returns
+       without processing.
     2. Extracts contexts: for each configured extract directive, reads
        the span context from HTTP headers or HAProxy variables via
        flt_otel_scope_context_init().
@@ -541,8 +540,9 @@ and response fetches.
     filter         Owning filter pointer.
     uuid[40]       Generated UUID v4 for the session.
     flag_harderr   Copied from instrumentation config.
-    flag_disabled  Set when the filter encounters a hard error or ACL disables
-                   processing.
+    flag_disabled  Set when the filter encounters a hard error or an 'otel-stop'
+                   directive fires, and by 'require-context' when no extract
+                   of a scope yields a valid context.
     logging        Logging flags.
     analyzers      Bitmask of analyzers that have actually executed.
     idle_timeout   Idle timeout interval in milliseconds (0 = off).
