@@ -11,6 +11,42 @@ const struct flt_otel_event_data flt_otel_event_data[FLT_OTEL_EVENT_MAX] = { FLT
 
 /***
  * NAME
+ *   flt_otel_session_disable - disable the telemetry session of the stream
+ *
+ * SYNOPSIS
+ *   static void flt_otel_session_disable(struct flt_otel_runtime_context *rt_ctx, struct flt_otel_conf *conf, const char *msg)
+ *
+ * ARGUMENTS
+ *   rt_ctx - the stream's runtime context
+ *   conf   - the OTel filter configuration
+ *   msg    - the reason logged in a debug build
+ *
+ * DESCRIPTION
+ *   Sets the disabled flag of <rt_ctx>, so the stream produces no further
+ *   telemetry and the following scopes are skipped.  The debug build logs
+ *   <msg> and counts the disabling in <conf>.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+static void flt_otel_session_disable(struct flt_otel_runtime_context *rt_ctx, struct flt_otel_conf *conf, const char *msg)
+{
+	OTELC_FUNC("%p, %p, \"%s\"", rt_ctx, conf, msg);
+
+	OTELC_DBG(INFO, "%s", msg);
+
+	rt_ctx->flag_disabled = 1;
+
+#ifdef FLT_OTEL_USE_COUNTERS
+	_HA_ATOMIC_ADD(conf->cnt.disabled + 0, 1);
+#endif
+
+	OTELC_RETURN();
+}
+
+
+/***
+ * NAME
  *   flt_otel_cond_pass - ACL condition evaluation
  *
  * SYNOPSIS
@@ -976,13 +1012,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 		if (rc == 0) {
 			list_for_each_entry(conf_span, &(conf_scope->spans), list)
 				if (conf_span->flag_root) {
-					OTELC_DBG(INFO, "session disabled");
-
-					FLT_OTEL_RT_CTX(f->ctx)->flag_disabled = 1;
-
-#ifdef FLT_OTEL_USE_COUNTERS
-					_HA_ATOMIC_ADD(conf->cnt.disabled + 0, 1);
-#endif
+					flt_otel_session_disable(f->ctx, conf, "session disabled");
 
 					break;
 				}
@@ -1051,15 +1081,8 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 	 * ahead of the request headers, must not produce any telemetry.
 	 */
 	if (conf->instr->flag_reqctx && !FLT_OTEL_RT_CTX(f->ctx)->flag_ctx_valid) {
-		if (!LIST_ISEMPTY(&(conf_scope->contexts))) {
-			OTELC_DBG(INFO, "session disabled (require-context)");
-
-			FLT_OTEL_RT_CTX(f->ctx)->flag_disabled = 1;
-
-#ifdef FLT_OTEL_USE_COUNTERS
-			_HA_ATOMIC_ADD(conf->cnt.disabled + 0, 1);
-#endif
-		}
+		if (!LIST_ISEMPTY(&(conf_scope->contexts)))
+			flt_otel_session_disable(f->ctx, conf, "session disabled (require-context)");
 
 		OTELC_RETURN_INT(retval);
 	}
@@ -1256,15 +1279,8 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 	 * stream; the guard at the top of this function skips any further
 	 * scopes belonging to the same connection.
 	 */
-	if (flag_stop) {
-		OTELC_DBG(INFO, "session stopped");
-
-		FLT_OTEL_RT_CTX(f->ctx)->flag_disabled = 1;
-
-#ifdef FLT_OTEL_USE_COUNTERS
-		_HA_ATOMIC_ADD(conf->cnt.disabled + 0, 1);
-#endif
-	}
+	if (flag_stop)
+		flt_otel_session_disable(f->ctx, conf, "session stopped");
 
 	OTELC_RETURN_INT(retval);
 }

@@ -307,7 +307,8 @@ The following fields are accessed atomically across threads:
   flt_otel_drop_cnt           Incremented in flt_otel_log_handler_cb().
                               Read by CLI "flt-otel status".
 
-  conf->cnt.disabled[]        Incremented in flt_otel_return_int/void().
+  conf->cnt.disabled[]        Incremented in flt_otel_session_disable() and
+                              flt_otel_return_int().
   conf->cnt.attached[]        Incremented in flt_otel_ops_attach().
 
 All use _HA_ATOMIC_LOAD(), _HA_ATOMIC_STORE(), _HA_ATOMIC_INC() or
@@ -690,8 +691,10 @@ maintains:
 
   attached[4]   Counters for attach outcomes, incremented atomically in
                 flt_otel_ops_attach().
-  disabled[2]   Counters for hard-error disables, incremented atomically in
-                flt_otel_return_int() / flt_otel_return_void().
+  disabled[2]   Counters for the per-stream disables, incremented atomically:
+                the first by flt_otel_session_disable() for an 'otel-stop' or
+                a 'require-context' miss, the second by flt_otel_return_int()
+                for a hard error.
 
 The counters are reported by the "flt-otel status" CLI command and dumped at
 deinit time in debug builds.
