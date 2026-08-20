@@ -2423,6 +2423,20 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		else
 			conf_ctx->flags = flags;
 
+		/*
+		 * Reading the context from the headers needs a channel
+		 * to read, so a scope that already names an event
+		 * without one is refused here, on the line that
+		 * completes the pair.  An event named further down is
+		 * refused on its own line, while a scope that names
+		 * none runs from an 'otel-group' action, which carries
+		 * a channel of its own.
+		 */
+		if (!(retval & ERR_CODE) && (conf_ctx->flags & FLT_OTEL_CTX_USE_HEADERS) &&
+		    (flt_otel_current_scope->event != FLT_OTEL_EVENT__NONE) &&
+		    !flt_otel_event_data[flt_otel_current_scope->event].flag_http_extract)
+			FLT_OTEL_PARSE_ERR(&err, "%s '%s' : cannot use on this event", args[0], args[1]);
+
 		if ((conf_ctx != NULL) && (conf_ctx->flags & FLT_OTEL_CTX_USE_VARS))
 			flt_otel_parse_ctx_name_warn(file, line, args[0], args[1]);
 	}
@@ -2472,6 +2486,8 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		if (flt_otel_current_scope->event != FLT_OTEL_EVENT__NONE) {
 			FLT_OTEL_PARSE_ERR_ALRSET(&err, args[0], pdata);
 		} else {
+			struct flt_otel_conf_context *conf_ctx;
+
 			/* Check the event name. */
 			for (i = 0; i < OTELC_TABLESIZE(flt_otel_event_data); i++)
 				if (FLT_OTEL_PARSE_KEYWORD(1, flt_otel_event_data[i].name)) {
@@ -2488,6 +2504,19 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 				FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid event", args[1]);
 			else if (FLT_OTEL_ARG_ISVALID(2))
 				retval = flt_otel_parse_trailing_cond(file, line, args, 2, &(flt_otel_current_scope->cond), &err);
+
+			/*
+			 * An 'extract use-headers' may stand above its event;
+			 * it is refused here, on the line that completes the
+			 * pair.
+			 */
+			if (!(retval & ERR_CODE) && !flt_otel_event_data[flt_otel_current_scope->event].flag_http_extract)
+				list_for_each_entry(conf_ctx, &(flt_otel_current_scope->contexts), list)
+					if (conf_ctx->flags & FLT_OTEL_CTX_USE_HEADERS) {
+						FLT_OTEL_PARSE_ERR(&err, "'%s' : extract '%s' : cannot use on this event", args[0], conf_ctx->id);
+
+						break;
+					}
 
 			if (!(retval & ERR_CODE))
 				OTELC_DBG(DEBUG, "event '%s'", args[1]);

@@ -645,6 +645,12 @@ extract <name-prefix> [use-vars | use-headers]
   HAProxy variables.  A header whose name is only the prefix itself is ignored,
   as stripping the prefix would leave an empty data name.
 
+  Header extraction (use-headers) needs a channel to read from and is rejected
+  on the two events that fire without one, on-stream-start and on-stream-stop.
+  A scope that carries no 'otel-event' is not affected, since the 'otel-group'
+  action that runs it always brings a channel.  Variable extraction (use-vars)
+  carries no such restriction.
+
   When the OpenTelemetry context is transferred via the HTTP header and the
   first character of the context name is '-', the context name is excluded
   from the header.  This behavior enables the use of OpenTelemetry contexts

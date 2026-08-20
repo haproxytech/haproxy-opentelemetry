@@ -386,7 +386,11 @@ Each event entry carries:
                       validated against
   - flag_http_inject: whether span context can be injected into HTTP headers
                       at this point
+  - flag_http_extract: whether span context can be extracted from HTTP headers
+                      at this point, which needs a channel to read
   - flag_http_only:   whether the event fires only on an HTTP-mode proxy
+  - flag_context:     whether the incoming trace context can be read at this
+                      point, which 'require-context' needs
   - name:             configuration event name (e.g. "on-frontend-http-request")
 
 Events with an_bit == 0 are pseudo-events not tied to any channel
