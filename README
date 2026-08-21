@@ -1110,6 +1110,37 @@ otel-event <name> [{ if | unless } <condition>]
       on-http-end-response
       on-http-reply
 
+  --- Filter placement (frontend, backend and listen) ---
+
+  The filter line may stand in a frontend, a backend or a listen section, and
+  the events a scope sees depend on where.  A filter of a frontend joins the
+  stream at its creation and sees every event.  A filter of a backend section
+  joins it at backend selection: HAProxy never runs the stream-start callback
+  for it, and the frontend-phase analysers have run by then.  These events
+  never fire for such a filter, and a scope bound to one of them is reported
+  as a warning at config load:
+
+    on-stream-start
+    on-frontend-tcp-request
+    on-http-wait-request
+    on-http-body-request
+    on-frontend-http-request
+    on-switching-rules-request
+
+  Such a filter is detached once both channels have ended their analysis, so
+  on-stream-stop reaches it only for a stream that ends before that point, and
+  on-client-session-end and on-server-session-end fire as usual.  The idle
+  timer is armed when the filter is attached, so on-idle-timeout fires for it
+  from that point on.
+
+  A listen proxy serves its own connections as frontend and backend at once,
+  and HAProxy skips the backend-phase request analysers when the frontend is
+  the backend.  There on-backend-tcp-request and on-backend-http-request fire
+  only for a stream switched to another backend or routed in from a different
+  frontend; a scope bound to one of them is told so by a warning at config load.
+  A parent chain that runs through one of these events therefore breaks on a
+  listen proxy, and with hard errors on, the filter is disabled for the stream.
+
   --- Stream lifecycle events (not tied to a channel analyzer) ---
 
   The on-stream-start and on-stream-stop events fire from the stream_start and

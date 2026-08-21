@@ -859,6 +859,7 @@ int flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt_
  *   an instrumentation section and its configuration file, duplicate group and
  *   scope names, empty groups, group-to-scope and instrumentation-to-group/scope
  *   cross-references, a group that no 'groups' line names, unused scopes,
+ *   the events the proxy's mode or the filter's placement keeps from firing,
  *   require-context event eligibility, root span count, analyzer bits, and
  *   create-form instrument type consistency and update-form instrument
  *   resolution.
@@ -1091,6 +1092,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 		if (conf_scope->flag_used) {
 			struct flt_otel_conf_span *conf_span;
 			uint                       where;
+			bool                       flag_fe_phase, flag_same_be;
 
 			/*
 			 * In principle, only one span should be labeled
@@ -1155,23 +1157,51 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 			where = flt_otel_event_data[conf_scope->event].smp_val_fe | flt_otel_event_data[conf_scope->event].smp_val_be;
 
 			/*
+			 * The events a filter of a backend section is attached
+			 * too late for, and the two HAProxy skips when the
+			 * frontend is the backend.
+			 */
+			flag_fe_phase = (conf_scope->event == FLT_OTEL_EVENT__STREAM_START) ||
+			                ((flt_otel_event_data[conf_scope->event].an_bit & FLT_OTEL_AN_REQ_FE) != 0);
+			flag_same_be  = (flt_otel_event_data[conf_scope->event].an_bit & FLT_OTEL_AN_REQ_SAME_BE) != 0;
+
+			/*
 			 * An HTTP-phase event never fires on a non-HTTP proxy,
 			 * which performs no HTTP analysis, so a scope bound to
-			 * one is silently inert there.  Warn rather than fail:
-			 * the same OTel configuration may be shared with HTTP
-			 * proxies.  Otherwise the event fires here; where its
-			 * processing point has a known location, warn about any
-			 * bare fetch that cannot be evaluated there, since it
-			 * would silently yield nothing at runtime.
+			 * one is silently inert there.  Nor does an event of the
+			 * frontend phase fire for a filter of a backend section:
+			 * HAProxy attaches that filter at backend selection, once
+			 * those analysers have run, and never runs the stream
+			 * start callback for it.  Warn rather than fail: the same
+			 * OTel configuration may be shared with other proxies.
+			 * Otherwise the event fires here; where its processing
+			 * point has a known location, warn about any bare fetch
+			 * that cannot be evaluated there, since it would silently
+			 * yield nothing at runtime.  On a listen proxy the two
+			 * backend-phase request analysers run only for a stream
+			 * switched to another backend or routed in from another
+			 * frontend, so a scope bound to one of them is told.
 			 */
-			if ((p->mode != PR_MODE_HTTP) && flt_otel_event_data[conf_scope->event].flag_http_only)
+			if ((p->mode != PR_MODE_HTTP) && flt_otel_event_data[conf_scope->event].flag_http_only) {
 				FLT_OTEL_WARNING("'%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' uses HTTP event '%s' that does not fire on non-HTTP proxy '%s'", conf->id, conf_scope->id, flt_otel_event_data[conf_scope->event].name, p->id);
-			else if (where != 0) {
-				char trigger[160];
+			}
+			else if (!(p->cap & PR_CAP_FE) && flag_fe_phase) {
+				FLT_OTEL_WARNING("'%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' uses event '%s' that runs before a filter "
+				                 "of backend proxy '%s' is attached, so it never fires there",
+				                 conf->id, conf_scope->id, flt_otel_event_data[conf_scope->event].name, p->id);
+			}
+			else {
+				if (((p->cap & PR_CAP_LISTEN) == PR_CAP_LISTEN) && flag_same_be)
+					FLT_OTEL_WARNING("'%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' uses event '%s' that fires on listen "
+					                 "proxy '%s' only for a stream switched to another backend or routed in from another frontend",
+					                 conf->id, conf_scope->id, flt_otel_event_data[conf_scope->event].name, p->id);
 
-				(void)snprintf(trigger, sizeof(trigger), "event '%s'", flt_otel_event_data[conf_scope->event].name);
+				if (where != 0) {
+					char trigger[160];
 
-				(void)flt_otel_check_scope_loc(conf, conf_scope, p, where, trigger);
+					(void)snprintf(trigger, sizeof(trigger), "event '%s'", flt_otel_event_data[conf_scope->event].name);
+					(void)flt_otel_check_scope_loc(conf, conf_scope, p, where, trigger);
+				}
 			}
 		} else {
 			FLT_OTEL_WARNING("'%s' : unused " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s'", conf->id, conf_scope->id);

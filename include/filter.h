@@ -16,6 +16,9 @@
 #define FLT_OTEL_AN_REQ_FE          (AN_REQ_INSPECT_FE | AN_REQ_WAIT_HTTP | AN_REQ_HTTP_BODY | \
                                      AN_REQ_HTTP_PROCESS_FE | AN_REQ_SWITCHING_RULES)
 
+/* The request analysers HAProxy skips when the frontend is the backend. */
+#define FLT_OTEL_AN_REQ_SAME_BE     (AN_REQ_INSPECT_BE | AN_REQ_HTTP_PROCESS_BE)
+
 /* Return codes for OTel filter operations. */
 enum FLT_OTEL_RET_enum {
 	FLT_OTEL_RET_ERROR  = -1,

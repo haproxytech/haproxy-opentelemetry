@@ -58,7 +58,8 @@ the OTel configuration file using the 'config' keyword inside the
 ------------------------------
 
 The filter is activated by adding a filter directive in the HAProxy
-configuration, in a proxy section (frontend / listen / backend):
+configuration, in a proxy section (frontend / listen / backend); the section
+type decides which events the filter sees, as the 'otel-event' keyword tells:
 
   frontend my-frontend
     ...
@@ -755,6 +756,26 @@ Supported keywords:
       '(HTTP only)' below never fire on one: a scope bound to such an event on a
       non-HTTP proxy is inert and reported as a warning at config load.  Every
       unmarked event fires on both proxy modes.
+
+      Where the filter line stands matters too.  A filter of a backend section
+      joins the stream at backend selection, after the frontend-phase analysers
+      have run and without the stream-start callback, so these events never
+      fire for it, which a warning reports at config load:
+
+        on-stream-start
+        on-frontend-tcp-request
+        on-http-wait-request
+        on-http-body-request
+        on-frontend-http-request
+        on-switching-rules-request
+
+      For such a filter on-stream-stop reaches only a stream that ends before
+      both channels finish their analysis, and on-idle-timeout runs from the
+      moment it is attached.  On a listen proxy, HAProxy skips the backend-phase
+      request analysers when the frontend is the backend, so on that proxy the
+      on-backend-tcp-request and on-backend-http-request events fire only for a
+      stream switched to another backend or routed in from another frontend; a
+      warning reports such a scope too.
 
       Supported events (stream lifecycle):
         on-stream-start

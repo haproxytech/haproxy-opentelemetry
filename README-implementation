@@ -310,6 +310,11 @@ and the keyword parser via INITCALL1 (parser.c).
     - Validates metric instruments: resolves update-form references to their
       matching create-form definitions, and rejects duplicate create-form names
       across scopes.
+    - Warns about a used scope bound to an event the proxy keeps from firing:
+      an HTTP-phase event on a proxy that is not in HTTP mode, on-stream-start
+      or a frontend-phase event for a filter of a backend section, and the two
+      backend-phase request events on a listen proxy, which fire there only for
+      a stream switched to another backend or routed in from another frontend.
     - Computes the aggregated analyzer bitmask from all used scopes.
 
   flt_otel_ops_init_per_thread():
