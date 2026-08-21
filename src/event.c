@@ -1315,8 +1315,6 @@ int flt_otel_event_run(struct stream *s, struct filter *f, struct channel *chn, 
 	_HA_ATOMIC_ADD(conf->cnt.event[event].htx + (((chn == NULL) || !IS_HTX_STRM(s)) ? 1 : (htx_is_empty(htxbuf(&(chn->buf))) ? 1 : 0)), 1);
 #endif
 
-	FLT_OTEL_RT_CTX(f->ctx)->analyzers |= flt_otel_event_data[event].an_bit;
-
 	/* All spans should be created/completed at the same time. */
 	(void)clock_gettime(CLOCK_MONOTONIC, &ts_steady);
 	(void)clock_gettime(CLOCK_REALTIME, &ts_system);

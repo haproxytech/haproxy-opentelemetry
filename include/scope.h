@@ -37,11 +37,11 @@
 	          flt_otel_list_dump(&((p)->events)), flt_otel_list_dump(&((p)->links)),                                             \
 	          &((p)->status), (p)->status.code, OTELC_STR_ARG((p)->status.description))
 
-#define FLT_OTEL_DBG_RUNTIME_CONTEXT(h,p)                                                                               \
-	OTELC_DBG(DEBUG, h "%p:{ %p %p '%s' %hhu %hhu %hhu 0x%02hhx 0x%08x %u %d %" PRIu64 " %" PRIu64 " %s %s }", (p), \
-	          (p)->stream, (p)->filter, (p)->uuid, (p)->flag_harderr, (p)->flag_disabled,                           \
-	          (p)->flag_ctx_valid, (p)->logging, (p)->analyzers, (p)->idle_timeout,                                 \
-	          (p)->idle_exp, (p)->bytes_in, (p)->bytes_out, flt_otel_list_dump(&((p)->spans)),                      \
+#define FLT_OTEL_DBG_RUNTIME_CONTEXT(h,p)                                                                             \
+	OTELC_DBG(DEBUG, h "%p:{ %p %p '%s' %hhu %hhu %hhu %hhu 0x%02hhx %u %d %" PRIu64 " %" PRIu64 " %s %s }", (p), \
+	          (p)->stream, (p)->filter, (p)->uuid, (p)->flag_harderr, (p)->flag_disabled,                         \
+	          (p)->flag_ctx_valid, (p)->flag_res_started, (p)->logging, (p)->idle_timeout,                        \
+	          (p)->idle_exp, (p)->bytes_in, (p)->bytes_out, flt_otel_list_dump(&((p)->spans)),                    \
 	          flt_otel_list_dump(&((p)->contexts)))
 
 /* Anonymous struct containing a const string pointer and its length. */
@@ -122,8 +122,8 @@ struct flt_otel_runtime_context {
 	bool           flag_harderr;  /* [0 1] */
 	bool           flag_disabled; /* [0 1] */
 	bool           flag_ctx_valid; /* [0 1] */
+	bool           flag_res_started; /* The response channel began its analysis. */
 	uint8_t        logging;       /* [0 1 3] */
-	uint           analyzers;     /* Executed channel analyzers. */
 	uint           idle_timeout;  /* Idle timeout interval in milliseconds (0 = off). */
 	int            idle_exp;      /* Tick at which the next idle timeout fires. */
 	uint64_t       bytes_in;      /* Raw payload bytes seen on the request channel. */

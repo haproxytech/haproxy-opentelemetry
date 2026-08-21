@@ -1198,9 +1198,11 @@ otel-event <name> [{ if | unless } <condition>]
 
   The on-client-session-end event fires when the request channel analysis ends.
 
-  The on-server-unavailable event fires during request channel end-analysis when
-  response analyzers were configured but never executed because the server was
-  not reached.
+  The on-server-unavailable event fires during request channel end-analysis
+  when the response channel never started its analysis, that is when no server
+  was reached: HAProxy answered in its place, as with the 503 it returns when
+  no connection could be established, or the stream ended before a connection.
+  It stands in for the response events then.
 
 
   --- Response channel events ---

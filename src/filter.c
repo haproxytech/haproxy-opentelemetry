@@ -1920,7 +1920,9 @@ static void flt_otel_ops_check_timeouts(struct stream *s, struct filter *f)
  * DESCRIPTION
  *   Channel start-analyze callback.  It registers the configured analyzers
  *   on the <chn> channel and runs the client or server session-start event
- *   depending on the channel direction.
+ *   depending on the channel direction.  On the response channel it records
+ *   that the analysis started, which the end of the request channel analysis
+ *   reads to tell a server that was never reached.
  *
  * RETURN VALUE
  *   Returns a negative value if an error occurs, 0 if it needs to wait,
@@ -1932,6 +1934,14 @@ static int flt_otel_ops_channel_start_analyze(struct stream *s, struct filter *f
 	int   retval;
 
 	OTELC_FUNC("%p, %p, %p", s, f, chn);
+
+	/*
+	 * The response channel starts its analysis once a server connection is
+	 * established.  A fact about the stream rather than about the filter,
+	 * so it is recorded ahead of the disabled check.
+	 */
+	if (chn->flags & CF_ISRESP)
+		FLT_OTEL_RT_CTX(f->ctx)->flag_res_started = 1;
 
 	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, (chn->flags & CF_ISRESP) ? FLT_OTEL_EVENT_RES_SERVER_SESS_START : FLT_OTEL_EVENT_REQ_CLIENT_SESS_START)))
 		OTELC_RETURN_INT(FLT_OTEL_RET_OK);
@@ -2127,8 +2137,8 @@ static int flt_otel_ops_channel_post_analyze(struct stream *s, struct filter *f,
  * DESCRIPTION
  *   Channel end-analyze callback.  It runs the client or server session-end
  *   event depending on the <chn> channel direction.  For the request channel,
- *   it also fires the server-unavailable event if response analyzers were
- *   configured but never executed.
+ *   it also fires the server-unavailable event when the response channel never
+ *   started its analysis, that is when no server was reached for the stream.
  *
  * RETURN VALUE
  *   Returns a negative value if an error occurs, 0 if it needs to wait,
@@ -2154,10 +2164,14 @@ static int flt_otel_ops_channel_end_analyze(struct stream *s, struct filter *f, 
 		retval = flt_otel_event_run(s, f, chn, FLT_OTEL_EVENT_REQ_CLIENT_SESS_END, &err);
 
 		/*
-		 * In case an event using server response is defined and not
-		 * executed, event 'on-server-unavailable' is called here.
+		 * A response channel that never started its analysis means no
+		 * server was reached: HAProxy answered in its place, or the
+		 * stream ended before a connection.  The event stands in for
+		 * the response events then.  The analyser bits recorded on the
+		 * runtime context cannot tell this apart, as a raw TCP stream
+		 * runs no response analyser at all unless the proxy has rules.
 		 */
-		if ((FLT_OTEL_CONF(f)->instr->analyzers & AN_RES_ALL) && !(FLT_OTEL_RT_CTX(f->ctx)->analyzers & AN_RES_ALL)) {
+		if (!FLT_OTEL_RT_CTX(f->ctx)->flag_res_started) {
 			rc = flt_otel_event_run(s, f, chn, FLT_OTEL_EVENT_REQ_SERVER_UNAVAILABLE, &err);
 			if ((retval == FLT_OTEL_RET_OK) && (rc != FLT_OTEL_RET_OK))
 				retval = rc;

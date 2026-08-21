@@ -122,8 +122,9 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
       wake-up on the stream task expiry on every invocation.
 
   flt_otel_ops_channel_start_analyze
-      Channel start-analyze callback.  Registers analyzers on the channel and
-      runs the client/server session start event.
+      Channel start-analyze callback.  Records on the response channel that its
+      analysis started, registers analyzers on the channel and runs the
+      client/server session start event.
 
   flt_otel_get_event
       Looks up an event index in the flt_otel_event_data table by its analyzer
@@ -139,8 +140,8 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
 
   flt_otel_ops_channel_end_analyze
       Channel end-analyze callback.  Runs the client/server session end event.
-      For the request channel, also fires the server-unavailable event if no
-      response was processed.
+      For the request channel, also fires the server-unavailable event if the
+      response channel never started its analysis.
 
   flt_otel_ops_http_headers
       HTTP headers callback (flt_ops.http_headers).  Fires

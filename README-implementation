@@ -463,6 +463,8 @@ side.
       when the filter is disabled for the stream.
 
   channel_start_analyze(chn):
+    - Records on the response channel that its analysis started, the sign that
+      a server was reached.
     - Enables the per-channel analyzers from pre_analyzers (except
       AN_REQ_HTTP_TARPIT, which only an armed tarpit rule may enable).
     - Fires on-client-session-start (request) or on-server-session-start
@@ -478,8 +480,8 @@ side.
 
   channel_end_analyze(chn):
     - Fires on-client-session-end (request) or on-server-session-end (response).
-    - For the request channel: if response analyzers were configured but
-      none executed (server was unreachable), fires on-server-unavailable.
+    - For the request channel: if the response channel never began its analysis
+      (no server was reached), fires on-server-unavailable.
 
   http_headers(s, f, msg):
     - Fires on-http-headers-request or on-http-headers-response depending on
@@ -498,7 +500,6 @@ side.
 
   flt_otel_event_run() (event.c):
     - Captures timestamps (CLOCK_MONOTONIC + CLOCK_REALTIME).
-    - Updates the runtime context's executed-analyzers bitmask.
     - Iterates all scopes matching the event; calls flt_otel_scope_run() for
       each used scope.
 
@@ -563,8 +564,9 @@ side.
     flag_disabled  Set when the filter encounters a hard error or an 'otel-stop'
                    directive fires, and by 'require-context' when no extract
                    of a scope yields a valid context.
+    flag_res_started Set when the response channel starts its analysis, that is
+                     once a server connection is established.
     logging        Logging flags.
-    analyzers      Bitmask of analyzers that have actually executed.
     idle_timeout   Idle timeout interval in milliseconds (0 = off).
     idle_exp       Tick at which the next idle timeout fires.
     bytes_in       Raw payload bytes seen on the request channel (TCP mode).
@@ -955,9 +957,9 @@ Each test directory contains an otel.yml file configuring exporter types:
     (FLT_OTEL_FLOAT_U32), compared against ha_random32() for uniform
     distribution without floating-point at runtime.
 
-  - Server-unavailable fallback: if the backend was never reached (no response
-    analyzers executed), the on-server-unavailable event is fired at client
-    session end to ensure all spans are properly closed.
+  - Server-unavailable fallback: when the response channel never started its
+    analysis (no server was reached), the on-server-unavailable event is fired
+    at client session end to ensure all spans are properly closed.
 
   - Custom memory allocator: the C wrapper's allocations are routed through
     HAProxy memory pools via otelc_ext_init(), keeping OTel objects in the
