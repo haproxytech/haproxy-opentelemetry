@@ -83,24 +83,23 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
   flt_otel_ops_deinit_per_thread [D]
       Per-thread deinit callback (flt_ops.deinit_per_thread).
 
-  flt_otel_ops_attach
-      Filter attach callback (flt_ops.attach).  Called when a filter instance is
-      attached to a stream.  Applies rate limiting, creates the runtime context,
-      and sets analyzer bits.
-
   flt_otel_idle_expire_set
       Floors the stream task expiry to the idle tick so the task wakes at the
       idle interval.  The idle timer is kept out of the channel's analyse_exp,
       which the analysers own and freely overwrite.  An already expired task
       expiry is replaced rather than merged.
 
+  flt_otel_ops_attach
+      Filter attach callback (flt_ops.attach).  Called when a filter instance is
+      attached to a stream.  Applies rate limiting, creates the runtime context,
+      sets analyzer bits and arms the idle timer from the precomputed minimum
+      idle_timeout, scheduling the first wake-up on the stream task; a filter
+      attached at backend selection gets its timer here as well.
+
   flt_otel_ops_stream_start
       Stream start callback (flt_ops.stream_start).  Fires the
       on-stream-start event before any channel processing begins.  The channel
-      argument is NULL.  After the event, initializes the idle timer in the
-      runtime context from the precomputed minimum idle_timeout in the
-      instrumentation configuration and schedules the first idle wake-up on
-      the stream task.
+      argument is NULL.  HAProxy runs it for the frontend filters alone.
 
   flt_otel_ops_stream_set_backend
       Stream set-backend callback (flt_ops.stream_set_backend).  Fires the
