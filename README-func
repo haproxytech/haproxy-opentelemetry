@@ -123,8 +123,9 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
 
   flt_otel_ops_channel_start_analyze
       Channel start-analyze callback.  Records on the response channel that its
-      analysis started, registers analyzers on the channel and runs the
-      client/server session start event.
+      analysis started, registers analyzers on the channel (an HTX stream only,
+      and for a filter attached at backend selection only the ones past the
+      backend start) and runs the client/server session start event.
 
   flt_otel_get_event
       Looks up an event index in the flt_otel_event_data table by its analyzer

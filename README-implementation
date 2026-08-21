@@ -466,7 +466,9 @@ side.
     - Records on the response channel that its analysis started, the sign that
       a server was reached.
     - Enables the per-channel analyzers from pre_analyzers (except
-      AN_REQ_HTTP_TARPIT, which only an armed tarpit rule may enable).
+      AN_REQ_HTTP_TARPIT, which only an armed tarpit rule may enable), on an HTX
+      stream only, and for a filter attached at backend selection only those
+      past the backend start, so the frontend rules do not run a second time.
     - Fires on-client-session-start (request) or on-server-session-start
       (response).
 
