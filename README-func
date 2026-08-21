@@ -453,7 +453,9 @@ sections.
   flt_otel_parse_cfg
       Parses the OTel filter configuration file.  Backs up current sections,
       registers temporary otel-instrumentation/group/scope section parsers,
-      loads and parses the file, then restores the original sections.
+      loads and parses the file, then restores the original sections and clears
+      the section state, so a parse that stopped at an error leaves no pointer
+      of this file behind for the next filter line.
 
   flt_otel_parse
       Main filter parser entry point, registered for the "opentelemetry" filter
