@@ -305,6 +305,7 @@ and the keyword parser via INITCALL1 (parser.c).
     - Resolves group->scope and instrumentation->scope/group placeholder
       references to actual configuration structures (setting the ptr field
       and flag_used).
+    - Rejects an otel-group that no 'groups' line of the instrumentation names.
     - Warns about unused scopes, missing root spans, or multiple root spans.
     - Validates metric instruments: resolves update-form references to their
       matching create-form definitions, and rejects duplicate create-form names
