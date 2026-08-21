@@ -378,12 +378,18 @@ defined in event.h (FLT_OTEL_EVENT_DEFINES).
 Each event entry carries:
   - an_bit:           the HAProxy analyzer bit (AN_REQ_*, AN_RES_*)
   - an_name:          the analyzer bit name (e.g. "AN_REQ_HTTP_PROCESS_FE")
-  - smp_opt_dir:      sample fetch direction (REQ or RES)
+  - smp_opt_dir:      sample fetch direction (REQ or RES); an event that runs
+                      on no channel carries neither, and its samples are
+                      fetched on the request side
   - smp_val_fe/be:    SMP_VAL_FE_*/SMP_VAL_BE_* fetch-location masks for the
-                      event's processing point (mirrors the SPOE filter's
-                      per-event mapping); flt_otel_ops_check() ORs the two into
-                      the location a bound scope's fetches and conditions are
-                      validated against
+                      event's processing point, paired per event as the SPOE
+                      filter pairs its own; flt_otel_ops_check() ORs the two
+                      into the location a bound scope's fetches and conditions
+                      are validated against.  The values are not everywhere the
+                      same as SPOE's: on-client-session-start carries the HTTP
+                      request header location, where SPOE carries the
+                      connection accept one, because the HTTP fetches do
+                      resolve at that point on an HTTP-mode proxy
   - flag_http_inject: whether span context can be injected into HTTP headers
                       at this point
   - flag_http_extract: whether span context can be extracted from HTTP headers
@@ -418,10 +424,11 @@ The remaining pseudo-events fire from channel start/end callbacks:
   - on-server-session-start / on-server-session-end
   - on-server-unavailable
 
-The stream lifecycle events pass NULL for the channel argument, so
-context injection/extraction via HTTP headers cannot be used.  Their
-sample fetch direction is unconstrained (0xff), allowing both request
-and response fetches.
+The stream lifecycle events pass NULL for the channel argument, so the context
+injection and extraction via HTTP headers cannot be used.  Their sample fetch
+direction is neither the request nor the response one, so that the 'finish'
+wildcards leave their spans alone and a sample fetched there reads the request
+side.
 
 6.2  Callback Flow
 
