@@ -444,10 +444,8 @@ void flt_otel_scope_data_dump(const struct flt_otel_scope_data *data)
 
 		OTELC_DBG(DEBUG, "events %p:{", &(data->events));
 		list_for_each_entry_rev(event, &(data->events), list) {
-			if (event->ts_set)
-				OTELC_DBG(DEBUG, "  '%s' %p %zu/%zu %ld.%09ld", event->name, event->attr, event->cnt, event->size, OTELC_TV_ARGS(&(event->ts)));
-			else
-				OTELC_DBG(DEBUG, "  '%s' %p %zu/%zu", event->name, event->attr, event->cnt, event->size);
+			FLT_OTEL_DBG_SCOPE_DATA_EVENT("  ", *event);
+
 			if (event->attr != NULL)
 				for (i = 0; i < event->cnt; i++)
 					OTELC_DBG_KV(DEBUG, "  ", event->attr + i);

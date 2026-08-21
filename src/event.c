@@ -694,9 +694,12 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 	if (!LIST_ISEMPTY(&(data->events))) {
 		struct flt_otel_scope_data_event *event;
 
-		list_for_each_entry_rev(event, &(data->events), list)
+		list_for_each_entry_rev(event, &(data->events), list) {
+			FLT_OTEL_DBG_SCOPE_DATA_EVENT("adding event ", *event);
+
 			if (OTELC_OPS(span->span, add_event_kv_n, event->name, event->ts_set ? &(event->ts) : ts_system, event->attr, event->cnt) == -1)
 				retval = FLT_OTEL_RET_ERROR;
+		}
 	}
 
 	/* Set span status code and description; IGNORE leaves it unset. */

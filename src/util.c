@@ -867,6 +867,8 @@ static int flt_otel_sample_add_event(struct stream *s, uint dir, struct list *ev
 		LIST_INSERT(events, &(event->list));
 	}
 
+	FLT_OTEL_DBG_SCOPE_DATA_EVENT("scope event ", *event);
+
 	OTELC_RETURN_INT(event->cnt);
 }
 
