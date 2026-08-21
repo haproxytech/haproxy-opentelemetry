@@ -858,6 +858,5 @@ its type, unit and lazy-creation state, an update-form instrument by name with
 the 'update' type, its create-only columns left blank.
 
 The "flt-otel scopes" command likewise builds a per-instance report, printing
-each scope with its bound event and used flag, each group with its used flag
-and scope count, and -- in a debug build -- the per-event dispatch counts held
-in conf->cnt.event[].
+each scope with its bound event and used flag, each group with its scope count
+and, in a debug build, the per-event dispatch counts held in conf->cnt.event[].

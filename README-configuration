@@ -187,7 +187,8 @@ Keywords (optional):
 
   groups <name> ...
       Declare one or more "otel-group" sections used by this instrumentation.
-      Can be repeated on multiple lines.
+      Every defined section must stand here as well: one that no 'groups' line
+      names is a configuration error.  Can be repeated on multiple lines.
 
   log global
   log <addr> [len <len>] [format <fmt>] <facility> [<level> [<minlevel>]]
@@ -886,7 +887,9 @@ Supported keywords:
 ---------------------------
 
 An "otel-group" section defines a named collection of scopes that can be
-triggered from HAProxy TCP/HTTP rules rather than from filter events.
+triggered from HAProxy TCP/HTTP rules rather than from filter events.  A 'groups'
+line of the otel-instrumentation section must name the group; one those lines
+leave out is a configuration error.
 
 Syntax:
 
