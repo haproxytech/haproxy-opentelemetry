@@ -2727,7 +2727,10 @@ static int flt_otel_post_parse_cfg_scope(void)
  *   otel-scope section parsers, loads and parses the file, then restores the
  *   original sections.  When a section name is set on the filter line, only
  *   the matching top-level section of the file is parsed; a name that matches
- *   nothing fails with an error.
+ *   nothing fails with an error.  The section state is cleared before
+ *   returning: an error stops the parse ahead of the callback that ends a
+ *   section, and the next filter line must not find the objects of this file
+ *   there.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -2793,6 +2796,22 @@ static int flt_otel_parse_cfg(struct flt_otel_conf *conf, const char *flt_name, 
 		/* Restore the original arg list unchanged. */
 		LIST_SPLICE(&(conf->proxy->conf.args.list), &saved_args);
 	}
+
+	/*
+	 * An error stops parse_cfg() before the callback that ends the open
+	 * section runs, so the section state may still point at objects of
+	 * this file that the caller is about to free, and the next filter
+	 * line would run the callback on them.  The instrumentation joins
+	 * the configuration only at its section end, so a pending one is
+	 * freed here instead of leaking.
+	 */
+	if ((flt_otel_current_instr != NULL) && (flt_otel_current_instr != conf->instr))
+		flt_otel_conf_instr_free(&flt_otel_current_instr);
+
+	flt_otel_current_instr = NULL;
+	flt_otel_current_group = NULL;
+	flt_otel_current_scope = NULL;
+	flt_otel_current_span  = NULL;
 
 	/* Unregister OTEL sections and restore previous sections. */
 	cfg_unregister_sections();
