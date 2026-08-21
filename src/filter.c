@@ -1920,9 +1920,13 @@ static void flt_otel_ops_check_timeouts(struct stream *s, struct filter *f)
  * DESCRIPTION
  *   Channel start-analyze callback.  It registers the configured analyzers
  *   on the <chn> channel and runs the client or server session-start event
- *   depending on the channel direction.  On the response channel it records
- *   that the analysis started, which the end of the request channel analysis
- *   reads to tell a server that was never reached.
+ *   depending on the channel direction.  The analyzers are forced on an HTX
+ *   stream only, and for a filter attached at backend selection only the ones
+ *   that follow the backend start: the frontend analyzers have run by then
+ *   and enabling them again would run the frontend rules a second time.  On
+ *   the response channel it records that the analysis started, which the end
+ *   of the request channel analysis reads to tell a server that was never
+ *   reached.
  *
  * RETURN VALUE
  *   Returns a negative value if an error occurs, 0 if it needs to wait,
@@ -1931,6 +1935,7 @@ static void flt_otel_ops_check_timeouts(struct stream *s, struct filter *f)
 static int flt_otel_ops_channel_start_analyze(struct stream *s, struct filter *f, struct channel *chn)
 {
 	char *err = NULL;
+	uint  an_mask;
 	int   retval;
 
 	OTELC_FUNC("%p, %p, %p", s, f, chn);
@@ -1975,9 +1980,19 @@ static int flt_otel_ops_channel_start_analyze(struct stream *s, struct filter *f
 		 * holds the request, so forcing it on would break every request.
 		 * The tarpit scope is still hooked in .channel_pre_analyze and
 		 * fires only when a tarpit rule actually schedules the analyzer.
+		 *
+		 * A filter attached at backend selection runs this from the
+		 * backend start analyser, when the frontend analysers have
+		 * already run.  Enabling one of those again makes HAProxy run
+		 * it a second time, the frontend rules included, so only the
+		 * analysers that follow are forced for such a filter.
 		 */
+		an_mask = AN_REQ_ALL & ~AN_REQ_HTTP_TARPIT;
+		if (f->flags & FLT_FL_IS_BACKEND_FILTER)
+			an_mask &= ~FLT_OTEL_AN_REQ_FE;
+
 		if (s->flags & SF_HTX)
-			chn->analysers |= f->pre_analyzers & AN_REQ_ALL & ~AN_REQ_HTTP_TARPIT;
+			chn->analysers |= f->pre_analyzers & an_mask;
 
 		/* The event 'on-client-session-start'. */
 		retval = flt_otel_event_run(s, f, chn, FLT_OTEL_EVENT_REQ_CLIENT_SESS_START, &err);
