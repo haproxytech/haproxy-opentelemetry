@@ -24,7 +24,15 @@
 #define AN_RES_SERVER_SESS_END      0
 #define SMP_VAL_FE_                 0
 #define SMP_VAL_BE_                 0
-#define SMP_OPT_DIR_                0xff
+/*
+ * The direction of an event that runs on no channel.  It must differ from
+ * SMP_OPT_DIR_REQ and SMP_OPT_DIR_RES, so that the 'finish' wildcards leave
+ * the spans of such an event alone, and it must leave the direction bit clear,
+ * so that a sample fetched there reads the request side rather than the empty
+ * response one.  SMP_OPT_FINAL is such a value, and every fetch site ors it in
+ * anyway.
+ */
+#define SMP_OPT_DIR_                SMP_OPT_FINAL
 
 /*
  * Event names are selected to be somewhat compatible with the SPOE filter,
