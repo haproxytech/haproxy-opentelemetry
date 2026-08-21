@@ -1114,6 +1114,43 @@ otel-event <name> [{ if | unless } <condition>]
       on-http-end-response
       on-http-reply
 
+  --- Filter placement (frontend, backend and listen) ---
+
+  The filter line may stand in a frontend, a backend or a listen section, and
+  the events a scope sees depend on where.  A filter of a frontend joins the
+  stream at its creation and sees every event.  A filter of a backend section
+  joins it at backend selection: HAProxy never runs the stream-start callback
+  for it, the frontend-phase analysers have run by then, and HAProxy releases
+  it as soon as both channels have ended their analysis, before the stream-stop
+  callback and on every path.  These events never fire for such a filter, and a
+  scope bound to one of them is reported as a warning at config load:
+
+    on-stream-start
+    on-frontend-tcp-request
+    on-http-wait-request
+    on-frontend-http-request
+    on-switching-rules-request
+    on-stream-stop
+
+  The on-http-body-request event fires for such a filter only when the backend
+  itself asks for the body, with 'option http-buffer-request' or with 'balance
+  url_param', and the frontend did not; a scope bound to it in a backend that
+  asks for neither draws the same warning.
+
+  The on-client-session-end and on-server-session-end events fire as usual, both
+  ends of the analysis coming before the release, and an aborted stream reaches
+  them too, since HAProxy keeps the filter analysers on every abort path.  The
+  idle timer is armed when the filter is attached, so on-idle-timeout fires for
+  it from that point on.
+
+  A listen proxy serves its own connections as frontend and backend at once,
+  and HAProxy skips the backend-phase request analysers when the frontend is
+  the backend.  There on-backend-tcp-request and on-backend-http-request fire
+  only for a stream switched to another backend or routed in from a different
+  frontend; a scope bound to one of them is told so by a warning at config load.
+  A parent chain that runs through one of these events therefore breaks on a
+  listen proxy, and with hard errors on, the filter is disabled for the stream.
+
   --- Stream lifecycle events (not tied to a channel analyzer) ---
 
   The on-stream-start and on-stream-stop events fire from the stream_start and

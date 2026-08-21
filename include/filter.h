@@ -16,6 +16,15 @@
 #define FLT_OTEL_AN_REQ_FE          (AN_REQ_INSPECT_FE | AN_REQ_WAIT_HTTP | AN_REQ_HTTP_BODY | \
                                      AN_REQ_HTTP_PROCESS_FE | AN_REQ_SWITCHING_RULES)
 
+/* The request analysers HAProxy skips when the frontend is the backend. */
+#define FLT_OTEL_AN_REQ_SAME_BE     (AN_REQ_INSPECT_BE | AN_REQ_HTTP_PROCESS_BE)
+
+/* The frontend-phase analysers whose events never fire for a backend filter. */
+#define FLT_OTEL_AN_REQ_FE_ONLY     (FLT_OTEL_AN_REQ_FE & ~AN_REQ_HTTP_BODY)
+
+/* Whether the backend asks for the body itself, by option or by balance. */
+#define FLT_OTEL_PROXY_WANTS_BODY(p) (((p)->options & PR_O_WREQ_BODY) || (((p)->lbprm.algo & BE_LB_ALGO) == BE_LB_ALGO_PH))
+
 /* Return codes for OTel filter operations. */
 enum FLT_OTEL_RET_enum {
 	FLT_OTEL_RET_ERROR  = -1,
