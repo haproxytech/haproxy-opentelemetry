@@ -858,9 +858,10 @@ int flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt_
  *   checks are performed: duplicate filter IDs across all proxies, presence of
  *   an instrumentation section and its configuration file, duplicate group and
  *   scope names, empty groups, group-to-scope and instrumentation-to-group/scope
- *   cross-references, unused scopes, require-context event eligibility, root
- *   span count, analyzer bits, and create-form instrument type consistency and
- *   update-form instrument resolution.
+ *   cross-references, a group that no 'groups' line names, unused scopes,
+ *   require-context event eligibility, root span count, analyzer bits, and
+ *   create-form instrument type consistency and update-form instrument
+ *   resolution.
  *
  * RETURN VALUE
  *   Returns the number of encountered errors.
@@ -989,31 +990,6 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 			retval++;
 		}
 
-	/*
-	 * Checking that all defined 'otel-group' sections have correctly declared
-	 * 'otel-scope' sections (ie whether the declared 'otel-scope' sections have
-	 * corresponding definitions).
-	 */
-	list_for_each_entry(conf_group, &(conf->groups), list)
-		list_for_each_entry(ph_scope, &(conf_group->ph_scopes), list) {
-			bool flag_found = 0;
-
-			list_for_each_entry(conf_scope, &(conf->scopes), list)
-				if (strcmp(ph_scope->id, conf_scope->id) == 0) {
-					ph_scope->ptr         = conf_scope;
-					conf_scope->flag_used = 1;
-					flag_found            = 1;
-
-					break;
-				}
-
-			if (!flag_found) {
-				FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_GROUP_ID " '%s' : references undefined " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s'", conf_group->id, ph_scope->id);
-
-				retval++;
-			}
-		}
-
 	if (conf->instr != NULL) {
 		/*
 		 * Checking that all declared 'groups' keywords have correctly
@@ -1039,6 +1015,19 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 		}
 
 		/*
+		 * The 'otel-group' action reaches a group through those lines
+		 * alone, so a defined group that none of them names could
+		 * never run.
+		 */
+		list_for_each_entry(conf_group, &(conf->groups), list)
+			if (!conf_group->flag_used) {
+				FLT_OTEL_ALERT("'%s' : " FLT_OTEL_PARSE_SECTION_GROUP_ID " '%s' is not named on a 'groups' line",
+				               conf->id, conf_group->id);
+
+				retval++;
+			}
+
+		/*
 		 * Checking that all declared 'scopes' keywords have correctly
 		 * defined 'otel-scope' sections.
 		 */
@@ -1061,6 +1050,34 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 			}
 		}
 	}
+
+	/*
+	 * Checking that all defined 'otel-group' sections have correctly declared
+	 * 'otel-scope' sections (ie whether the declared 'otel-scope' sections have
+	 * corresponding definitions).  A scope counts as used through a group
+	 * that a 'groups' line names, the only kind the action can run.
+	 */
+	list_for_each_entry(conf_group, &(conf->groups), list)
+		list_for_each_entry(ph_scope, &(conf_group->ph_scopes), list) {
+			bool flag_found = 0;
+
+			list_for_each_entry(conf_scope, &(conf->scopes), list)
+				if (strcmp(ph_scope->id, conf_scope->id) == 0) {
+					ph_scope->ptr = conf_scope;
+					flag_found    = 1;
+
+					if (conf_group->flag_used)
+						conf_scope->flag_used = 1;
+
+					break;
+				}
+
+			if (!flag_found) {
+				FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_GROUP_ID " '%s' : references undefined " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s'", conf_group->id, ph_scope->id);
+
+				retval++;
+			}
+		}
 
 	OTELC_DBG(DEBUG, "--- filter '%s' configuration ----------", conf->id);
 	OTELC_DBG(DEBUG, "- defined spans ----------");

@@ -1479,14 +1479,13 @@ static int flt_otel_cli_parse_scopes(char **args, char *payload, struct appctx *
  * DESCRIPTION
  *   Iteratively dumps the report of the "flt-otel scopes" CLI command.  For
  *   every OTel filter instance the configured scopes are listed with their
- *   bound event and used state, then the configured groups with their used
- *   state and scope count.  When DEBUG_OTEL is enabled, an events section
- *   additionally reports how many times each event has been dispatched.  Rows
- *   are emitted through the applet output buffer; when the buffer is full the
- *   function returns 0 and resumes from the interrupted row on the next call,
- *   so the dump never blocks the thread and its size is not limited by the
- *   buffer.  A target given to the command restricts the dump to the named
- *   instance.
+ *   bound event and used state, then the configured groups with their scope
+ *   count.  When DEBUG_OTEL is enabled, an events section additionally reports
+ *   how many times each event has been dispatched.  Rows are emitted through
+ *   the applet output buffer; when the buffer is full the function returns 0
+ *   and resumes from the interrupted row on the next call, so the dump never
+ *   blocks the thread and its size is not limited by the buffer.  A target
+ *   given to the command restricts the dump to the named instance.
  *
  * RETURN VALUE
  *   Returns 1 when the dump is finished, or 0 when the output buffer is full
@@ -1499,7 +1498,6 @@ static int flt_otel_cli_io_scopes(struct appctx *appctx)
 	struct flt_otel_conf_scope   *scp;
 	struct flt_otel_conf_group   *grp;
 	const char                   *evname;
-	int                           w_used = FLT_OTEL_STR_SIZE(FLT_OTEL_CLI_USED);
 
 	OTELC_FUNC("%p", appctx);
 
@@ -1539,7 +1537,7 @@ static int flt_otel_cli_io_scopes(struct appctx *appctx)
 				ctx->w[1] = OTELC_MAX(ctx->w[1], FLT_OTEL_STR_SIZE(FLT_OTEL_CLI_EVENT));
 
 				(void)chunk_printf(&trash, "     scopes:\n");
-				(void)chunk_appendf(&trash, "       %-*s  %-*s  used\n", ctx->w[0], FLT_OTEL_CLI_SCOPE, ctx->w[1], FLT_OTEL_CLI_EVENT);
+				(void)chunk_appendf(&trash, "       %-*s  %-*s  " FLT_OTEL_CLI_USED "\n", ctx->w[0], FLT_OTEL_CLI_SCOPE, ctx->w[1], FLT_OTEL_CLI_EVENT);
 			} else {
 				(void)chunk_printf(&trash, "     (no scopes)\n");
 			}
@@ -1576,7 +1574,7 @@ static int flt_otel_cli_io_scopes(struct appctx *appctx)
 				ctx->w[2] = OTELC_MAX(ctx->w[2], FLT_OTEL_STR_SIZE(FLT_OTEL_CLI_GROUP));
 
 				(void)chunk_printf(&trash, "     groups:\n");
-				(void)chunk_appendf(&trash, "       %-*s  %-*s  scopes\n", ctx->w[2], FLT_OTEL_CLI_GROUP, w_used, FLT_OTEL_CLI_USED);
+				(void)chunk_appendf(&trash, "       %-*s  scopes\n", ctx->w[2], FLT_OTEL_CLI_GROUP);
 			} else {
 				(void)chunk_printf(&trash, "     (no groups)\n");
 			}
@@ -1598,7 +1596,7 @@ static int flt_otel_cli_io_scopes(struct appctx *appctx)
 				list_for_each_entry(ph_scope, &(grp->ph_scopes), list)
 					n_scopes++;
 
-				(void)chunk_printf(&trash, "       %-*s  %-*s  %d\n", ctx->w[2], grp->id, w_used, FLT_OTEL_STR_FLAG_YN(grp->flag_used), n_scopes);
+				(void)chunk_printf(&trash, "       %-*s  %d\n", ctx->w[2], grp->id, n_scopes);
 				if (applet_putchk(appctx, &trash) == -1)
 					OTELC_RETURN_INT(0);
 

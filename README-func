@@ -58,7 +58,8 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
   flt_otel_ops_check
       Filter check callback (flt_ops.check).  Validates the parsed
       configuration: checks for duplicate filter IDs, resolves group/scope
-      placeholder references, verifies root span count, and sets analyzer bits.
+      placeholder references, rejects a group no 'groups' line names, verifies
+      root span count, and sets analyzer bits.
 
   flt_otel_check_cond_loc
       Warns when a scope's 'if'/'unless' condition can never match at the
