@@ -12,6 +12,10 @@
 #define FLT_OTEL_CONDITION_IF       "if"
 #define FLT_OTEL_CONDITION_UNLESS   "unless"
 
+/* The request analysers that run before a backend filter is attached. */
+#define FLT_OTEL_AN_REQ_FE          (AN_REQ_INSPECT_FE | AN_REQ_WAIT_HTTP | AN_REQ_HTTP_BODY | \
+                                     AN_REQ_HTTP_PROCESS_FE | AN_REQ_SWITCHING_RULES)
+
 /* Return codes for OTel filter operations. */
 enum FLT_OTEL_RET_enum {
 	FLT_OTEL_RET_ERROR  = -1,
