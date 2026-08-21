@@ -340,6 +340,10 @@ and the keyword parser via INITCALL1 (parser.c).
       left out only when channel_start_analyze force-injects the pre_analyzers
       into the channel, so the tarpit event fires only when a tarpit rule has
       armed that analyzer itself.
+    - Arms the idle timer from the precomputed minimum idle_timeout and sets
+      the first wake-up on the stream task.  The stream-start callback would
+      miss a filter attached at backend selection, as HAProxy runs it for the
+      frontend filters alone.
 
   flt_otel_ops_detach():
     - Frees the runtime context, which finishes all remaining active spans and
@@ -433,12 +437,16 @@ side.
 
 6.2  Callback Flow
 
+  attach(s, f):
+    - Creates the runtime context and, when an idle timeout is configured, arms
+      the idle timer and schedules the first wake-up on the stream task expiry.
+      Runs for a filter of a backend section as well, at backend selection.
+
   stream_start(s, f):
     - Fires on-stream-start with chn=NULL.
-    - Called when a new stream begins, before any channel processing.
-    - Initializes the idle timer from the precomputed minimum idle_timeout in
-      the instrumentation configuration and schedules the first idle wake-up
-      on the stream task expiry.
+    - Called when a new stream begins, before any channel processing, for the
+      filters of the stream's frontend alone: a filter of a backend section
+      never sees it.
 
   stream_set_backend(s, f, be):
     - Fires on-backend-set with chn=&s->req.
