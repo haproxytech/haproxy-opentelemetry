@@ -1526,6 +1526,43 @@ static void flt_otel_ops_deinit_per_thread(struct proxy *p, struct flt_conf *fco
 
 /***
  * NAME
+ *   flt_otel_idle_expire_set - stream task idle wake-up scheduling
+ *
+ * SYNOPSIS
+ *   static void flt_otel_idle_expire_set(struct stream *s, int idle_exp)
+ *
+ * ARGUMENTS
+ *   s        - the stream whose task expiry is updated
+ *   idle_exp - tick at which the next idle timeout fires
+ *
+ * DESCRIPTION
+ *   Floors the expiry of the <s> stream task to <idle_exp> so that the task
+ *   wakes up at the idle interval.  The idle timer is deliberately kept out
+ *   of the channel's analyse_exp: analysers own that field and freely
+ *   overwrite it (the tarpit analyser assigns its own timeout there and the
+ *   HTTP analysers reset it on completion), which would starve the idle
+ *   event.  An already expired task expiry is replaced rather than merged,
+ *   because process_stream() discards an expired value before recomputing
+ *   the next one, taking an unexpired value as the floor.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+static void flt_otel_idle_expire_set(struct stream *s, int idle_exp)
+{
+	OTELC_FUNC("%p, %d", s, idle_exp);
+
+	if (tick_is_expired(s->task->expire, now_ms))
+		s->task->expire = idle_exp;
+	else
+		s->task->expire = tick_first(s->task->expire, idle_exp);
+
+	OTELC_RETURN();
+}
+
+
+/***
+ * NAME
  *   flt_otel_ops_attach - filter attach callback (flt_ops.attach)
  *
  * SYNOPSIS
@@ -1541,6 +1578,12 @@ static void flt_otel_ops_deinit_per_thread(struct proxy *p, struct flt_conf *fco
  *   the stream's frontend and when the backend is set for filters declared
  *   on the stream's backend.  It is possible to ignore the filter, if needed,
  *   by returning 0.  This could be useful to have conditional filtering.
+ *   Past the rate limit, it creates the runtime context, registers the
+ *   analyzer bits and arms the idle timer from the precomputed minimum
+ *   idle_timeout of the instrumentation, scheduling the first wake-up on the
+ *   stream task.  The timer is armed here rather than in the stream-start
+ *   callback because HAProxy runs that one for the frontend filters alone,
+ *   while this one runs for a filter attached at backend selection as well.
  *
  * RETURN VALUE
  *   Returns a negative value if an error occurs, 0 to ignore the filter,
@@ -1548,8 +1591,9 @@ static void flt_otel_ops_deinit_per_thread(struct proxy *p, struct flt_conf *fco
  */
 static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 {
-	const struct flt_otel_conf *conf = FLT_OTEL_CONF(f);
-	char                       *err = NULL;
+	const struct flt_otel_conf      *conf = FLT_OTEL_CONF(f);
+	struct flt_otel_runtime_context *rt_ctx;
+	char                            *err = NULL;
 
 	OTELC_FUNC("%p, %p", s, f);
 
@@ -1603,6 +1647,22 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 	f->pre_analyzers  |= conf->instr->analyzers & ((AN_REQ_ALL & ~AN_REQ_WAIT_HTTP) | (AN_RES_ALL & ~AN_RES_WAIT_HTTP));
 	f->post_analyzers |= conf->instr->analyzers & (AN_REQ_WAIT_HTTP | AN_RES_WAIT_HTTP);
 
+	/*
+	 * Arm the idle timer from the precomputed minimum idle_timeout of the
+	 * instrumentation and schedule the first wake-up on the stream task.
+	 * The stream-start callback would be too narrow a place for it:
+	 * HAProxy runs that one for the frontend filters alone, while a filter
+	 * attached at backend selection has to keep its idle event as well.
+	 */
+	if (conf->instr->idle_timeout != 0) {
+		rt_ctx = FLT_OTEL_RT_CTX(f->ctx);
+
+		rt_ctx->idle_timeout = conf->instr->idle_timeout;
+		rt_ctx->idle_exp     = tick_add(now_ms, rt_ctx->idle_timeout);
+
+		flt_otel_idle_expire_set(s, rt_ctx->idle_exp);
+	}
+
 #ifdef FLT_OTEL_USE_COUNTERS
 	_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 0, 1);
 #endif
@@ -1614,43 +1674,6 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 	flt_otel_http_headers_dump(&(s->req));
 
 	OTELC_RETURN_INT(FLT_OTEL_RET_OK);
-}
-
-
-/***
- * NAME
- *   flt_otel_idle_expire_set - stream task idle wake-up scheduling
- *
- * SYNOPSIS
- *   static void flt_otel_idle_expire_set(struct stream *s, int idle_exp)
- *
- * ARGUMENTS
- *   s        - the stream whose task expiry is updated
- *   idle_exp - tick at which the next idle timeout fires
- *
- * DESCRIPTION
- *   Floors the expiry of the <s> stream task to <idle_exp> so that the task
- *   wakes up at the idle interval.  The idle timer is deliberately kept out
- *   of the channel's analyse_exp: analysers own that field and freely
- *   overwrite it (the tarpit analyser assigns its own timeout there and the
- *   HTTP analysers reset it on completion), which would starve the idle
- *   event.  An already expired task expiry is replaced rather than merged,
- *   because process_stream() discards an expired value before recomputing
- *   the next one, taking an unexpired value as the floor.
- *
- * RETURN VALUE
- *   This function does not return a value.
- */
-static void flt_otel_idle_expire_set(struct stream *s, int idle_exp)
-{
-	OTELC_FUNC("%p, %d", s, idle_exp);
-
-	if (tick_is_expired(s->task->expire, now_ms))
-		s->task->expire = idle_exp;
-	else
-		s->task->expire = tick_first(s->task->expire, idle_exp);
-
-	OTELC_RETURN();
 }
 
 
@@ -1668,20 +1691,17 @@ static void flt_otel_idle_expire_set(struct stream *s, int idle_exp)
  * DESCRIPTION
  *   It is called when a stream is started.  This callback can fail by returning
  *   a negative value.  It will be considered as a critical error by HAProxy
- *   which disabled the listener for a short time.  After the stream-start
- *   event, it initializes the idle timer in the runtime context from the
- *   precomputed minimum idle_timeout in the instrumentation configuration and
- *   schedules the first idle wake-up on the stream task.
+ *   which disabled the listener for a short time.  HAProxy runs it for the
+ *   filters of the stream's frontend alone, so the on-stream-start event it
+ *   fires never reaches a filter declared in a backend section.
  *
  * RETURN VALUE
  *   Returns a negative value if an error occurs, any other value otherwise.
  */
 static int flt_otel_ops_stream_start(struct stream *s, struct filter *f)
 {
-	const struct flt_otel_conf      *conf = FLT_OTEL_CONF(f);
-	struct flt_otel_runtime_context *rt_ctx;
-	char                            *err = NULL;
-	int                              retval = FLT_OTEL_RET_OK;
+	char *err = NULL;
+	int   retval = FLT_OTEL_RET_OK;
 
 	OTELC_FUNC("%p, %p", s, f);
 
@@ -1690,19 +1710,6 @@ static int flt_otel_ops_stream_start(struct stream *s, struct filter *f)
 
 	/* The result of the function is ignored. */
 	(void)flt_otel_event_run(s, f, NULL, FLT_OTEL_EVENT__STREAM_START, &err);
-
-	/*
-	 * Initialize the idle timer from the precomputed minimum idle_timeout
-	 * in the instrumentation configuration and schedule the first wake-up.
-	 */
-	if (conf->instr->idle_timeout != 0) {
-		rt_ctx = FLT_OTEL_RT_CTX(f->ctx);
-
-		rt_ctx->idle_timeout = conf->instr->idle_timeout;
-		rt_ctx->idle_exp     = tick_add(now_ms, rt_ctx->idle_timeout);
-
-		flt_otel_idle_expire_set(s, rt_ctx->idle_exp);
-	}
 
 	OTELC_RETURN_INT(flt_otel_return_int(f, &err, retval));
 }

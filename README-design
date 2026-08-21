@@ -711,9 +711,11 @@ timeout across all scopes is stored in conf->instr->idle_timeout.
 
 10.2  Initialization
 
-In flt_otel_ops_stream_start(), the runtime context's idle_timeout and idle_exp
-fields are initialized from the precomputed minimum.  The first wake-up is then
-scheduled by flooring the stream task's expiry via flt_otel_idle_expire_set().
+In flt_otel_ops_attach() the runtime context's idle_timeout and idle_exp fields
+are initialized from the precomputed minimum.  The attach callback runs for a
+filter of a backend section as well, which the stream-start callback does not.
+The first wake-up is then scheduled by flooring the stream task's expiry via
+flt_otel_idle_expire_set().
 The channel's analyse_exp is deliberately left untouched: the analysers own
 that field and freely overwrite it (the tarpit analyser assigns its timeout
 there and the HTTP analysers reset it on completion), so an idle tick stored
