@@ -1135,7 +1135,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 			 * With 'require-context' a scope must not run before
 			 * the request headers, and so any propagated context,
 			 * can be read.  A group-driven scope (no event) fires
-			 * at its action's rule location instead and is gated
+			 * at its action's rule location instead and is held
 			 * at runtime by the valid-context check, so only the
 			 * event-bound scopes are rejected here.
 			 */
@@ -1339,7 +1339,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 
 				/*
 				 * A create-form name may repeat across the
-				 * scopes, typically gated by conditions: the
+				 * scopes, typically told apart by conditions: the
 				 * meter returns the existing instrument for a
 				 * repeated name+type pair, with the first
 				 * creator's description and unit in effect.

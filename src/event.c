@@ -60,10 +60,10 @@ static void flt_otel_session_disable(struct flt_otel_runtime_context *rt_ctx, st
  * DESCRIPTION
  *   Evaluates an optional if/unless ACL <cond> against the stream, honouring
  *   the 'unless' polarity.  A NULL condition is treated as an unconditional
- *   match, so callers can gate an action with a single uniform check.
+ *   match, so callers can settle an action with a single uniform check.
  *
  * RETURN VALUE
- *   Returns a non-zero value when the gated action should run, 0 otherwise.
+ *   Returns a non-zero value when the action should run, 0 otherwise.
  */
 static int flt_otel_cond_pass(struct acl_cond *cond, struct stream *s, uint dir)
 {
@@ -327,7 +327,7 @@ static int flt_otel_scope_instrument_create(struct flt_otel_conf *conf, struct o
  *   is lost; only an instrument whose creation failed is skipped.  A
  *   measurement is recorded only when both the create-form and update-form
  *   'if'/'unless' conditions pass; creation itself produces no data point and
- *   is never gated.
+ *   obeys no condition.
  *
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
@@ -1192,7 +1192,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 
 		/*
 		 * A span has a single status.  Several status lines may be
-		 * defined, each gated by a condition; the first whose condition
+		 * defined, each carrying a condition; the first whose condition
 		 * holds is applied and the remaining lines are skipped.
 		 */
 		list_for_each_entry(sample, &(conf_span->statuses), list) {

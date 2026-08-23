@@ -115,7 +115,7 @@ Compiled objects (vars.o is built unconditionally):
   cli.o  conf.o  event.o  filter.o  group.o  http.o  otelc.o  parser.o
   pool.o  sample.o  scope.o  util.o  vars.o
 
-OTEL_USE_VARS does not gate whether vars.o is compiled; it only adds the
+OTEL_USE_VARS does not control whether vars.o is compiled; it only adds the
 -DUSE_OTEL_VARS / -DUSE_OTEL_VARS_NAME defines that select the code paths
 compiled inside vars.c.
 
@@ -548,7 +548,7 @@ side.
        threshold, evaluates sample expressions into a body string, resolves
        the optional span reference, and emits the record via the logger.
     8. Runs "unset-var" directives, removing the named HAProxy variables via
-       flt_otel_var_unset_byname() (each gated by its optional condition).
+       flt_otel_var_unset_byname() (each held to its optional condition).
     9. Marks spans listed in "finish" directives; a fired "otel-stop" marks
        every open span and context for completion.
    10. Calls flt_otel_scope_finish_marked() to end marked spans/contexts.
@@ -837,7 +837,7 @@ instrumentation block.
 When compiled with OTEL_DEBUG=1 (DEBUG_OTEL defined), the filter enables:
 
   - The debug-only flt_ops callbacks deinit_per_thread, http_payload and
-    http_reset are gated via OTELC_DBG_IFDEF() and set to NULL in non-debug
+    http_reset are selected via OTELC_DBG_IFDEF() and set to NULL in non-debug
     builds.  (Note: stream_set_backend, http_headers, http_end and http_reply
     are registered unconditionally and back the on-backend-set,
     on-http-headers-*, on-http-end-* and on-http-reply events; tcp_payload is
@@ -1336,7 +1336,7 @@ The flt_otel_conf_instrument structure (conf.h) holds:
   bounds_num   Number of histogram bucket boundaries.
   attributes   List of flt_otel_conf_sample entries (update-form only).
   ref          Pointer to the create-form instrument (update-form only).
-  cond         Optional if/unless ACL condition gating the recording.
+  cond         Optional if/unless ACL condition controlling the recording.
 
 18.5.3  Meter Initialization and Startup
 
@@ -1453,7 +1453,7 @@ The flt_otel_conf_log_record structure (conf.h) holds:
   time         Optional timestamp expression (single-entry conf_sample list).
   attributes   List of flt_otel_conf_sample entries for attributes.
   samples      List of sample expressions for the body.
-  cond         Optional if/unless ACL condition gating the record.
+  cond         Optional if/unless ACL condition controlling the record.
 
 The attributes list contains flt_otel_conf_sample entries, one per "attr"
 keyword.  Each entry's key field holds the attribute name and its sample

@@ -202,7 +202,7 @@ Event dispatching, metrics recording and scope/span execution engine.
       measurement; one not created at all (UNSET index) or given up after too
       many failed creation attempts (FAILED index) is skipped.  A measurement is
       recorded only when the create-form and update-form if/unless conditions
-      pass; instrument creation produces no data point and is never gated.
+      pass; instrument creation produces no data point and obeys no condition.
 
   flt_otel_scope_run_log_record
       Emits log records for a scope.  Iterates over the configured log-record
@@ -344,7 +344,7 @@ sections.
 
   flt_otel_parse_attach_cond
       Builds the ACL condition found at a given argument position and stores it
-      into a destination pointer, so the gated item runs only when the
+      into a destination pointer, so the item runs only when the
       condition is met at runtime.
 
   flt_otel_parse_cfg_time
@@ -414,7 +414,7 @@ sections.
       both "update" form (referencing an existing instrument) and "create" form
       (defining a new metric instrument with type, name, optional aggregation
       type, description, unit, value, and optional histogram bounds).  Either
-      form may end with an optional if/unless condition gating the recorded
+      form may end with an optional if/unless condition controlling the recorded
       measurement.
 
   flt_otel_parse_cfg_log_record
@@ -434,7 +434,7 @@ sections.
 
   flt_otel_parse_cfg_unset_var
       Parses an unset-var directive: one or more validated variable names with
-      an optional if/unless condition gating their removal as a unit.
+      an optional if/unless condition controlling their removal as a unit.
 
   flt_otel_parse_cfg_scope
       Section parser for the otel-scope block.  Handles keywords: otel-scope ID,

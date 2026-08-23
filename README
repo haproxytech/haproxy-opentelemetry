@@ -476,7 +476,7 @@ no option require-context
   least one used scope must therefore hold an 'extract', and an 'otel-scope'
   bound to an event that runs before the request headers become readable is
   rejected at configuration time; group-driven scopes fire at their action's
-  rule location instead and are simply gated at run time.  Enable this option
+  rule location instead and are simply checked at run time.  Enable this option
   on a downstream HAProxy that should only continue a trace propagated from
   upstream, never originate one of its own.
 
@@ -568,7 +568,7 @@ attribute <key> <sample> ... [{ if | unless } <condition>]
   --------------------------+----------------------------
 
   An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
-  gates the attribute; it is set only when the condition holds at request time.
+  covers the attribute; it is set only when the condition holds at request time.
   The keyword may be repeated to set several attributes on one span, and every
   line whose condition holds is applied.
 
@@ -592,7 +592,7 @@ baggage <key> <sample> ... [{ if | unless } <condition>]
   See the 'attribute' keyword description for the data type conversion table.
 
   An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
-  gates the baggage.  The keyword may be repeated to set several baggage items
+  covers the baggage.  The keyword may be repeated to set several baggage items
   on one span, and every line whose condition holds is applied.
 
   Arguments :
@@ -616,7 +616,7 @@ event <name> [time [<unit>] <sample>] <key> <sample> ... [{ if | unless } <condi
   read as this clause, so it cannot also serve as an attribute key there.
 
   An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
-  gates the event.  The keyword may be repeated, and every line whose condition
+  covers the event.  The keyword may be repeated, and every line whose condition
   holds is applied.  The lines of one span definition are grouped by <name>:
   each distinct name produces a single span event, and the <key>/<sample> pairs
   of all lines sharing that name become the attributes of that one event.  The
@@ -840,9 +840,9 @@ instrument update <name> [attr <key> <sample> ...] [{ if | unless } <condition>]
   A create form registers the instrument and supplies the value to record, but
   emits no measurement on its own; a data point is produced only when an
   'update' form for that instrument runs.  An optional trailing 'if'/'unless'
-  condition (same syntax as 'otel-event') gates the measurement: on a create
-  form it gates every recording of the instrument, on an update form only that
-  one.  Registration itself produces no data point and is never gated.
+  condition (same syntax as 'otel-event') covers the measurement: on a create
+  form it covers every recording of the instrument, on an update form only that
+  one.  Registration itself produces no data point and obeys no condition.
 
   The update form supplies no value of its own, only attributes and an optional
   condition; to record a different quantity, define a separate instrument.  To
@@ -908,7 +908,7 @@ log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span
   found at runtime, the log record is emitted without span correlation.
 
   An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
-  gates the whole record; when it does not pass at runtime, the record is
+  covers the whole record; when it does not pass at runtime, the record is
   skipped entirely, with neither its body nor its attributes evaluated.  The
   keyword may be repeated to emit several records from one scope.
 
@@ -1386,8 +1386,8 @@ status <code> [<sample> ...] [{ if | unless } <condition>]
   exported.
 
   An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
-  gates the status.  The keyword may be given more than once per span; the lines
-  are evaluated at runtime in configuration order, and the first one whose
+  covers the status.  The keyword may be given more than once per span; the
+  lines are evaluated at runtime in configuration order, and the first one whose
   condition holds sets the span status, the remaining lines being skipped.  A
   line without a condition always matches, so an unconditional 'status' acts as
   a default and any lines placed after it are never reached.  This first-match
@@ -1418,7 +1418,7 @@ exception <type> [message <sample> ...] [attr <key> <sample> ...] [{ if | unless
 
   Recording an exception does not change the span status, so pair it with a
   'status error' line when the exception marks the span as failed.  An optional
-  trailing 'if'/'unless' condition (same syntax as 'otel-event') gates the
+  trailing 'if'/'unless' condition (same syntax as 'otel-event') covers the
   record.  The keyword may be repeated to record several exceptions on one span.
 
   For example:
@@ -1444,8 +1444,8 @@ set-var <var-name> <sample> ... [{ if | unless } <condition>]
   'var(...)'.
 
   An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
-  gates the assignment.  The keyword may be repeated to set several variables in
-  one scope, and every line whose condition holds is applied.
+  covers the assignment.  The keyword may be repeated to set several variables
+  in one scope, and every line whose condition holds is applied.
 
   For example:
     set-var txn.otel_method method
@@ -1468,8 +1468,8 @@ set-var-ctx <var-name> <ref> <field> [{ if | unless } <condition>]
   created in the same scope may be referenced.
 
   An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
-  gates the assignment.  The keyword may be repeated within one scope, and every
-  line whose condition holds is applied.
+  covers the assignment.  The keyword may be repeated within one scope, and
+  every line whose condition holds is applied.
 
   Supported fields:
     trace-id          - trace id, lowercase hex
@@ -1511,7 +1511,7 @@ unset-var <var-name> ... [{ if | unless } <condition>]
   directives in the scope.
 
   An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
-  gates the whole directive; when it does not pass, none of the listed variables
+  covers the directive; when it does not pass, none of the listed variables
   are removed.  The keyword may be repeated within one scope.
 
   For example:

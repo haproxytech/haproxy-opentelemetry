@@ -189,7 +189,7 @@ Groups bundle scopes for use with the "otel-group" HAProxy action.
   idle_timeout           Idle timeout interval in milliseconds (0 = off).
   acls                   ACLs declared on this scope.
   cond                   ACL condition to meet.
-  stop_cond              ACL condition gating the stop (NULL if unconditional).
+  stop_cond              ACL condition for the stop (NULL if unconditional).
   contexts               Declared contexts.
   spans                  Declared spans.
   spans_to_finish        The list of spans scheduled for finishing.
@@ -226,7 +226,7 @@ strings without list linkage.
   type                   The exception type string ('exception.type').
   message                Optional message value (single conf_sample list).
   attributes             Additional event attributes (conf_sample list).
-  cond                   Optional if/unless condition gating the record.
+  cond                   Optional if/unless condition controlling the record.
 
 This structure backs the span 'exception' keyword: at runtime its type, the
 evaluated message and the attributes are emitted via the record_exception()
@@ -247,7 +247,7 @@ operation as a span event named 'exception'.
   bounds_num             Number of histogram bucket boundaries.
   attributes             Instrument attributes (update only, flt_otel_conf_sample).
   ref                    Resolved create-form instrument (update only).
-  cond                   Optional if/unless condition gating recording.
+  cond                   Optional if/unless condition controlling recording.
 
 Instruments come in two forms: create-form (defines a new metric with type,
 description, unit, and optional histogram bounds) and update-form (references
@@ -264,7 +264,7 @@ as flt_otel_conf_sample entries and evaluated at runtime.
   time                   Optional timestamp expression (single conf_sample).
   attributes             Log record attributes (flt_otel_conf_sample list).
   samples                Sample expressions for the body.
-  cond                   Optional if/unless condition gating the record.
+  cond                   Optional if/unless condition controlling the record.
 
 Log records are emitted via the OTel logger at the configured severity.  The
 optional span reference associates the log record with an open span at runtime.
@@ -294,7 +294,7 @@ the wall-clock value is passed as the observed timestamp.
   lf_expr                 The log-format expression.
   lf_used                 Whether lf_expr is used instead of exprs.
   time                    Optional per-event timestamp (single sample).
-  cond                    Optional if/unless condition gating this item.
+  cond                    Optional if/unless condition controlling this item.
 
 The extra field carries type-specific data: the event name strings (of type
 OTELC_VALUE_DATA) for span events, status code integers (OTELC_VALUE_INT32)
@@ -320,7 +320,7 @@ via build_logline() instead of the sample expression list.
   ref                      The referenced span or context name.
   field                    FLT_OTEL_VAR_FIELD_* identifier.
   field_key                The baggage or tracestate key, or NULL.
-  cond                     Optional if/unless condition gating the assignment.
+  cond                     Optional if/unless condition on the assignment.
 
 This structure backs the set-var-ctx directive: it captures a field of a
 referenced span or extracted context into a HAProxy variable at runtime.
@@ -329,10 +329,10 @@ referenced span or extracted context into a HAProxy variable at runtime.
 
   FLT_OTEL_CONF_HDR(id)  Required by macro; member <id> is not used directly.
   vars                   The variable names to remove (flt_otel_conf_str list).
-  cond                   Optional if/unless condition gating the removal.
+  cond                   Optional if/unless condition controlling the removal.
 
 This structure backs the unset-var directive: it groups one or more variable
-names with an optional condition, so the whole removal is gated as a unit.
+names with an optional condition, so one condition covers the whole removal.
 
 4.14  Simple Types
 
