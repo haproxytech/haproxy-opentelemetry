@@ -170,7 +170,7 @@ YAML file.
       log <target>
       debug-level <value>
       rate-limit <value>
-      option { disabled | hard-errors | dontlog-normal | require-context }
+      option { disabled | dontlog-normal | hard-errors | noflush | require-context }
       groups <name> ...
       scopes <name> ...
       acl <aclname> <criterion> ...
@@ -204,8 +204,8 @@ executes all referenced scopes when the rule fires.
         exception <type> [message <sample> ...] [attr <key> <sample> ...] [{ if | unless } <condition>]
         inject <name-prefix> [use-vars] [use-headers]
       finish <name> ...
-      instrument <type> <name> ... / instrument update <name> ...
-      log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span <ref>] [attr <key> <sample>] ... <sample> ...
+      instrument { <type> <name> ... | update <name> ... } [{ if | unless } <condition>]
+      log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span <ref>] [attr <key> <sample>] ... <sample> ... [{ if | unless } <condition>]
       set-var <var-name> <sample> ... [{ if | unless } <condition>]
       set-var-ctx <var-name> <ref> <field> [{ if | unless } <condition>]
       unset-var <var-name> ... [{ if | unless } <condition>]
@@ -280,6 +280,275 @@ The full init/free chain for all structures:
   pair, respectively), reused wherever a scope needs such a list -- for
   instance spans_to_finish and the unset-var directive's variable names.
 
+4.5  Keyword Definition Rules
+
+This section states the rules of the keywords of the OTel configuration file.
+Breaking a rule stated here is an error unless the section says otherwise.
+
+The paragraphs here hold for every keyword; each entry below adds what belongs
+to that keyword alone.  An entry indented under 'span' works on the active span
+and needs a 'span' line before it.  A section keyword opens its section and the
+next section header ends it; every other keyword needs its own section open.
+
+A keyword takes a trailing condition only when its entry names a scheme below,
+or says so in words as 'otel-event' does.  Such a keyword repeats, one line per
+condition, and the scheme says how the lines combine; 'otel-event' takes its
+condition without repeating.  A keyword that takes no condition may repeat too,
+when its entry says so.  Section 18.7 records the operation behavior behind the
+schemes.  The parser cannot enforce this for 'acl', where everything after the
+criterion is pattern text, so a condition written there is read as one more
+pattern value.
+
+  first-match - the filter applies the first line of a key whose condition holds
+                and skips the rest.  The line without a condition is the default
+                and comes last.
+  apply-all   - the filter applies every line whose condition holds, in the
+                order written.  The lines are separate items: a line without a
+                condition always applies, and none of them has to come last.
+
+Lines compete for the first match inside one otel-scope only, inside one span
+for a keyword written under a span, and only when they name the same key or the
+same name; a keyword that names neither lets them all compete.  A span named
+again in another otel-scope starts over: the scopes run one after the other, so
+that line is a later operation and not a repetition.
+
+Whatever its scheme allows across the lines, a keyword may not name the same
+thing twice on one line: a name, a reference or an attribute key written twice
+in the same list is an error, and so is a repeated clause of the keyword, 'root'
+or 'link' or 'unit' or 'time' among them.  The same name may still stand in two
+lists of one line: a span may name one span as its 'parent' and as its inline
+'link'.  A clause that opens one item of a list is written per item instead:
+the 'attr' of a 'log-record' and of an 'exception' stands before every key, and
+the same clause of a 'link' and of an 'instrument' update may be left out after
+the first.  Several sample expressions after a key make one value together,
+except after the key of an 'attr' clause and after a 'time' clause, each of
+which takes one and reads the next word as the next argument of the line; the
+'value' of an 'instrument' refuses a second, and a 'bounds' clause a repeated
+boundary value.
+
+Nothing may be called 'if' or 'unless', the filter id, the top-level scope name
+and the context name of the 'config' line included, whether the line defines or
+references the name.  The ban is on the two words as written: another case never
+opens a condition and stays a plain name.  An ACL may not be called 'or' either,
+whatever its case, since that word joins the terms of a condition.  A standalone
+'link' reads 'attr' as its clause anywhere after the first reference and an
+'instrument' update anywhere after its name, so a later link target and a key of
+either may not be called 'attr'; an 'event' reads 'time' right after its name as
+that clause, so its key may not be called 'time'.
+
+A name is at most 127 characters long, every key and variable name included,
+a variable counted with its scope prefix and the key inside a 'set-var-ctx'
+field left aside; a longer one is refused with 'name too long'.  No length rule
+reaches an ACL name, an 'event' name, an exception type, the description of an
+'instrument', the text of a sample expression, the filter id, the context name
+of the 'config' line or the top-level scope name, on the 'filter' line as in its
+'[<name>]' declaration.
+
+Some names carry a character rule too.  An 'inject' or an 'extract' prefix and a
+'baggage' key take letters, digits, '_', '.' and '-' alone; an 'instrument' name
+and the key inside a 'set-var-ctx' field follow the rules their entries state;
+an ACL name, a section name, a top-level scope name and a variable name follow
+HAProxy's own.  The other names take any character.
+
+A reference names a span or an extract context that some otel-scope defines.
+The 'parent' and the inline 'link' of a 'span', the standalone 'link', 'finish'
+and 'set-var-ctx' take either, the 'span' of a 'log-record' a span alone.  The
+'finish' wildcards '*', '*req*' and '*res*' stand for whatever the stream holds
+and resolve on their own.
+
+A condition looks each ACL name up in the otel-scope that holds the line, then
+in the otel-instrumentation section, then in the HAProxy configuration, so a
+scope ACL hides an instrumentation ACL of the same name and one condition may
+mix the three lists.  The ACL has to be defined by the time the line is read: an
+otel-instrumentation section below the otel-scope, or a HAProxy ACL below the
+'filter' line, comes too late.
+
+The parser reports most of these rules as it reads the file, naming the file and
+the line.  A rule that pairs two lines of one section is reported on the second
+of them: an 'idle-timeout' pairs with the scope event it needs, and so does a
+'use-headers' written on an 'inject' or on an 'extract'.  A line that never
+comes is reported on the section header or on the span once the section has
+been read: the 'config' line of an otel-instrumentation, the 'scopes' line of
+an otel-group, the 'otel-event' of a scope carrying an 'idle-timeout' or an
+'inject use-headers', the 'idle-timeout' of an 'on-idle-timeout' scope, and
+the name of an 'inject' written as '-', whose scope event may stand below the
+line.  A top-level scope with no otel-instrumentation section is reported on the
+'filter' line once the whole file has been read.  The rules that need the whole
+configuration are checked once every section is read, with no line number in the
+alert: the references to names defined elsewhere in the file, the 'groups' line
+that every otel-group needs, the 'root' rules, the resolved 'inject' names, the
+'extract' prefix no span may carry and the agreement of the create lines of one
+'instrument'.  Rules this section does not state are checked there too: the
+filter id that no other OTel filter of any proxy carries, the 'extract' context
+'require-context' needs, the event a scope may carry while that option is set,
+the HTTP-mode proxy that a header operation needs, and the filter, the group and
+the instrumentation an 'otel-group' action names.
+
+Some checks only warn.  Beside the two the 'span' entry names, they break no
+rule stated here: an otel-scope no 'scopes' line names, an HTTP event on a proxy
+that carries no HTTP message, a condition or a sample expression the event of
+its scope, or the action running it, cannot serve, a 'rate-limit' below 100.0,
+a 'filter' line with no id, a 'debug-level' that a build lacking the debug code
+ignores, and a 'use-vars' context whose name the HAProxy variable it generates
+cannot keep as written.
+
+A scope runs when a 'scopes' line of the instrumentation or of an otel-group
+names it: at its event when it carries one, and from the 'otel-group' action
+when a group holds it; the rules below mean this by a scope that runs.
+
+A rule that depends on which scope runs first can fail only at execution.  A
+'parent' whose span no scope has created yet, or whose extract context found
+nothing, is a runtime error and the span carrying it is not created; the other
+references do nothing when they do not resolve, and a 'log-record' whose 'span'
+is not found is emitted without it.
+
+The rules read one top-level scope, the one the 'filter' line selects; the other
+scopes stay unread until a filter line selects them, and only the scope names
+are checked over the whole file.  The skipping needs an open section: from the
+first section header of the file on, an unread scope may hold anything, a broken
+section header included, while a line above every header is an error HAProxy
+itself reports.
+
+A frontend's and a backend's filter meet on the streams routed between them,
+which the configuration cannot foresee, so keeping their 'inject' names apart is
+left to the writer.
+
+Top-level OTel scope:
+
+  [<name>] - the scope name is unique.  The line opens the OTel scope and the
+             next [<name>] line ends the previous one.  A line outside of any
+             scope is an error.
+
+Section "otel-instrumentation":
+
+  otel-instrumentation - the section is required and stands once in a top-level
+                         scope, whatever its name.
+  acl                  - <aclname> is unique in the instrumentation; several
+                         lines are allowed, and the name may be used in every
+                         otel-scope.
+  log                  - allowed only once, a prefix included.  The filter reads
+                         the prefix too and leaves its own logging off for 'no',
+                         on for 'default'.
+  config               - required, and allowed only once.
+  groups               - <name> is unique in the instrumentation and must be a
+                         defined otel-group section; several lines are allowed.
+  scopes               - <name> is unique in the instrumentation and must be a
+                         defined otel-scope section; several lines are allowed.
+  rate-limit           - allowed only once.
+  option               - each option is allowed only once, and a prefix does not
+                         lift the limit.  The 'no' and 'default' prefixes keep
+                         the meaning HAProxy gives them.
+  debug-level          - allowed only once.
+
+Section "otel-group":
+
+  otel-group - <name> is unique; another top-level scope may reuse the name.
+               The section must hold at least one 'scopes' line, and a 'groups'
+               line of the otel-instrumentation must name the group.
+  scopes     - <name> is unique in the group; several lines are allowed.  A name
+               must be a defined otel-scope section.
+
+Section "otel-scope":
+
+  otel-scope   - <name> is unique; another top-level scope may reuse the name.
+  span         - the first line of a <name> in a scope creates the span, with or
+                 without creation arguments, and every line of the name makes
+                 it the active span for the operations that follow.  A later
+                 line of the name in that scope must be bare: one with creation
+                 arguments, a defining line, is a repeated definition.  Another
+                 otel-scope may carry a defining line of the same name too: at
+                 execution the first line to reach the span creates it, bare
+                 or defining, a later bare line re-activates it and another
+                 defining line is a runtime error.  The creation line carries
+                 one inline 'link' at most, and the standalone keyword adds
+                 the rest.  The 'parent' may not name the span itself, which
+                 is looked up before it exists.  The 'root' mark declares the
+                 root span and changes nothing at execution: a span without
+                 a 'parent' starts a trace of its own, marked or not.  Only
+                 one span name may carry the mark, the same name marked root
+                 in another otel-scope being the usual alternative creation.
+                 Leaving every span unmarked is not an error, only a warning,
+                 and only the spans of the scopes that run count towards it.  A
+                 scope that a 'scopes' line names but that never runs draws a
+                 warning of its own.  The 'parent' of a marked span may name an
+                 extract context, the remote parent of the trace, never a span.
+                 A span may not be called by one of the 'finish' wildcards.
+    link       - apply-all scheme.
+    attribute  - first-match scheme per <key>.
+    event      - the lines are gathered by name: each name makes one span event
+                 whose attributes are the keys of its lines.  The (name, key)
+                 pairs are independent items under the apply-all scheme, while
+                 within one pair the value follows the first-match scheme.  The
+                 event timestamp comes from the first applied line whose 'time'
+                 clause evaluates, and the later lines keep it.
+    baggage    - first-match scheme per <key>.
+    inject     - no other 'inject' of the configuration, or of the other OTel
+                 filters of the proxy, may resolve to the name this one does,
+                 one differing only in case included: both carriers keep the
+                 name in lower case.  Several lines are allowed, but at most
+                 one per span of one otel-scope, so a span that another scope
+                 re-activates may carry a second context there.  A '-' line
+                 follows the name rule with its resolved name, and at most one
+                 context whose name opens with '-', written or resolved, may
+                 inject headers on the proxy: the nameless headers would collide
+                 whatever the names are.  The resolved name is measured like a
+                 written one, the mark counted with it, and the span name it
+                 takes when the scope has no event is checked like a written
+                 prefix.  Injecting headers, which a line with no storage word
+                 does, needs an event that can still change them: any other
+                 event is an error, and so is a scope with no event.
+    status     - first-match scheme for the span's single status.
+    exception  - apply-all scheme, one exception event per applied line.
+  extract      - <name-prefix> is unique within its scope; several lines are
+                 allowed, and another otel-scope may reuse the name.  No span of
+                 the configuration may carry the name: a reference resolves to
+                 the span first.  'use-headers' needs a channel to read, so it
+                 is an error on an event that carries none; a scope with no
+                 event is exempt, the 'otel-group' action that runs it carrying
+                 one.
+  finish       - <name> is unique within its scope; several lines are allowed,
+                 and another otel-scope may finish the same span.
+  otel-stop    - first-match scheme.
+  instrument   - the create form follows the first-match scheme per its <name>
+                 within one otel-scope.  The update form is apply-all for every
+                 instrument type, and records the value of the create lines of
+                 its own otel-scope, of the scope that created the instrument
+                 where its own carries none, and until the instrument exists of
+                 the first scope of the file that runs and defines the name.
+                 An update needs a create line of its name in some scope of
+                 the file, and an update in a scope that runs needs one in a
+                 scope that runs, its own or another one.  The lines of one
+                 name are one instrument, across the scopes too and with the
+                 case of the name folded, so they must agree on the type, the
+                 aggregation, the description, the unit and the bounds, while
+                 the value and the condition are what the repeated lines vary;
+                 only one scope ever creates the instrument, and a create line
+                 of another scope that finds it created is a runtime error.  The
+                 name begins with a letter and carries only letters, digits
+                 and the punctuation '_', '.', '-' and '/', while the unit is
+                 at most 63 ASCII characters, both rules of the metric SDK,
+                 which records nothing for an instrument it refuses.  A 'bounds'
+                 clause stands on a hist_int instrument alone.
+  log-record   - apply-all scheme, one record per applied line.  The 'id' and
+                 'event' clauses are given together or both omitted.
+  idle-timeout - allowed only once, and it belongs to the 'on-idle-timeout'
+                 event: a scope bound to that event must carry it, and one bound
+                 to another event, or to no event at all, may not.
+  acl          - <aclname> is unique within its scope and may be used in that
+                 scope alone; several lines are allowed, and another otel-scope
+                 may reuse the name.
+  otel-event   - the keyword may be given only once in a scope, whatever its
+                 name, optionally with a condition.
+  set-var      - first-match scheme per <var-name>.
+  set-var-ctx  - first-match scheme per <var-name>.  The W3C rules reach the
+                 key inside a 'baggage' field, an HTTP token of at most 4096
+                 characters, and the one inside a 'tracestate' field: at most
+                 256 lower-case letters, digits, '_', '-', '*' and '/' opening
+                 with a letter, or a tenant id and a system id of at most 241
+                 and 14 around one '@', the tenant opening with a letter or a
+                 digit and the system id with a letter.  The other fields take
+                 no key.
+  unset-var    - first-match scheme per <var-name>.
 
 5  Filter Lifecycle
 ----------------------------------------------------------------------
@@ -301,6 +570,10 @@ and the keyword parser via INITCALL1 (parser.c).
       unset and the filter runs on the raw stream.
 
   flt_otel_ops_check():
+    - Resolves the sample fetch arguments set aside while the OTel file was
+      parsed, with the frontend and the backend capabilities combined so that a
+      backend-only fetch passes on a frontend proxy; an argument that does not
+      resolve is rejected.
     - Validates that filter IDs are unique across all proxies.
     - Resolves group->scope and instrumentation->scope/group placeholder
       references to actual configuration structures (setting the ptr field
@@ -310,6 +583,11 @@ and the keyword parser via INITCALL1 (parser.c).
     - Validates metric instruments: resolves update-form references to their
       matching create-form definitions, and rejects duplicate create-form names
       across scopes.
+    - Rejects a used scope whose event runs before the request context can be
+      read while 'require-context' is set, and a configuration where no used
+      scope extracts one at all.
+    - Rejects an 'inject' or an 'extract' that carries the context in HTTP
+      headers on a proxy that is not in HTTP mode.
     - Warns about a used scope bound to an event the proxy keeps from firing:
       an HTTP-phase event on a proxy that is not in HTTP mode, on-stream-start
       or a frontend-phase event for a filter of a backend section, and the two
@@ -1534,3 +1812,94 @@ For each configured log record the function performs:
 
   Shutdown (flt_otel_ops_deinit):
     otelc_deinit() flushes pending log records and destroys the logger.
+
+18.7  Operation Repeat Semantics
+
+The wrapper operations behind this chapter differ in what a repeated call does.
+Section 4.5 states the binding keyword rules; this section records the behavior
+of the operations under them, which a rule may tighten but never contradict.  An
+operation is additive (every call appends one more item), overwrite per key (the
+last call wins for the named key only), last wins (a single slot that every call
+replaces), once (the first call decides and the entry says whether a repeat is a
+no-op or an error) or per call (no shared state, every call stands on its own);
+update_instrument_kv_n alone splits its class by the instrument type.  Some
+classes come from the wrapper itself, the others from the OpenTelemetry C++ SDK
+underneath it.
+
+  Span and context operations:
+
+    start_span_with_options - per call: every invocation starts one new and
+                              independent span.  Driven by the 'span' line that
+                              creates the span; a bare line re-activates it and
+                              starts nothing.  The creation-time link array is
+                              passed empty and every link goes through add_link.
+    set_attribute_kv_n      - overwrite per key: the last value wins for the
+                              named key, the other keys stay.  Driven by the
+                              'attribute' keyword.
+    add_event_kv_n          - additive: every call appends one event to the
+                              span.  Driven by the 'event' keyword; the filter
+                              merges the lines of one name into a single call.
+    add_link                - additive: every call appends one more link; the
+                              operation needs OTel ABI 2 and reports an error on
+                              the older ABI.  Driven by the 'link' keyword.
+    record_exception        - additive: every call appends one more span event
+                              named 'exception'.  Driven by the 'exception'
+                              keyword.
+    set_baggage_kv_n        - overwrite per key: a repeated key replaces its
+                              value, per the W3C baggage rules.  Driven by the
+                              'baggage' keyword.
+    set_status              - last wins: the SDK stores the status code and the
+                              description with no precedence, so a later call
+                              replaces an earlier error.  The first-match scheme
+                              of the 'status' keyword makes the one call that is
+                              made deterministic.
+    inject_http_headers     - overwrite per key at the carrier: every new call
+                              empties and refills the writer's map, and the
+                              filter drops a header of the same name before it
+                              adds the new one.  Driven by the 'inject' keyword,
+                              whose uniqueness rules keep two lines from writing
+                              the same header names; inject_text_map behaves the
+                              same for the variable storage.
+    extract_http_headers    - per call: every call builds one new span context
+                              object.  Driven by the 'extract' keyword; the
+                              extract_text_map operation behaves the same for
+                              the variable storage.
+    end_with_options        - once per span: the SDK latches the first call and
+                              hands the span data to the exporter pipeline; the
+                              wrapper then deletes the handle and nulls the
+                              caller's pointer, so a repeated end on it returns
+                              silently, and destroying a span that was never
+                              ended ends it implicitly.  Driven by the span
+                              completion: 'finish', 'otel-stop' and the scope
+                              teardown.
+
+  Metric operations:
+
+    create_instrument      - once per name and type pair: a repeated create
+                             returns the existing instrument with the first
+                             creator's description and unit.  The filter calls
+                             it once per name, from the create line that owns
+                             it, and refuses a create line of another otel-scope
+                             at run time, so the tolerance is never exercised.
+    update_instrument_kv_n - additive for cnt_int, hist_int and udcnt_int, whose
+                             measurements accumulate into the aggregation; last
+                             wins for gauge_int, which accepts every call too
+                             but keeps the latest value per attribute set within
+                             a collection cycle.  Driven by the update form of
+                             the 'instrument' keyword; the gauge's last-wins is
+                             how the value is stored, so the update form keeps
+                             the apply-all scheme for the gauge as well.
+    add_view               - once per view name: a repeated name returns the
+                             existing view with the first creator's bounds and
+                             aggregation.  Driven by the 'bounds' and 'aggr'
+                             arguments of the 'instrument' keyword.
+
+  Log operations:
+
+    log_span - additive: every call emits one more log record.  Driven by the
+               'log-record' keyword.
+
+The lifecycle operations fall into the same classes: a repeated start replaces
+the provider, the tracer and the propagator, which is why the filter runs it
+once, under the atomic claim of section 18.2; set_flush_timeout is a last-wins
+setter behind 'option noflush' and force_flush is a per-call action.

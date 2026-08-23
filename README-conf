@@ -246,13 +246,16 @@ operation as a span event named 'exception'.
   bounds                 Histogram bucket boundaries (create only).
   bounds_num             Number of histogram bucket boundaries.
   attributes             Instrument attributes (update only, flt_otel_conf_sample).
-  ref                    Resolved create-form instrument (update only).
+  ref                    The create line owning this name's instrument.
   cond                   Optional if/unless condition controlling recording.
 
 Instruments come in two forms: create-form (defines a new metric with type,
-description, unit, and optional histogram bounds) and update-form (references
-an existing instrument via the ref pointer).  Update-form attributes are stored
-as flt_otel_conf_sample entries and evaluated at runtime.
+description, unit, and optional histogram bounds) and update-form (records on
+the instrument of its name through the ref pointer).  The chain supplying the
+value is the one of the update's own scope when a create line stands there,
+otherwise the one of the scope the instrument is in, and at runtime the first
+chain line whose condition holds supplies the recorded value.  Update-form
+attributes are stored as flt_otel_conf_sample entries and evaluated at runtime.
 
 4.8  flt_otel_conf_log_record
 
@@ -417,7 +420,8 @@ The flt_otel_conf_sample_init_ex function (conf.c) provides a higher-level
 initialization for sample structures:
 
   1. Verifies sufficient arguments in the args[] array.
-  2. Calls flt_otel_conf_sample_init with the sample key.
+  2. Calls flt_otel_conf_sample_init with the sample key, the argument before
+     the value unless the caller names one, as a 'log-record' body does.
   3. Copies extra data (event name string or status code integer).
   4. Concatenates remaining arguments into the fmt_string via
      flt_otel_args_concat.

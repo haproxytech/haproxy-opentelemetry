@@ -73,6 +73,9 @@ OTel scope of the configuration file to use (see section 3.1) and defaults to
 the filter id.  Since filter ids must be unique, the section name is what lets
 several filters read the same OTel scope: each filter keeps its own id and names
 one shared scope instead of holding a private copy of it per filter id.
+Each of 'id' and 'config' stands once on the line, and at most one name
+follows the file; a repeated keyword or a further word is a configuration
+error.
 
 Note: the parser does not limit the number of OTel filters; it only requires
 each filter id to be unique.  Since the wrapper version 3.0.0, every filter
@@ -113,6 +116,13 @@ HTTP-only event on a non-HTTP proxy is reported as a warning at config load.
 The OTel configuration file uses a simple section-based format.  It contains
 a mandatory "otel-instrumentation" section, zero or more "otel-scope" sections,
 and zero or more "otel-group" sections.
+
+Whatever a keyword allows across its lines, a clause of it stands once on a
+line: a second 'time' on a 'log-record', a second 'unit' on an 'instrument' or
+a second 'root' on a 'span' is a configuration error.  So is a name or a key
+written twice in one list, an 'attr' key, a 'link' target or an 'unset-var'
+variable among them; the same name may still stand in two lists of one line, as
+a span's 'parent' and its inline 'link'.
 
 
 3.1. OTel scope (top-level)
@@ -173,14 +183,21 @@ Keywords (mandatory):
       Path to the YAML configuration file for the OpenTelemetry SDK and, as an
       optional second argument, the name of the signals context to select within
       that file.  Without the argument, the 'default' context is served.  The
-      file is parsed and the context resolution is verified already when the
-      configuration is loaded: 'haproxy -c' rejects a broken file or a context
-      name that matches no signal section.
+      file is parsed already when the configuration is loaded: 'haproxy -c'
+      rejects a broken file.  A context name that matches no signal entry falls
+      back to the 'default' entry of each signal, with a warning at startup; a
+      signal with no 'default' entry has nothing to fall back to, so 'haproxy
+      -c' rejects the name.
 
 Keywords (optional):
 
   acl <aclname> <criterion> [flags] [operator] <value> ...
       Declare an ACL.  See section 7 of the HAProxy Configuration Manual.
+      Everything after the criterion is pattern text, so an 'if'/'unless' there
+      is taken as a pattern value and not as a condition.  The name may be used
+      in the conditions of every otel-scope, once the section has defined it; an
+      otel-instrumentation placed below an otel-scope comes too late for that
+      scope.
 
   debug-level <value>
       Set the debug level bitmask (e.g. 0x77f).  Only effective when compiled
@@ -284,11 +301,13 @@ Supported keywords:
   span <name> [parent <ref>] [link <ref>] [root] [kind <kind>]
       Create a new span or reference an already opened one.
 
-      - 'root' marks this span as the trace root (only one per trace).
+      - 'root' marks this span as the trace root: when the scope holding it is
+        skipped by its condition, the whole session is disabled and the stream
+        produces no further telemetry.
       - 'parent <ref>' sets the parent to an existing span or extracted context
-        name.  A reference that resolves to no span or extracted context --
-        for instance a 'parent' on a context whose extraction found nothing --
-        is an error, and the span is not created.
+        name.  A reference that resolves to no span or extracted context -- for
+        instance a 'parent' on a context whose extraction found nothing -- is
+        an error, and the span is not created.
       - 'link <ref>' adds an inline link to another span or context.  It is
         meant to be given once: the parser warns from the second inline link
         onward, and the span argument limit caps how many can fit.  Use the
@@ -392,7 +411,8 @@ Supported keywords:
       The optional 'message' keyword introduces sample expressions whose values
       are concatenated into 'exception.message'.  Repeatable 'attr <key>
       <sample>' clauses add further attributes to the event.  HAProxy has no
-      call stack, so 'exception.stacktrace' is never emitted.
+      call stack, so 'exception.stacktrace' is never emitted.  An attribute key
+      takes a single sample expression.
 
       Recording an exception does not change the span status, so pair it with a
       'status error' line when the exception marks the span as failed.  An
@@ -404,20 +424,34 @@ Supported keywords:
         exception bad_gateway attr "http.route" path if { status ge 500 }
 
 
-  link { <ref> ... | <ref> attr <key> <sample> ... }
+  link { <ref> ... | <ref> attr <key> <sample> ... } [{ if | unless } <condition>]
       Add non-hierarchical links to the currently active span.  Multiple span
       or context names can be specified.  Use this keyword when a link must
       carry attributes, which the inline 'link' in 'span' cannot.
 
       A single link may carry attributes: when 'attr' follows the one span
       name, the rest of the line is <key> <sample> pairs, each a single sample
-      expression.  Link attributes require this standalone keyword.
-      Because 'attr' right after the first name selects this form, a link
-      target in that position cannot itself be the literal word 'attr'.
+      expression, and the keyword may be written again before each pair.  Link
+      attributes require this standalone keyword and belong to that one link,
+      so 'attr' written after a list of references is rejected.  Because the
+      keyword opens the form and separates the pairs, neither a link target
+      after the first one nor an attribute key can be the word 'attr'.
+
+      An optional trailing 'if'/'unless' ACL condition guards the link: it is
+      added only when the condition is met at request time.  On a line naming
+      several references, the condition applies to each of them.  A link target
+      cannot be the literal word 'if' or 'unless'; that word always starts the
+      condition.
+
+      The keyword may be repeated freely, with or without a condition: every
+      line whose condition holds adds its links, so naming the same target on
+      several lines adds one link per line.  A target repeated within a single
+      line is a configuration error.
 
       Examples:
         link "HAProxy session" "Client session"
         link "HAProxy session" attr "link.kind" str("follows_from")
+        link "HAProxy session" "Client session" unless { path_beg /health }
 
 
   inject <name-prefix> [use-vars] [use-headers]
@@ -608,7 +642,7 @@ Supported keywords:
 
       The 'id' and 'event' keywords must be specified together or both omitted;
       any other combination is a configuration error.  The identifier must be
-      at least 1; a zero is accepted but treated as if no 'id' was given.
+      at least 1; a zero is reserved as the internal no-id marker and rejected.
 
       The 'time' keyword takes an optional unit and a single HAProxy sample
       expression.  The supported units are 's' (seconds, the default), 'ms'
@@ -739,7 +773,10 @@ Supported keywords:
 
 
   acl <aclname> <criterion> [flags] [operator] <value> ...
-      Declare an ACL local to this scope.
+      Declare an ACL local to this scope.  The name may be used only in the
+      conditions of this scope, where it hides an otel-instrumentation ACL of
+      the same name.  Everything after the criterion is pattern text, so an
+      'if'/'unless' there is taken as a pattern value and not as a condition.
 
       Example:
         acl acl-test-src-ip src 127.0.0.1
@@ -748,7 +785,8 @@ Supported keywords:
   otel-event <name> [{ if | unless } <condition>]
       Bind this scope to a filter event, optionally with an ACL-based condition.
       A scope binds to a single event, so 'otel-event' may appear at most once;
-      a second is a configuration error.
+      a second is a configuration error.  A scope without the keyword runs only
+      where an 'otel-group' action names a group that holds it.
 
       The filter attaches to both HTTP-mode and TCP-mode proxies.  A TCP proxy
       carries no HTTP message and runs no HTTP analysis, so the events tagged
@@ -883,9 +921,9 @@ Supported keywords:
       Set the idle timeout interval for a scope bound to the 'on-idle-timeout'
       event.  The timer fires periodically at the given interval when the stream
       has no data transfer activity.  This keyword is mandatory for scopes using
-      the 'on-idle-timeout' event and cannot be used with any other event.  Only
-      one 'idle-timeout' may be defined per scope; a second is a configuration
-      error.
+      the 'on-idle-timeout' event and cannot be used with any other event, nor
+      with a scope that carries no 'otel-event' at all.  Only one 'idle-timeout'
+      may be defined per scope; a second is a configuration error.
 
       The <time> argument accepts the standard HAProxy time format: a number
       followed by a unit suffix (us, ms, s, m, h, d).  A value of zero is not
@@ -1194,6 +1232,11 @@ TCP/HTTP rules using the 'otel-group' action keyword:
 
 This allows running specific groups of scopes based on ACL conditions defined
 in the HAProxy configuration.
+
+Both names are resolved when the configuration is checked: the filter id has
+to name an OTel filter of that proxy and the group has to be named on a 'groups'
+line of the otel-instrumentation section that filter reads, or HAProxy refuses
+to start.  A group section those lines leave out is an error on its own.
 
 Example (from test/sa/haproxy.cfg):
 

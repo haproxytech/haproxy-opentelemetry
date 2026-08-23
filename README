@@ -61,9 +61,14 @@ way the filter is used and the complexity of the configuration.  In typical
 production use with a rate limit of 10% or less, the performance impact should
 be negligible (see the 'rate-limit' keyword).
 
-The OTel filter allows intensive use of ACLs, which can be defined anywhere in
-the configuration.  Thus, it is possible to use the filter only for those
-connections that are of interest to us.
+The OTel filter allows intensive use of ACLs.  An ACL may be declared in the
+HAProxy configuration, in the otel-instrumentation section or in one otel-scope,
+and the place of the declaration decides where the name reaches: everywhere, in
+every otel-scope, or in that one scope only.  The ACL has to be defined by the
+time the line that uses it is read.  Each name of a condition is looked up on
+its own, in the scope first, then in the otel-instrumentation and then in the
+HAProxy configuration, so one condition may mix the three.  Thus, it is possible
+to use the filter only for those connections that are of interest to us.
 
 
 2. Build instructions
@@ -262,6 +267,15 @@ the "otel-instrumentation" section (see section 4.2).
 
 An optional section name after the file path selects the top-level OTel scope
 to use; it defaults to the filter id, so several filters may share one scope.
+Each of 'id' and 'config' stands once on the line, and at most one name follows
+the file; a repeated keyword or a further word is a configuration error.
+
+Whatever a keyword allows across its lines, a clause of it stands once on a
+line: a second 'time' on a 'log-record', a second 'unit' on an 'instrument' or
+a second 'root' on a 'span' is a configuration error.  So is a name or a key
+written twice in one list, an 'attr' key, a 'link' target or an 'unset-var'
+variable among them; the same name may still stand in two lists of one line, as
+a span's 'parent' and its inline 'link'.
 
 Note: the parser does not limit the number of OTel filters; it only requires
 each filter id to be unique.  Since the wrapper version 3.0.0, every filter
@@ -340,7 +354,13 @@ otel-instrumentation <name>
 
 
 acl <aclname> <criterion> [flags] [operator] <value> ...
-  Declare or complete an access list.
+  Declare or complete an access list.  Everything after the criterion is pattern
+  text, so an 'if'/'unless' written there is taken as a pattern value and not
+  as a condition.
+
+  The name may be used in the conditions of every otel-scope, once the section
+  has defined it; an otel-instrumentation placed below an otel-scope comes too
+  late for that scope.
 
   To configure and use the ACL, see section 7 of the HAProxy Configuration
   Manual.
@@ -351,11 +371,12 @@ config <file> [context]
   This keyword sets the path of the YAML configuration file for the
   OpenTelemetry SDK and, optionally, the name of the signals context to select
   within that file.  Without the argument, the wrapper serves the 'default'
-  context.  The YAML file defines the complete telemetry pipeline including
-  the exporters, samplers, processors, readers, providers and signal routing.
-  The file is parsed and the context resolution is verified already when the
-  configuration is loaded: 'haproxy -c' rejects a broken file or a context name
-  that matches no signal section.
+  context.  The YAML file defines the complete telemetry pipeline including the
+  exporters, samplers, processors, readers, providers and signal routing.  The
+  file is parsed already when the configuration is loaded: 'haproxy -c' rejects
+  a broken file.  A context name that matches no signal entry falls back to the
+  'default' entry of each signal, with a warning at startup; a signal with no
+  'default' entry has nothing to fall back to, so 'haproxy -c' rejects the name.
 
   The YAML configuration file supports the following top-level sections:
 
@@ -542,7 +563,12 @@ otel-scope <name>
 
 
 acl <aclname> <criterion> [flags] [operator] <value> ...
-  Declare or complete an access list.
+  Declare or complete an access list.  Everything after the criterion is pattern
+  text, so an 'if'/'unless' written there is taken as a pattern value and not
+  as a condition.
+
+  The name may be used only in the conditions of this otel-scope, where it hides
+  an otel-instrumentation ACL of the same name.
 
   To configure and use the ACL, see section 7 of the HAProxy Configuration
   Manual.
@@ -881,7 +907,7 @@ log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span
 
   The 'id' and 'event' keywords must be specified together or both omitted; any
   other combination is a configuration error.  The identifier must be at least
-  1; a zero is accepted by the parser but treated as if no 'id' was given.
+  1; a zero is reserved as the internal no-id marker and is rejected.
 
   The 'time' keyword takes an optional unit (one of 's' (the default), 'ms',
   'us', or 'ns') followed by a single HAProxy sample expression.  The value
@@ -966,7 +992,8 @@ otel-event <name> [{ if | unless } <condition>]
   Set the event that triggers the 'otel-scope' to which it is assigned.  Only
   one 'otel-event' may be defined per scope; a second is a configuration error.
   Optionally, it can be followed by an ACL-based condition, in which case it
-  will only be evaluated if the condition is true.
+  will only be evaluated if the condition is true.  A scope with no 'otel-event'
+  is run by an 'otel-group' action instead.
 
   ACL-based conditions are executed in the context of a stream that processes
   the client and server connections.  To configure and use the ACL, see section
@@ -1535,6 +1562,11 @@ The action keyword used in these rules is 'otel-group', and it takes the filter
 id and the group name as arguments:
 
   http-response otel-group <filter-id> <group-name> [{ if | unless } ...]
+
+Both names are resolved when the configuration is checked: the filter id has
+to name an OTel filter of that proxy and the group has to be named on a 'groups'
+line of the otel-instrumentation section that filter reads, or HAProxy refuses
+to start.  A group section those lines leave out is an error on its own.
 
 
 otel-group <name>
