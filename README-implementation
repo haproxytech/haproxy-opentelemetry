@@ -68,10 +68,12 @@ with runner scripts.
       |-- run-updown.sh  Up-down counter test runner (symlink)
       |-- run-err.sh     Error-logging test runner (symlink)
       |-- run-empty.sh   Empty configuration test runner (symlink)
+      |-- run-parser.sh  Configuration parser test driver (real file)
       |-- otlp_http-recorder.py  OTLP/HTTP traffic recorder
       |-- otlp_http-replay.py    OTLP/HTTP traffic replayer
       |-- haproxy-common.cfg     Shared HAProxy configuration part
       |-- index.html     Static page served by the origin server
+      |-- README-parser  Configuration parser test description
       |-- sa/            Standalone test configs
       |-- full/          Full event-coverage test configs
       |-- fe/            Frontend-only test configs
@@ -81,7 +83,8 @@ with runner scripts.
       |-- tcp/           TCP-mode test configs
       |-- updown/        Up-down counter test configs
       |-- err/           Error-logging test configs
-      `-- empty/         Minimal/empty configuration test
+      |-- empty/         Minimal/empty configuration test
+      `-- parser/        Parser test cases, tables and generators
 
 
 3  Build System
@@ -1177,6 +1180,15 @@ The debug level is a bitmask that can be adjusted at runtime via the CLI.
   empty Minimal: validates that an empty configuration (only the
         instrumentation block, no scopes) does not crash.
 
+  parser Configuration parser: a table-driven set of 'haproxy -c' runs that
+         checks the keyword definition rules of section 4.5; each case is one
+         generated configuration file that has to be accepted or refused with
+         a given alert.  No proxy is started and no socket is opened, so the
+         runtime half of the rules, the first-match evaluation of the lines
+         of one key, is left to the scenarios above.  Further cases cover the
+         arguments each keyword accepts and the validation that runs once the
+         whole configuration is known.  See test/README-parser.
+
 16.2  Test Runners
 
 All runners are POSIX shell scripts (/bin/sh) meant to be run from the test/
@@ -1184,7 +1196,8 @@ directory.  The run-*.sh runners accept an optional HAProxy binary path, a
 pidfile and a log file that replaces their timestamped default name under
 test/_logs/ (run-fe-be.sh appends the -fe and -be suffixes to the given
 name); test-speed.sh takes [-b backend] [-d duration] [-r rate-limits] and
-a configuration name instead.
+a configuration name instead, and run-parser.sh takes [-k pattern] [-x] [-X]
+[-v] followed by the same optional binary path.
 
   run-test-config.sh  Single-instance runner: derives the configuration
                 directory from the name it is invoked under (run-<dir>.sh).
@@ -1201,6 +1214,9 @@ a configuration name instead.
                 on port 11080) forming a trace propagation chain.  Handles
                 graceful shutdown via SIGUSR1.  A separate script, not a
                 symlink.
+  run-parser.sh Runs the configuration parser cases of parser/, one 'haproxy
+                -c' per case over a generated configuration file.  It starts
+                no proxy, and the cases are described in test/README-parser.
   test-speed.sh Runs performance benchmarks for one or all configurations.
 
   copy-yml.sh   Transforms a template YAML configuration by replacing

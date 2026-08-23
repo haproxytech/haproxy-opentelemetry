@@ -1,0 +1,609 @@
+#
+# Top-level OTel scope: the name is unique, the declaration opens the scope
+# and nothing may stand outside one.
+#
+
+@case top-no-scope
+@kw top:scope
+@tmpl whole
+@want err
+@match no OTel scope opened
+@body
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case top-no-scope-group
+@kw top:scope
+@tmpl whole
+@want err
+@match no OTel scope opened
+@body
+    otel-group parser-group
+        scopes parser-scope
+@end
+
+@case top-no-scope-otel-scope
+@kw top:scope
+@tmpl whole
+@want err
+@match no OTel scope opened
+@body
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case top-one-scope-ok
+@kw top:scope
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case top-two-scopes-ok
+@kw top:scope
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+
+[other]
+    otel-instrumentation other-instr
+        config @YML@
+        scopes other-scope
+
+    otel-scope other-scope
+        otel-event on-http-end-request
+@end
+
+@case top-section-name-ok
+@kw top:scope
+@tmpl whole
+@mode name
+@want ok
+@body
+[parser-section]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case top-id-after-config-ok
+@kw top:scope
+@tmpl whole
+@mode idlast
+@want ok
+@body
+[parser-section]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+
+[other-section]
+    otel-instrumentation other-instr
+        config @YML@
+@end
+
+@case top-section-name-no-match
+@kw top:scope
+@tmpl whole
+@mode name
+@want err
+@match haproxy-name\.cfg:19\] .*no instrumentation found in section
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case top-dup-adjacent
+@kw top:scope
+@tmpl whole
+@want err
+@match OTel scope already defined
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+
+[parser]
+    otel-scope parser-scope-2
+        otel-event on-http-end-request
+@end
+
+@case top-dup-other-between
+@kw top:scope
+@tmpl whole
+@want err
+@match OTel scope already defined
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+
+[other]
+    otel-instrumentation other-instr
+        config @YML@
+        scopes other-scope
+
+    otel-scope other-scope
+        otel-event on-http-end-request
+
+[parser]
+    otel-scope parser-scope-2
+        otel-event on-http-end-request
+@end
+
+@case top-dup-empty-between
+@kw top:scope
+@tmpl whole
+@want err
+@match OTel scope already defined
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+
+[other]
+
+[parser]
+    otel-scope parser-scope-2
+        otel-event on-http-end-request
+@end
+
+@case top-comment-inside-ok
+@kw top:scope
+@tmpl whole
+@want ok
+@body
+[parser]
+    # the instrumentation of the parser test
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    # the scope of the parser test
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case top-dup-with-comment
+@kw top:scope
+@tmpl whole
+@want err
+@match OTel scope already defined
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+
+# a comment between the two declarations
+[parser]
+    otel-scope parser-scope-2
+        otel-event on-http-end-request
+@end
+
+@case top-crlf-ok
+@kw top:scope
+@tmpl whole
+@eol crlf
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case top-crlf-dup
+@kw top:scope
+@tmpl whole
+@eol crlf
+@want err
+@match OTel scope already defined
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+
+[parser]
+    otel-scope parser-scope-2
+        otel-event on-http-end-request
+@end
+
+@case top-missing-final-lf
+@kw top:scope
+@tmpl whole
+@eol nolf
+@want err
+@match Missing LF on last line
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case top-empty-file
+@kw top:scope
+@tmpl whole
+@want err
+@match haproxy\.cfg:22\] .*no instrumentation found
+@body
+@end
+
+@case top-dup-other-scope
+@kw top:scope
+@tmpl whole
+@want err
+@match OTel scope already defined
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+
+[other]
+    otel-scope other-scope
+        otel-event on-http-end-request
+
+[other]
+    otel-scope other-scope-2
+        otel-event on-http-end-request
+@end
+
+@case top-other-scope-unread-ok
+@kw top:scope
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+
+[other]
+    otel-scope if
+        no-such-keyword abc
+        span sp1 root root
+    otel-scope
+@end
+
+@case top-line-before-first-section
+@kw top:scope
+@tmpl whole
+@want err
+@match out of section
+@body
+[other]
+    no-such-keyword abc
+
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case top-scope-name-bad-char
+@kw top:scope
+@tmpl whole
+@want err
+@match not permitted in a scope name
+@body
+[bad!name]
+    otel-instrumentation parser-instr
+        config @YML@
+@end
+
+@case top-scope-name-if
+@kw top:scope
+@tmpl whole
+@want err
+@match cannot be used as a name
+@body
+[if]
+    otel-instrumentation parser-instr
+        config @YML@
+@end
+
+@case top-filter-id-twice
+@kw top:scope
+@tmpl whole
+@mode idtwice
+@want err
+@match name already set
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+        span sp1 root
+@end
+
+@case top-filter-config-twice
+@kw top:scope
+@tmpl whole
+@mode cfgtwice
+@want err
+@match configuration file already set
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+        span sp1 root
+@end
+
+@case top-filter-no-config
+@kw top:scope
+@tmpl whole
+@mode nocfg
+@want err
+@match no configuration file specified
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+        span sp1 root
+@end
+
+@case top-filter-second-name
+@kw top:scope
+@tmpl whole
+@mode twonames
+@want err
+@match unknown keyword 'extra'
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+        span sp1 root
+@end
+
+@case top-filter-id-if
+@kw top:scope
+@tmpl whole
+@mode idif
+@want err
+@match cannot be used as a name
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+@end
+
+@case top-filter-section-if
+@kw top:scope
+@tmpl whole
+@mode secif
+@want err
+@match cannot be used as a reference
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+@end
+
+@case top-name-length-exempt-ok
+@kw top:scope
+@tmpl whole
+@mode longname
+@want ok
+@body
+[nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+        span sp1 root
+@end
+
+@case top-filter-id-no-value
+@kw top:scope
+@tmpl whole
+@mode idbare
+@want err
+@match no name set
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+@end
+
+@case top-filter-config-no-value
+@kw top:scope
+@tmpl whole
+@mode cfgbare
+@want err
+@match no configuration file set
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+@end
+
+@case top-two-filters-error-in-scope
+@kw top:scope
+@tmpl whole
+@mode twoprox
+@want err
+@match unknown keyword
+@noalert is required for event
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-idle-timeout
+        bogus-keyword
+
+[parser-2]
+    otel-instrumentation parser-2-instr
+        config @YML@
+        scopes parser-2-scope
+
+    otel-scope parser-2-scope
+        span sp2 root
+        otel-event on-frontend-http-request
+@end
+
+@case top-two-filters-error-in-group
+@kw top:scope
+@tmpl whole
+@mode twoflt
+@want err
+@match unknown keyword
+@noalert has no defined scope
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+
+    otel-group parser-group
+        bogus-keyword
+
+    otel-scope parser-scope
+        span sp1 root
+        otel-event on-frontend-http-request
+
+[parser-2]
+    otel-instrumentation parser-2-instr
+        config @YML@
+        scopes parser-2-scope
+
+    otel-scope parser-2-scope
+        span sp2 root
+        otel-event on-frontend-http-request
+@end
+
+@case top-two-filters-error-in-instr
+@kw top:scope
+@tmpl whole
+@mode twoprox
+@want err
+@match unknown keyword
+@noalert instrumentation can be defined only once
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        bogus-keyword
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+        otel-event on-frontend-http-request
+
+[parser-2]
+    otel-instrumentation parser-2-instr
+        config @YML@
+        scopes parser-2-scope
+
+    otel-scope parser-2-scope
+        span sp2 root
+        otel-event on-frontend-http-request
+@end
+
+@case top-two-filters-error-in-instr-second-without
+@kw top:scope
+@tmpl whole
+@mode twoprox
+@want err
+@match no instrumentation found in section 'parser-2'
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        bogus-keyword
+        scopes parser-2-scope
+
+    otel-scope parser-scope
+        span sp1 root
+        otel-event on-frontend-http-request
+
+[parser-2]
+    otel-scope parser-2-scope
+        span sp2 root
+        otel-event on-frontend-http-request
+@end

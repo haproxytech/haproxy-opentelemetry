@@ -1,0 +1,844 @@
+#
+# The checks that run once the whole HAProxy configuration is known: the
+# instrumentation must be complete, and the scopes must fit the proxy they
+# are attached to.
+#
+
+@case check-instr-no-config
+@kw instr:config
+@tmpl whole
+@want err
+@match \.cfg:2\] .*no configuration file specified
+@body
+[parser]
+    otel-instrumentation parser-instr
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case check-scope-unused-ok
+@kw scope:otel-scope
+@tmpl whole
+@want ok
+@warn unused otel-scope 'parser-scope-2'
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        otel-event on-http-end-request
+@end
+
+@case check-require-context-no-extract
+@kw instr:option
+@tmpl instr
+@want err
+@match no used otel-scope has an 'extract' context
+@body
+        option require-context
+@end
+
+@case check-require-context-early-event
+@kw instr:option
+@tmpl whole
+@want err
+@match before the request context can be read
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        option require-context
+
+    otel-scope parser-scope
+        extract ctx-a
+        otel-event on-client-session-start
+@end
+
+@case check-require-context-ok
+@kw instr:option
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        option require-context
+
+    otel-scope parser-scope
+        extract ctx-a
+        otel-event on-frontend-http-request
+@end
+
+@case check-parent-undefined
+@kw scope:span
+@tmpl scope
+@want err
+@match 'parent' references undefined span/context
+@body
+        span sp1 root
+        span sp2 parent no-such-name
+@end
+
+@case check-link-undefined
+@kw scope:link
+@tmpl scope
+@want err
+@match 'link' references undefined span/context
+@body
+        span sp1 root
+        link no-such-name
+@end
+
+@case check-link-inline-undefined
+@kw scope:span
+@tmpl scope
+@want err
+@match 'link' references undefined span/context
+@body
+        span sp1 root
+        span sp2 link no-such-name
+@end
+
+@case check-finish-undefined
+@kw scope:finish
+@tmpl scope
+@want err
+@match 'finish' references undefined span/context
+@body
+        span sp1 root
+        finish no-such-name
+@end
+
+@case check-finish-wildcards-ok
+@kw scope:finish
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        finish * *req* *res*
+@end
+
+@case check-set-var-ctx-undefined
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match 'set-var-ctx' 'txn.otel_c1' references undefined span/context
+@body
+        span sp1 root
+        set-var-ctx txn.otel_c1 no-such-name trace-id
+@end
+
+@case check-ref-extract-context-ok
+@kw scope:extract
+@tmpl scope
+@want ok
+@body
+        extract ctx-a
+        span sp1 root parent ctx-a
+        link ctx-a
+        finish ctx-a
+        set-var-ctx txn.otel_c1 ctx-a trace-id
+@end
+
+@case check-extract-name-is-span
+@kw scope:extract
+@tmpl scope
+@want err
+@match the name is already used by a span
+@body
+        span shared root
+        extract shared
+@end
+
+@case check-extract-name-is-span-other-scope
+@kw scope:extract
+@tmpl whole
+@want err
+@match the name is already used by a span
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span shared root
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        extract shared
+        otel-event on-http-end-request
+@end
+
+@case check-span-two-roots
+@kw scope:span
+@tmpl scope
+@want err
+@match are both marked as the root span
+@body
+        span sp1 root
+        span sp2 root
+@end
+
+@case check-span-root-same-name-two-scopes-ok
+@kw scope:span
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp1 root
+        otel-event on-http-end-request
+@end
+
+@case check-span-root-same-name-cond-two-scopes-ok
+@kw scope:span
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        otel-event on-frontend-http-request if { path_beg /c1 }
+
+    otel-scope parser-scope-2
+        span sp1 root
+        otel-event on-http-end-request unless { path_beg /c2 }
+@end
+
+@case check-root-cond-scope-counts-ok
+@kw scope:span
+@tmpl whole
+@want ok
+@nowarn no span is marked as the root span
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+        otel-event on-frontend-http-request if { path_beg /c1 }
+@end
+
+@case check-span-root-parent-span-two-scopes
+@kw scope:span
+@tmpl whole
+@want err
+@match a root span cannot be parented under span
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp0
+        span sp1 parent sp0
+        otel-event on-http-end-request
+@end
+
+@case check-span-root-parent-context-two-scopes-ok
+@kw scope:span
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        extract otel-ctx
+        span sp1 parent otel-ctx
+        otel-event on-http-end-request
+@end
+
+@case check-group-action-ok
+@kw group:otel-group
+@tmpl whole
+@mode group
+@want ok
+@nowarn so it never runs
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+
+    otel-group parser-group
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+@end
+
+@case check-group-action-undefined-group
+@kw group:otel-group
+@tmpl whole
+@mode group
+@want err
+@match cannot find group 'parser-group'
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups other-group
+
+    otel-group other-group
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+@end
+
+@case check-group-action-undefined-filter
+@kw group:otel-group
+@tmpl whole
+@mode groupflt
+@want err
+@match cannot find the OpenTelemetry filter 'no-such-flt'
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+
+    otel-group parser-group
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+@end
+
+@case check-root-missing-warning
+@kw scope:span
+@tmpl scope
+@want ok
+@warn no span is marked as the root span
+@body
+        span sp1
+@end
+
+@case check-root-warning-scope-never-runs
+@kw scope:span
+@tmpl whole
+@want ok
+@warn has no 'otel-event' and no otel-group holds it, so it never runs
+@nowarn no span is marked as the root span
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp2
+@end
+
+@case check-root-warning-no-scope-runs
+@kw scope:span
+@tmpl scope
+@event none
+@want ok
+@nowarn no span is marked as the root span
+@body
+        span sp1
+@end
+
+@case check-span-two-roots-unused-scope
+@kw scope:span
+@tmpl whole
+@want err
+@match are both marked as the root span
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+        otel-event on-frontend-http-request
+
+    otel-scope parser-unused
+        span sp2 root
+        otel-event on-http-end-request
+@end
+
+@case check-span-root-same-name-unused-scope-ok
+@kw scope:span
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+        otel-event on-frontend-http-request
+
+    otel-scope parser-unused
+        span sp1 root
+        otel-event on-http-end-request
+@end
+
+@case check-ref-other-scope-ok
+@kw scope:span
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp2 parent sp1
+        link sp1
+        finish sp1
+        otel-event on-http-end-request
+@end
+
+@case check-log-record-extract-context
+@kw scope:log-record
+@tmpl scope
+@want err
+@match references undefined span
+@body
+        extract ctx-a
+        log-record info span ctx-a str(v1)
+@end
+
+@case check-link-inject-context
+@kw scope:link
+@tmpl scope
+@want err
+@match 'link' references undefined span/context
+@body
+        span sp1 root
+        inject ctx-i
+        link ctx-i
+@end
+
+@case check-extract-tcp-headers
+@kw scope:extract
+@tmpl scope
+@mode tcp
+@event on-client-session-start
+@want err
+@match 'extract use-headers' needs an HTTP-mode proxy
+@body
+        extract ctx-a use-headers
+@end
+
+@case check-extract-tcp-vars-ok
+@kw scope:extract
+@tmpl scope
+@mode tcp
+@event on-client-session-start
+@want ok
+@body
+        extract ctx-a use-vars
+@end
+
+@case check-inject-two-filters-same-name
+@kw scope:inject
+@tmpl whole
+@mode twoflt
+@want err
+@match context name already used by filter
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+        inject ctx-i
+        otel-event on-frontend-http-request
+
+[parser-2]
+    otel-instrumentation parser-2-instr
+        config @YML@
+        scopes parser-2-scope
+
+    otel-scope parser-2-scope
+        span sp2 root
+        inject ctx-i
+        otel-event on-backend-http-request
+@end
+
+@case check-inject-two-filters-name-case
+@kw scope:inject
+@tmpl whole
+@mode twoflt
+@want err
+@match context name already used by filter
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+        inject Ctx-I
+        otel-event on-frontend-http-request
+
+[parser-2]
+    otel-instrumentation parser-2-instr
+        config @YML@
+        scopes parser-2-scope
+
+    otel-scope parser-2-scope
+        span sp2 root
+        inject ctx-i
+        otel-event on-backend-http-request
+@end
+
+@case check-inject-two-filters-different-ok
+@kw scope:inject
+@tmpl whole
+@mode twoflt
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+        inject ctx-i
+        otel-event on-frontend-http-request
+
+[parser-2]
+    otel-instrumentation parser-2-instr
+        config @YML@
+        scopes parser-2-scope
+
+    otel-scope parser-2-scope
+        span sp2 root
+        inject ctx-j
+        otel-event on-backend-http-request
+@end
+
+@case check-inject-two-filters-nameless
+@kw scope:inject
+@tmpl whole
+@mode twoflt
+@want err
+@match only one nameless-header context is allowed on the proxy
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+        inject -ctx-a use-headers
+        otel-event on-frontend-http-request
+
+[parser-2]
+    otel-instrumentation parser-2-instr
+        config @YML@
+        scopes parser-2-scope
+
+    otel-scope parser-2-scope
+        span sp2 root
+        inject -ctx-b use-headers
+        otel-event on-backend-http-request
+@end
+
+@case check-inject-shared-scope
+@kw scope:inject
+@tmpl whole
+@mode twoflt-shared
+@want err
+@match context name already used by filter
+@body
+[parser-shared]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+        inject ctx-s
+        otel-event on-frontend-http-request
+@end
+
+@case check-shared-scope-ok
+@kw scope:inject
+@tmpl whole
+@mode twoflt-shared
+@want ok
+@body
+[parser-shared]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+        attribute a_key str(v1)
+        otel-event on-frontend-http-request
+@end
+
+@case check-inject-two-proxies-ok
+@kw scope:inject
+@tmpl whole
+@mode twoprox
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+        inject ctx-i
+        otel-event on-frontend-http-request
+
+[parser-2]
+    otel-instrumentation parser-2-instr
+        config @YML@
+        scopes parser-2-scope
+
+    otel-scope parser-2-scope
+        span sp2 root
+        inject ctx-i
+        otel-event on-backend-http-request
+@end
+
+@case check-inject-two-proxies-vars-ok
+@kw scope:inject
+@tmpl whole
+@mode twoprox
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+        inject ctx-i use-vars
+        otel-event on-frontend-http-request
+
+[parser-2]
+    otel-instrumentation parser-2-instr
+        config @YML@
+        scopes parser-2-scope
+
+    otel-scope parser-2-scope
+        span sp2 root
+        inject ctx-i use-vars
+        otel-event on-backend-http-request
+@end
+
+@case check-inject-two-proxies-nameless-ok
+@kw scope:inject
+@tmpl whole
+@mode twoprox
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+        inject -ctx-a use-headers
+        otel-event on-frontend-http-request
+
+[parser-2]
+    otel-instrumentation parser-2-instr
+        config @YML@
+        scopes parser-2-scope
+
+    otel-scope parser-2-scope
+        span sp2 root
+        inject -ctx-b use-headers
+        otel-event on-backend-http-request
+@end
+
+@case check-filter-id-duplicate
+@kw top:scope
+@tmpl scope
+@mode fltdup
+@want err
+@match duplicated filter ID
+@body
+        span sp1 root
+@end
+
+@case check-filter-id-two-proxies
+@kw top:scope
+@tmpl scope
+@mode proxdup
+@want err
+@match duplicated filter ID
+@body
+        span sp1 root
+@end
+
+@case check-scope-cond-not-usable-ok
+@kw scope:acl
+@tmpl scope
+@want ok
+@warn otel-event condition at event 'on-frontend-http-request'
+@body
+        acl a-status status 200
+        span sp1 root
+        otel-event on-frontend-http-request if a-status
+@end
+
+@case check-scope-fetch-not-usable-ok
+@kw scope:attribute
+@tmpl scope
+@want ok
+@warn attribute fetch 'status' extracts from
+@body
+        span sp1 root
+            attribute a_key status
+@end
+
+@case check-scope-http-event-tcp-ok
+@kw scope:otel-event
+@tmpl scope
+@mode tcp
+@want ok
+@warn uses HTTP event 'on-frontend-http-request' that does not fire
+@body
+        span sp1 root
+        otel-event on-frontend-http-request
+@end
+
+@case check-scope-unused-count-ok
+@kw scope:otel-scope
+@tmpl whole
+@want ok
+@warn 2 scope(s) not in use
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        otel-event on-http-end-request
+
+    otel-scope parser-scope-3
+        otel-event on-http-end-request
+@end
+
+@case check-backend-scope-fe-event-warn
+@kw scope:otel-event
+@tmpl scope
+@mode backend
+@want ok
+@warn runs before a filter of backend proxy 'parser-backend' is attached
+@body
+        span sp1 root
+        otel-event on-frontend-http-request
+@end
+
+@case check-backend-scope-stream-start-warn
+@kw scope:otel-event
+@tmpl scope
+@mode backend
+@want ok
+@warn runs before a filter of backend proxy 'parser-backend' is attached
+@body
+        span sp1 root
+        otel-event on-stream-start
+@end
+
+@case check-backend-scope-be-event-ok
+@kw scope:otel-event
+@tmpl scope
+@mode backend
+@want ok
+@nowarn runs before a filter of backend proxy
+@body
+        span sp1 root
+        otel-event on-backend-http-request
+@end
+
+@case check-listen-scope-be-event-warn
+@kw scope:otel-event
+@tmpl scope
+@mode listen
+@want ok
+@warn fires on listen proxy 'parser-listen' only for a stream switched
+@body
+        span sp1 root
+        otel-event on-backend-http-request
+@end
+
+@case check-listen-scope-fe-event-ok
+@kw scope:otel-event
+@tmpl scope
+@mode listen
+@want ok
+@nowarn fires on listen proxy
+@body
+        span sp1 root
+        otel-event on-frontend-http-request
+@end

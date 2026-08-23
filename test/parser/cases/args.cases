@@ -1,0 +1,1267 @@
+#
+# Keyword arguments: the values a keyword accepts, the malformed forms it has
+# to refuse, and the sample expressions written after its key.
+#
+
+@case scope-unknown-keyword
+@kw scope:otel-scope
+@tmpl scope
+@want err
+@match unknown keyword
+@body
+        no-such-keyword value
+@end
+
+@case scope-span-invalid-kind
+@kw scope:span
+@tmpl scope
+@want err
+@match invalid span kind
+@body
+        span sp1 root kind no-such-kind
+@end
+
+@case scope-span-kind-ok
+@kw scope:span
+@tmpl scope
+@want ok
+@body
+        span sp1 root kind client
+@end
+
+@case scope-span-name-too-long
+@kw scope:span
+@tmpl scope
+@want err
+@match name too long
+@body
+        span ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss root
+@end
+
+@case scope-span-name-longest-ok
+@kw scope:span
+@tmpl scope
+@want ok
+@body
+        span sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss root
+@end
+
+@case scope-attribute-key-too-long
+@kw scope:attribute
+@tmpl scope
+@want err
+@match name too long
+@body
+        span sp1 root
+        attribute k_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa str(v1)
+@end
+
+@case scope-baggage-key-too-long
+@kw scope:baggage
+@tmpl scope
+@want err
+@match name too long
+@body
+        span sp1 root
+        baggage b_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb str(v1)
+@end
+
+@case scope-event-key-too-long
+@kw scope:event
+@tmpl scope
+@want err
+@match name too long
+@body
+        span sp1 root
+        event ev1 e_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee str(v1)
+@end
+
+@case scope-log-record-attr-key-too-long
+@kw scope:log-record
+@tmpl scope
+@want err
+@match name too long
+@body
+        span sp1 root
+        log-record info attr l_llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll str(v1) str(body)
+@end
+
+@case scope-exception-attr-key-too-long
+@kw scope:exception
+@tmpl scope
+@want err
+@match name too long
+@body
+        span sp1 root
+        exception timeout attr x_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx str(v1)
+@end
+
+@case scope-link-attr-key-too-long
+@kw scope:link
+@tmpl scope
+@want err
+@match name too long
+@body
+        span sp1 root
+        span sp2
+        link sp1 attr k_kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk str(v1)
+@end
+
+@case scope-instrument-update-attr-key-too-long
+@kw scope:instrument
+@tmpl scope
+@want err
+@match name too long
+@body
+        span sp1 root
+        instrument cnt_int m_one value int(1)
+        instrument update m_one attr u_uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu str(v1)
+@end
+
+@case scope-name-length-exempt-ok
+@kw scope:otel-scope
+@tmpl scope
+@want ok
+@body
+        acl a-n_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa path_beg /x
+        span sp1 root
+        event e-n_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa e_key str(v1)
+        exception t-n_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa message str(m1)
+        instrument cnt_int m_one desc "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" value int(1)
+@end
+
+@case scope-name-charset-exempt-ok
+@kw scope:otel-scope
+@tmpl scope
+@want ok
+@body
+        span sp!1 root
+        attribute a!key str(v1)
+        event e!name k!ey str(v1)
+        exception t!ype message str(m1)
+        finish sp!1
+@end
+
+@case scope-inject-name-too-long
+@kw scope:inject
+@tmpl scope
+@want err
+@match name too long
+@body
+        span sp1 root
+        inject iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
+@end
+
+@case scope-inject-name-longest-ok
+@kw scope:inject
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        inject iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
+@end
+
+@case scope-inject-autoname-too-long
+@kw scope:inject
+@tmpl scope
+@event none
+@want err
+@match name too long
+@body
+        span sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss root
+        inject - use-vars
+@end
+
+@case scope-inject-autoname-bad-char
+@kw scope:inject
+@tmpl scope
+@event none
+@want err
+@match not permitted in the context name
+@body
+        span sp!1 root
+        inject - use-vars
+@end
+
+@case scope-extract-name-too-long
+@kw scope:extract
+@tmpl scope
+@want err
+@match name too long
+@body
+        extract eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+@end
+
+@case scope-span-parent-ref-too-long
+@kw scope:span
+@tmpl scope
+@want err
+@match name too long
+@body
+        span sp1 root
+        span sp2 parent rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr
+@end
+
+@case scope-link-ref-too-long
+@kw scope:link
+@tmpl scope
+@want err
+@match name too long
+@body
+        span sp1 root
+        link rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr
+@end
+
+@case scope-finish-ref-too-long
+@kw scope:finish
+@tmpl scope
+@want err
+@match name too long
+@body
+        span sp1 root
+        finish rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr
+@end
+
+@case scope-log-record-span-ref-too-long
+@kw scope:log-record
+@tmpl scope
+@want err
+@match name too long
+@body
+        span sp1 root
+        log-record info span rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr str(v1)
+@end
+
+@case scope-set-var-ctx-ref-too-long
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match name too long
+@body
+        span sp1 root
+        set-var-ctx txn.otel_c1 rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr trace-id
+@end
+
+@case scope-instrument-name-too-long
+@kw scope:instrument
+@tmpl scope
+@want err
+@match name too long
+@body
+        instrument cnt_int mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm value int(1)
+@end
+
+@case scope-set-var-name-too-long
+@kw scope:set-var
+@tmpl scope
+@want err
+@match name too long
+@body
+        set-var txn.vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv str(v1)
+@end
+
+@case scope-unset-var-name-too-long
+@kw scope:unset-var
+@tmpl scope
+@want err
+@match name too long
+@body
+        unset-var txn.vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+@end
+
+@case scope-set-var-ctx-name-too-long
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match name too long
+@body
+        span sp1 root
+        set-var-ctx txn.cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc sp1 trace-id
+@end
+
+@case scope-name-too-long
+@kw scope:otel-scope
+@tmpl whole
+@want err
+@match name too long
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+
+    otel-scope ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss
+        otel-event on-frontend-http-request
+        span sp1 root
+@end
+
+@case scope-baggage-key-punctuation-ok
+@kw scope:baggage
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        baggage b-key.1 str(v1)
+@end
+
+@case scope-attribute-long-expression-ok
+@kw scope:attribute
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        attribute a_key str(0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000)
+@end
+
+@case scope-log-record-long-event-ok
+@kw scope:log-record
+@tmpl scope
+@want ok
+@body
+        log-record info id 1 event e-n_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa str(v1)
+@end
+
+@case scope-span-root-twice
+@kw scope:span
+@rule clause:root
+@tmpl scope
+@want err
+@match already set
+@body
+        span sp1 root root
+@end
+
+@case scope-span-parent-cond
+@kw scope:span
+@tmpl scope
+@want err
+@match cannot be used as a reference
+@body
+        span sp1 root
+        span sp2 parent if { path_beg /c1 }
+@end
+
+@case scope-link-no-ref
+@kw scope:link
+@tmpl scope
+@want err
+@match no link reference before
+@body
+        span sp1 root
+        link if { path_beg /c1 }
+@end
+
+@case scope-link-attr-no-sample
+@kw scope:link
+@tmpl scope
+@want err
+@match too few arguments
+@body
+        span sp1 root
+        span sp2 root
+        link sp1 attr l_key
+@end
+
+@case scope-link-attr-keyword-per-pair-ok
+@kw scope:link
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        span sp2
+        link sp1 attr l_key str(v1) attr l_key2 str(v2)
+@end
+
+@case scope-link-attr-after-refs
+@kw scope:link
+@tmpl scope
+@want err
+@match invalid argument
+@body
+        span sp1 root
+        span sp2 root
+        link sp1 sp2 attr l_key str(v1)
+@end
+
+@case scope-link-attr-keyword-no-pair
+@kw scope:link
+@tmpl scope
+@want err
+@match too few arguments
+@body
+        span sp1 root
+        span sp2 root
+        link sp1 attr l_key str(v1) attr if { path_beg /c1 }
+@end
+
+@case scope-link-attr-two-samples
+@kw scope:link
+@tmpl scope
+@want err
+@match too few arguments
+@body
+        span sp1 root
+        span sp2 root
+        link sp1 attr l_key str(v1) str(v2)
+@end
+
+@case scope-exception-attr-two-samples
+@kw scope:exception
+@tmpl scope
+@want err
+@match expects either 'if' or 'unless'
+@body
+        span sp1 root
+        exception timeout attr e_key str(v1) str(v2)
+@end
+
+@case scope-log-record-attr-two-samples-ok
+@kw scope:log-record
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        log-record info attr l_key str(v1) str(v2) str(body)
+@end
+
+@case scope-instrument-update-attr-two-samples
+@kw scope:instrument
+@tmpl scope
+@want err
+@match too few arguments
+@body
+        span sp1 root
+        instrument cnt_int m_one value int(1)
+        instrument update m_one attr i_key str(v1) str(v2)
+@end
+
+@case scope-status-invalid
+@kw scope:status
+@tmpl scope
+@want err
+@match invalid span status
+@body
+        span sp1 root
+        status no-such-status str(v1)
+@end
+
+@case scope-attribute-bare-if
+@kw scope:attribute
+@tmpl scope
+@want err
+@match expects a condition
+@body
+        span sp1 root
+        attribute a_key str(v1) if
+@end
+
+@case scope-attribute-unknown-fetch
+@kw scope:attribute
+@tmpl scope
+@want err
+@match unknown fetch method
+@body
+        span sp1 root
+        attribute a_key no_such_fetch
+@end
+
+@case scope-attribute-backend-arg-ok
+@kw scope:attribute
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        attribute a_key srv_is_up(parser-backend/server-1)
+@end
+
+@case scope-attribute-undefined-backend
+@kw scope:attribute
+@tmpl scope
+@want err
+@match unable to find proxy
+@body
+        span sp1 root
+        attribute a_key srv_is_up(no-such-backend/server-1)
+@end
+
+@case scope-attribute-multi-sample-ok
+@kw scope:attribute
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        attribute a_key str(v1) str(v2) str(v3)
+@end
+
+@case scope-attribute-repeated-sample-ok
+@kw scope:attribute
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        attribute a_key str(-) req.hdr(a) str(-) req.hdr(b)
+@end
+
+@case scope-attribute-cond-no-sample
+@kw scope:attribute
+@tmpl scope
+@want err
+@match no sample expression before
+@body
+        span sp1 root
+        attribute a_key if { path_beg /c1 }
+@end
+
+@case scope-event-time-unit-ok
+@kw scope:event
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        event ev1 time ms date e_key str(v1)
+@end
+
+@case scope-event-time-no-sample
+@kw scope:event
+@tmpl scope
+@want err
+@match too few arguments
+@body
+        span sp1 root
+        event ev1 time ms
+@end
+
+@case scope-exception-message-no-sample
+@kw scope:exception
+@tmpl scope
+@want err
+@match too few arguments
+@body
+        span sp1 root
+        exception timeout message if { path_beg /c1 }
+@end
+
+@case scope-exception-message-attr-cond-ok
+@kw scope:exception
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        exception timeout message str(v1) attr e_key str(v2) if { path_beg /c1 }
+@end
+
+@case scope-stop-trailing-arg
+@kw scope:otel-stop
+@tmpl scope
+@want err
+@match expects either 'if' or 'unless'
+@body
+        otel-stop no-such-word
+@end
+
+@case scope-otel-event-trailing-arg
+@kw scope:otel-event
+@tmpl scope
+@want err
+@match expects either 'if' or 'unless'
+@body
+        otel-event on-frontend-http-request no-such-word
+@end
+
+@case scope-log-record-invalid-severity
+@kw scope:log-record
+@tmpl scope
+@want err
+@match invalid log severity
+@body
+        log-record no-such-severity str(v1)
+@end
+
+@case scope-log-record-no-body
+@kw scope:log-record
+@tmpl scope
+@want err
+@match missing body expression
+@body
+        log-record info attr a_key str(v1)
+@end
+
+@case scope-log-record-cond-only
+@kw scope:log-record
+@tmpl scope
+@want err
+@match no sample expression before
+@body
+        log-record info if { path_beg /c1 }
+@end
+
+@case scope-log-record-span-cond
+@kw scope:log-record
+@tmpl scope
+@want err
+@match cannot be used as a reference
+@body
+        span sp1 root
+        log-record info span if { path_beg /c1 }
+@end
+
+@case scope-set-var-bad-name
+@kw scope:set-var
+@tmpl scope
+@want err
+@match failed to register variable
+@body
+        set-var txn.bad!name str(v1)
+@end
+
+@case scope-set-var-name-if
+@kw scope:set-var
+@tmpl scope
+@want err
+@match failed to register variable 'if'
+@body
+        set-var if str(v1)
+@end
+
+@case scope-set-var-ctx-name-unless
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match failed to register variable 'unless'
+@body
+        span sp1 root
+        set-var-ctx unless sp1 trace-id
+@end
+
+@case scope-set-var-ctx-bad-name
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match failed to register variable
+@body
+        span sp1 root
+        set-var-ctx txn.bad!name sp1 trace-id
+@end
+
+@case scope-set-var-ctx-invalid-field
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match invalid field
+@body
+        span sp1 root
+        set-var-ctx txn.otel_c1 sp1 no-such-field
+@end
+
+@case scope-set-var-ctx-field-too-long
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match invalid field
+@body
+        span sp1 root
+        set-var-ctx txn.otel_c1 sp1 fieldnamelongerthanthirtytwochars
+@end
+
+@case scope-set-var-ctx-malformed-field
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match malformed field
+@body
+        span sp1 root
+        set-var-ctx txn.otel_c1 sp1 baggage(k
+@end
+
+@case scope-set-var-ctx-field-key
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match does not take a key
+@body
+        span sp1 root
+        set-var-ctx txn.otel_c1 sp1 trace-id(k)
+@end
+
+@case scope-set-var-ctx-baggage-key-ok
+@kw scope:set-var-ctx
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        set-var-ctx txn.otel_c1 sp1 baggage(k)
+@end
+
+@case scope-set-var-ctx-baggage-key-token-ok
+@kw scope:set-var-ctx
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        set-var-ctx txn.otel_c1 sp1 "baggage(a!\#\$%&'*+-.^_|~)"
+@end
+
+@case scope-set-var-ctx-baggage-key-bad-char
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match invalid character ',' in the 'baggage' key
+@body
+        span sp1 root
+        set-var-ctx txn.otel_c1 sp1 baggage(us,er)
+@end
+
+@case scope-set-var-ctx-baggage-key-empty
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match no 'baggage' key set
+@body
+        span sp1 root
+        set-var-ctx txn.otel_c1 sp1 baggage()
+@end
+
+@case scope-set-var-ctx-baggage-key-longest-ok
+@kw scope:set-var-ctx
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        set-var-ctx txn.otel_c1 sp1 baggage(kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk)
+@end
+
+@case scope-set-var-ctx-baggage-key-too-long
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match 'baggage' key is longer than 4096
+@body
+        span sp1 root
+        set-var-ctx txn.otel_c1 sp1 baggage(kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk)
+@end
+
+@case scope-set-var-ctx-tracestate-key-ok
+@kw scope:set-var-ctx
+@tmpl scope
+@want ok
+@body
+        extract ctx-a
+        set-var-ctx txn.otel_c1 ctx-a tracestate(fw529a3039@dt)
+@end
+
+@case scope-set-var-ctx-tracestate-key-longest-ok
+@kw scope:set-var-ctx
+@tmpl scope
+@want ok
+@body
+        extract ctx-a
+        set-var-ctx txn.otel_c1 ctx-a tracestate(abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb)
+@end
+
+@case scope-set-var-ctx-tracestate-key-too-long
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match 'tracestate' key is longer than 256
+@body
+        extract ctx-a
+        set-var-ctx txn.otel_c1 ctx-a tracestate(abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb)
+@end
+
+@case scope-set-var-ctx-tracestate-key-upper
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match invalid first character 'V' in the 'tracestate' key
+@body
+        extract ctx-a
+        set-var-ctx txn.otel_c1 ctx-a tracestate(Vendor)
+@end
+
+@case scope-set-var-ctx-tracestate-key-digit-first
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match invalid first character '9' in the 'tracestate' key
+@body
+        extract ctx-a
+        set-var-ctx txn.otel_c1 ctx-a tracestate(9vendor)
+@end
+
+@case scope-set-var-ctx-tracestate-key-tenant-digit-ok
+@kw scope:set-var-ctx
+@tmpl scope
+@want ok
+@body
+        extract ctx-a
+        set-var-ctx txn.otel_c1 ctx-a tracestate(9vendor@dt)
+@end
+
+@case scope-set-var-ctx-tracestate-key-bad-char
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match invalid character '.' in the 'tracestate' key
+@body
+        extract ctx-a
+        set-var-ctx txn.otel_c1 ctx-a tracestate(vendor.x)
+@end
+
+@case scope-set-var-ctx-tracestate-key-two-at
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match invalid character '@' in the 'tracestate' key
+@body
+        extract ctx-a
+        set-var-ctx txn.otel_c1 ctx-a tracestate(a@b@c)
+@end
+
+@case scope-set-var-ctx-tracestate-key-system
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match invalid tenant or system id in the 'tracestate' key
+@body
+        extract ctx-a
+        set-var-ctx txn.otel_c1 ctx-a tracestate(vendor@)
+@end
+
+@case scope-set-var-ctx-tracestate-key-tenant-too-long
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match invalid tenant or system id in the 'tracestate' key
+@body
+        extract ctx-a
+        set-var-ctx txn.otel_c1 ctx-a tracestate(abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@dt)
+@end
+
+@case scope-set-var-ctx-tracestate-key-system-too-long
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match invalid tenant or system id in the 'tracestate' key
+@body
+        extract ctx-a
+        set-var-ctx txn.otel_c1 ctx-a tracestate(t@sssssssssssssss)
+@end
+
+@case scope-set-var-ctx-tracestate-key-tenant-longest-ok
+@kw scope:set-var-ctx
+@tmpl scope
+@want ok
+@body
+        extract ctx-a
+        set-var-ctx txn.otel_c1 ctx-a tracestate(9bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@ssssssssssssss)
+@end
+
+@case scope-set-var-ctx-tracestate-key-specials-ok
+@kw scope:set-var-ctx
+@tmpl scope
+@want ok
+@body
+        extract ctx-a
+        set-var-ctx txn.otel_c1 ctx-a tracestate(a_b-c*d/e2)
+@end
+
+@case scope-set-var-ctx-tracestate-key-system-digit-first
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match invalid tenant or system id in the 'tracestate' key
+@body
+        extract ctx-a
+        set-var-ctx txn.otel_c1 ctx-a tracestate(t@9sysid)
+@end
+
+@case scope-set-var-ctx-ref-cond
+@kw scope:set-var-ctx
+@tmpl scope
+@want err
+@match cannot be used as a reference
+@body
+        span sp1 root
+        set-var-ctx txn.otel_c1 if { path_beg /c1 }
+@end
+
+@case scope-unset-var-no-name
+@kw scope:unset-var
+@tmpl scope
+@want err
+@match no variable name before
+@body
+        unset-var if { path_beg /c1 }
+@end
+
+@case scope-unset-var-bad-name
+@kw scope:unset-var
+@tmpl scope
+@want err
+@match failed to register variable
+@body
+        unset-var txn.bad!name
+@end
+
+@case scope-inject-invalid-storage
+@kw scope:inject
+@tmpl scope
+@want err
+@match invalid context storage type
+@body
+        span sp1 root
+        inject ctx-i use-nothing
+@end
+
+@case scope-extract-invalid-storage
+@kw scope:extract
+@tmpl scope
+@want err
+@match invalid context storage type
+@body
+        extract ctx-a use-nothing
+@end
+
+@case scope-inject-bare-if
+@kw scope:inject
+@tmpl scope
+@want err
+@match condition is not supported
+@body
+        span sp1 root
+        inject ctx-i if
+@end
+
+@case scope-extract-bare-if
+@kw scope:extract
+@tmpl scope
+@want err
+@match condition is not supported
+@body
+        extract ctx-a if
+@end
+
+@case scope-idle-timeout-unit
+@kw scope:idle-timeout
+@event on-idle-timeout
+@tmpl scope
+@want err
+@match unexpected character
+@body
+        idle-timeout 5x
+@end
+
+@case scope-idle-timeout-zero
+@kw scope:idle-timeout
+@event on-idle-timeout
+@tmpl scope
+@want err
+@match greater than zero
+@body
+        idle-timeout 0
+@end
+
+@case scope-idle-timeout-overflow
+@kw scope:idle-timeout
+@event on-idle-timeout
+@tmpl scope
+@want err
+@match timer overflow
+@body
+        idle-timeout 1000000000d
+@end
+
+@case scope-acl-reserved-name
+@kw scope:acl
+@tmpl scope
+@want err
+@match invalid ACL name
+@body
+        acl or path_beg /x
+@end
+
+@case scope-acl-reserved-name-upper
+@kw scope:acl
+@tmpl scope
+@want err
+@match invalid ACL name
+@body
+        acl OR path_beg /x
+@end
+
+@case scope-acl-name-or-prefix-ok
+@kw scope:acl
+@tmpl scope
+@want ok
+@body
+        acl orange path_beg /x
+        span sp1 root
+        attribute a_key str(v1) if orange
+@end
+
+@case instr-rate-limit-many-args
+@kw instr:rate-limit
+@tmpl instr
+@want err
+@match too many arguments
+@body
+        rate-limit 100 200
+@end
+
+@case scope-extract-many-args
+@kw scope:extract
+@tmpl scope
+@want err
+@match too many arguments
+@body
+        extract ctx-a use-vars use-headers
+@end
+
+@case scope-instrument-name-invalid-char
+@kw scope:instrument
+@tmpl scope
+@want err
+@match invalid character
+@body
+        instrument cnt_int m:one value int(1)
+@end
+
+@case scope-instrument-name-leading-digit
+@kw scope:instrument
+@tmpl scope
+@want err
+@match invalid character
+@body
+        instrument cnt_int 1metric value int(1)
+@end
+
+@case scope-instrument-name-chars-ok
+@kw scope:instrument
+@tmpl scope
+@want ok
+@body
+        instrument cnt_int m.one-two_three/four value int(1)
+@end
+
+@case scope-instrument-unit-too-long
+@kw scope:instrument
+@tmpl scope
+@want err
+@match value longer than
+@body
+        instrument cnt_int m_one unit unnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn value int(1)
+@end
+
+@case scope-instrument-unit-longest-ok
+@kw scope:instrument
+@tmpl scope
+@want ok
+@body
+        instrument cnt_int m_one unit unnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn value int(1)
+@end
+
+@case scope-instrument-unit-not-ascii
+@kw scope:instrument
+@tmpl scope
+@want err
+@match not ASCII
+@body
+        instrument cnt_int m_one unit "µs" value int(1)
+@end
+
+@case scope-instrument-invalid-aggr
+@kw scope:instrument
+@tmpl scope
+@want err
+@match invalid aggregation type
+@body
+        instrument cnt_int m_one aggr no-such-aggr value int(1)
+@end
+
+@case scope-instrument-two-samples
+@kw scope:instrument
+@tmpl scope
+@want err
+@match only one sample expression
+@body
+        instrument cnt_int m_one value int(1) int(2)
+@end
+
+@case scope-event-time-two-samples
+@kw scope:event
+@tmpl scope
+@want err
+@match unknown fetch method
+@body
+        span sp1 root
+        event ev1 time int(1) int(2) e_key str(v1)
+@end
+
+@case scope-log-record-time-two-samples-ok
+@kw scope:log-record
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        log-record info time s int(1) int(2) str(v1)
+@end
+
+@case scope-instrument-invalid-arg
+@kw scope:instrument
+@tmpl scope
+@want err
+@match invalid argument
+@body
+        instrument cnt_int m_one no-such-word value int(1)
+@end
+
+@case scope-instrument-empty-bounds
+@kw scope:instrument
+@tmpl scope
+@want err
+@match empty bounds
+@body
+        instrument hist_int m_one value int(1) bounds " "
+@end
+
+@case scope-instrument-dup-bounds
+@kw scope:instrument
+@tmpl scope
+@want err
+@match duplicate boundary value
+@body
+        instrument hist_int m_one value int(1) bounds "1 1 2"
+@end
+
+@case scope-instrument-desc-twice
+@kw scope:instrument
+@tmpl scope
+@want err
+@match already set
+@body
+        instrument cnt_int m_one desc "one" desc "two" value int(1)
+@end
+
+@case scope-log-record-id-twice
+@kw scope:log-record
+@tmpl scope
+@want err
+@match already set
+@body
+        span sp1 root
+        log-record info id 1 id 2 event ev1 str(v)
+@end
+
+@case scope-span-kind-twice
+@kw scope:span
+@tmpl scope
+@want err
+@match already set
+@body
+        span sp1 root kind server kind client
+@end
+
+@case scope-span-parent-twice
+@kw scope:span
+@tmpl scope
+@want err
+@match already set
+@body
+        span sp0 root
+        span sp1 parent sp0 parent sp0
+@end
+
+@case scope-event-time-twice
+@kw scope:event
+@rule clause:time
+@tmpl scope
+@want err
+@match already set
+@body
+        span sp1 root
+        event ev1 time int(1) time int(2) e_key str(v1)
+@end
+
+@case scope-exception-message-twice
+@kw scope:exception
+@tmpl scope
+@want err
+@match already set
+@body
+        span sp1 root
+        exception timeout message str(one) message str(two)
+@end
+
+@case scope-instrument-aggr-twice
+@kw scope:instrument
+@tmpl scope
+@want err
+@match already set
+@body
+        instrument cnt_int m_one aggr sum aggr sum value int(1)
+@end
+
+@case scope-instrument-unit-twice
+@kw scope:instrument
+@rule clause:unit
+@tmpl scope
+@want err
+@match already set
+@body
+        instrument cnt_int m_one unit "s" unit "ms" value int(1)
+@end
+
+@case scope-instrument-value-twice
+@kw scope:instrument
+@tmpl scope
+@want err
+@match already set
+@body
+        instrument cnt_int m_one value int(1) value int(2)
+@end
+
+@case scope-instrument-bounds-twice
+@kw scope:instrument
+@tmpl scope
+@want err
+@match already set
+@body
+        instrument hist_int m_one value int(1) bounds "1 2" bounds "3 4"
+@end
+
+@case scope-log-record-event-twice
+@kw scope:log-record
+@tmpl scope
+@want err
+@match already set
+@body
+        span sp1 root
+        log-record info id 1 event ev1 event ev2 str(v)
+@end
+
+@case scope-log-record-time-twice
+@kw scope:log-record
+@tmpl scope
+@want err
+@match already set
+@body
+        span sp1 root
+        log-record info time s int(1) time s int(2) str(v)
+@end
+
+@case scope-log-record-span-twice
+@kw scope:log-record
+@tmpl scope
+@want err
+@match already set
+@body
+        span sp1 root
+        log-record info span sp1 span sp1 str(v)
+@end
+
+@case scope-span-invalid-arg
+@kw scope:span
+@want err
+@match 'bogus' : invalid argument
+@body
+        span sp1 bogus
+@end

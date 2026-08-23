@@ -1,0 +1,183 @@
+Configuration parser test (parser/)
+===================================
+
+The 'parser' test checks the OTel filter configuration parser against the rules
+of README-implementation section 4.5 "Keyword Definition Rules".  Every case is
+one 'haproxy -c' run over a generated OTel configuration file: how often each
+keyword may be written, what makes a repetition an error, and where a trailing
+'if'/'unless' condition is permitted.
+
+The cases reach past those rules as well: to what a keyword accepts as its own
+arguments (their number, the characters of the name it defines, the values it
+names and the sample expressions written after its key), to the freedom to write
+the sections of one OTel scope in any order, and to the validation that runs
+once the whole HAProxy configuration is known.
+
+The test never starts a proxy and never opens a socket.  The runtime side of
+the rules cannot be seen at configuration load time and is left to the tests
+that run traffic: the first-match evaluation of the lines of one key, and the
+rule that a span or an instrument name defined in more than one otel-scope is
+created by exactly one of those scopes.
+
+
+Files
+-----
+
+  run-parser.sh          test driver, run it from the test directory
+  parser/rules.tab       machine-readable transcription of section 4.5
+  parser/gen.awk         expands rules.tab into case records
+  parser/build.awk       turns case records into configuration files
+  parser/cover.awk       reports the keywords of include/parser.h with no case
+  parser/rules.awk       reports the keyword entries of section 4.5 with no case
+  parser/cases/*.cases   the cases that rules.tab cannot express
+  parser/haproxy.cfg     HTTP-mode proxy holding the filter declaration
+  parser/haproxy-*.cfg   the proxy variants a case selects with its '@mode'
+  parser/otel.yml        minimal SDK pipeline, needed for the YAML validation
+  parser/otel-invalid.yml a pipeline the SDK refuses, for the rejection case
+  _logs/_log-run-parser-* the alert and warning text of every case of one run
+
+
+Running
+-------
+
+  % ./run-parser.sh [-k <pattern>] [-x] [-X] [-v] [-h] [<haproxy>]
+
+    -k <pattern>  run only the cases whose name matches the pattern
+    -x            keep the configuration file of every failed case in _logs
+    -X            keep the configuration file of every case, failed or not
+    -v            show the alert text of every case, not only of the failed
+    -h            show the help and exit
+
+The HAProxy executable defaults to ../../haproxy/haproxy.  The exit status is 0
+when every case holds, EX_SOFTWARE (70) when one fails, and the full alert and
+warning text of the run is kept in the log file named on the last output line.
+
+The generated configuration files live in a temporary directory that is removed
+when the driver exits; '-x' copies the file of a failed case into _logs so
+that it can be checked by hand, and '-X' the file of every case.  The path of
+the file of the case being checked is passed to HAProxy in the OTEL_PARSER_CFG
+environment variable, which the proxy configurations expand on their 'filter
+opentelemetry' line, the one that names no file aside.
+
+Every case runs against the proxy configuration its '@mode' field names: 'http'
+takes parser/haproxy.cfg and any other name parser/haproxy-<name>.cfg.  A new
+proxy variant is one file and no change to the driver, and a mode whose file
+is missing fails the case instead of falling back to another proxy.
+
+
+How a case is judged
+--------------------
+
+A case declares whether 'haproxy -c' must accept or reject the configuration
+and, when it must reject it, the alert text the rejection has to carry.  The
+text matters: without it a case passes as soon as the configuration is refused
+for any reason at all, and a rule that no longer holds would still look tested
+because some unrelated error, a misspelled sample or an invalid character in a
+key, hides the missing check.  build.awk therefore refuses an error case that
+names no text.
+
+A case that must be accepted fails when an alert is emitted.  It may also name
+a warning that the run has to print, or one that it must not print: the missing
+root mark is a warning, and the second direction is what shows that the spans
+of a scope which never runs do not count towards it.  The other warnings are
+only recorded in the log, some of them depending on how the filter was built.
+
+A case may also name an alert that the run must not print.  The cases reading
+one file through two filter lines need it: the second parse must not repeat
+or invent an error about the first one, as it did while an aborted parse left
+its section state behind.  A run that ends in a crash fails whatever the case
+expects.
+
+The text of a case that checks which line an alert names carries the line number
+as well: 'idle-timeout' and 'inject use-headers' pair with the scope event, so
+the alert has to fall on the line that completes the pair, whichever of the two
+comes second.
+
+
+The rules table
+---------------
+
+parser/rules.tab holds one row per keyword and the list of shapes to generate
+for it.  A shape is a repetition or condition pattern whose verdict follows
+from section 4.5: the bare line of a key is the default and must be the last
+one, so 'barecond' is an error while 'condbare' is not.  The row may override
+the verdict of a single shape, and that is how the documented irregularities
+are declared: 'log-record' repeats freely, a repeated bare 'span' line only
+re-activates the span, and 'otel-event' is allowed at most once.  The 'acl' rows
+instead list the forbidden-condition shapes with no alert text, which declares
+that a condition after an 'acl' pattern is not caught at all.  The 'instrument'
+row writes the create form, so the additive update form has cases of its own.
+Where an entry names a scheme per form, as 'instrument' and 'event' do, the
+row covers one of them and a case tagged 'applyall' stands for the apply-all
+one.
+
+The two condition slots differ in spelling, the first written with 'if' and the
+second with 'unless', so a shape that writes two conditions exercises both of
+them; the 'unlessforbid' shape is the 'unless' counterpart of 'condforbid'.
+
+The 'fewargs' and 'badname' shapes stand outside section 4.5 and follow the
+keyword tables of include/parser.h instead: 'fewargs' writes the keyword alone,
+without any of the arguments that it requires, and 'badname' gives its key a
+character that the name class does not allow.  Each carries its own alert text.
+
+The format of the table and the list of shapes are described in the header of
+the file itself.  Adding a keyword there is one row; a rule that changes in
+section 4.5 is one field.
+
+
+The case files
+--------------
+
+parser/cases/*.cases hold the cases that no shape can express: the top-level
+OTel scope rules, the scope that a name on the filter line picks out, a name
+repeated within one line, a section header written without its name or falling
+in another OTel scope, the pairings checked once a section has been parsed, and
+the file-level oddities such as CRLF line endings or a missing final newline.  A
+few of them pin the reach of the schemes: one key written bare on two spans of
+one otel-scope, or on one span of two otel-scopes, is a later operation and not
+a repetition, so it is accepted, and a scope-level keyword compares its lines
+within one otel-scope only, while a span re-activated in another otel-scope
+carries a context of its own there.  The record format itself is described in
+the header of parser/build.awk.
+
+The args.cases and check.cases files carry what reaches past the definition
+rules.  In the first a keyword is written with a value it cannot take, with a
+badly formed argument, with more arguments than it accepts or with a sample
+expression that does not resolve, and the alert then has to name the faulty
+argument.  In the second the file parses cleanly and the error is only found
+afterwards, once the proxy and the rest of the configuration are known: the
+'require-context' rules, the header operations a TCP-mode proxy cannot carry,
+an instrumentation that names no configuration file, a name that a 'parent', a
+'link', a 'finish' or a 'set-var-ctx' refers to and that no otel-scope defines,
+a filter ID that another instance already carries, the names an 'otel-group'
+action resolves, and the warnings that the whole configuration decides.
+
+
+Coverage
+--------
+
+After the run the driver reads the keyword tables of include/parser.h and then
+reports every keyword that no case covers, which makes the test fail.  A keyword
+added to the parser therefore cannot land untested.
+
+A second report reads section 4.5 itself and holds the case set against it: a
+keyword entry of the section must have a case, an entry that names a repetition
+scheme must have a rules.tab row whose shapes carry that scheme, and a forbidden
+condition must be tested exactly when the entry allows none.  A rule rewritten
+in the section without the matching case therefore fails the test as well, which
+the keyword report alone cannot see.
+
+A keyword that has no rules.tab row carries the forbidden condition on a case
+of its own, which names the shape it stands in for in its '@rule' field.  The
+field takes the shape names of rules.tab, so a hand-written case counts for
+the report the same way a generated one does, and it takes 'applyall' as well,
+which no shape writes: it marks the case standing for the apply-all form of
+an entry whose row writes the other one.
+
+The same report reads the paragraphs that stand before the keyword entries for
+one rule of their own: every clause they name as writable once needs a case
+that writes it twice on one line.  Such a case says so with a 'clause:<name>'
+tag in its '@rule' field, so a clause named in the section without the matching
+case fails the run.
+
+Both reports are skipped when the case set is filtered with '-k'.

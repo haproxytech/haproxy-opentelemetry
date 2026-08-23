@@ -1739,6 +1739,14 @@ resolve the HAProxy binary and their configuration files relative to it):
   % ./run-err.sh
   % ./run-empty.sh
 
+The parser test runs the same way but starts no proxy.  It checks a series of
+generated configuration files with 'haproxy -c' against the keyword rules of
+section 4.5 of README-implementation and reports the outcome of every case;
+further cases cover the arguments a keyword accepts and the checks made once
+the whole configuration is known.  See test/README-parser.
+
+  % ./run-parser.sh
+
 
 5.1. Benchmarking results
 --------------------------

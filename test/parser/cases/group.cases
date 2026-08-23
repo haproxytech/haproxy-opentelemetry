@@ -1,0 +1,346 @@
+#
+# Section "otel-group": unique section name, unique scope names, the section
+# must hold at least one scope, and a 'groups' line must name the group.
+#
+
+@case group-scopes-ok
+@kw group:scopes
+@tmpl group
+@want ok
+@body
+        scopes parser-scope
+@end
+
+@case group-dup-name
+@kw group:otel-group
+@tmpl whole
+@want err
+@match 'parser-group' : already defined
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+
+    otel-group parser-group
+        scopes parser-scope
+
+    otel-group parser-group
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case group-name-reuse-toplevel-ok
+@kw group:otel-group
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+
+    otel-group parser-group
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+
+[other]
+    otel-group parser-group
+        scopes other-scope
+@end
+
+@case group-bad-name
+@kw group:otel-group
+@tmpl whole
+@want err
+@match invalid character '!'
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+
+    otel-group bad!name
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case group-name-too-long
+@kw group:otel-group
+@tmpl whole
+@want err
+@match name too long
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+
+    otel-group gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case group-name-if
+@kw group:otel-group
+@tmpl whole
+@want err
+@match 'if' cannot be used as a name
+@body
+[parser]
+    otel-group if
+        scopes parser-scope
+
+    otel-instrumentation parser-instr
+        config @YML@
+        groups if
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case group-name-unless
+@kw group:otel-group
+@tmpl whole
+@want err
+@match 'unless' cannot be used as a name
+@body
+[parser]
+    otel-group unless
+        scopes parser-scope
+
+    otel-instrumentation parser-instr
+        config @YML@
+        groups unless
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case group-header-cond
+@kw group:otel-group
+@rule condforbid
+@tmpl whole
+@want err
+@match condition is not supported
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+
+    otel-group parser-group if { path_beg /x }
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case group-header-cond-unless
+@kw group:otel-group
+@rule unlessforbid
+@tmpl whole
+@want err
+@match condition is not supported
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+
+    otel-group parser-group unless { path_beg /x }
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case group-header-no-name
+@kw group:otel-group
+@tmpl whole
+@want err
+@match too few arguments
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+
+    otel-group
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case group-two-names-ok
+@kw group:otel-group
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group-1
+        groups parser-group-2
+
+    otel-group parser-group-1
+        scopes parser-scope
+
+    otel-group parser-group-2
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case group-no-scopes
+@kw group:otel-group
+@tmpl group
+@want err
+@match \.cfg:6\] .*has no defined scope
+@body
+@end
+
+@case group-scopes-dup-one-line
+@kw group:scopes
+@tmpl group
+@want err
+@match already defined
+@body
+        scopes parser-scope parser-scope
+@end
+
+@case group-scopes-dup-two-lines
+@kw group:scopes
+@tmpl group
+@want err
+@match already defined
+@body
+        scopes parser-scope
+        scopes parser-scope
+@end
+
+@case group-scopes-two-lines-ok
+@kw group:scopes
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+
+    otel-group parser-group
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        otel-event on-http-end-request
+@end
+
+@case group-scopes-cond
+@kw group:scopes
+@rule condforbid
+@tmpl group
+@want err
+@match condition is not supported
+@body
+        scopes parser-scope if { path_beg /c1 }
+@end
+
+@case group-scopes-no-name
+@kw group:scopes
+@tmpl group
+@want err
+@match too few arguments
+@body
+        scopes
+@end
+
+@case group-scopes-cond-unless
+@kw group:scopes
+@tmpl group
+@want err
+@match condition is not supported
+@body
+        scopes parser-scope unless { path_beg /c2 }
+@end
+
+@case group-scopes-references-undefined
+@kw group:scopes
+@tmpl group
+@want err
+@match references undefined otel-scope
+@body
+        scopes no-such-scope
+@end
+
+@case group-nosec
+@kw group:otel-group
+@tmpl whole
+@want err
+@match otel-group section not opened in this scope
+@body
+[other]
+    otel-group other-group
+
+[parser]
+        scopes parser-scope
+@end
+
+@case group-not-declared
+@kw group:otel-group
+@tmpl whole
+@want err
+@match otel-group 'parser-group' is not named on a 'groups' line
+@warn unused otel-scope 'parser-scope-2'
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-group parser-group
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp2
+@end
+
+@case group-not-declared-scope-event
+@kw group:otel-group
+@tmpl whole
+@want err
+@match otel-group 'parser-group' is not named on a 'groups' line
+@warn unused otel-scope 'parser-scope-2'
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-group parser-group
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp2
+        otel-event on-stream-stop
+@end

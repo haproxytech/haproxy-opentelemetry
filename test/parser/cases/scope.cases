@@ -1,0 +1,1322 @@
+#
+# Section "otel-scope": the rules the generated shapes cannot express -- name
+# uniqueness within one line, keywords across two scopes, and the pairings
+# checked once the section has been parsed.
+#
+
+@case scope-dup-name
+@kw scope:otel-scope
+@tmpl whole
+@want err
+@match already defined
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope
+        otel-event on-http-end-request
+@end
+
+@case scope-name-reuse-toplevel-ok
+@kw scope:otel-scope
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+
+[other]
+    otel-scope parser-scope
+        otel-event on-http-end-request
+@end
+
+@case scope-bad-name
+@kw scope:otel-scope
+@tmpl whole
+@want err
+@match invalid character '!'
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope bad!name
+        otel-event on-frontend-http-request
+@end
+
+@case scope-name-if
+@kw scope:otel-scope
+@tmpl whole
+@want err
+@match 'if' cannot be used as a name
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope if
+        otel-event on-frontend-http-request
+@end
+
+@case scope-name-unless
+@kw scope:otel-scope
+@tmpl whole
+@want err
+@match 'unless' cannot be used as a name
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope unless
+        otel-event on-frontend-http-request
+@end
+
+@case scope-span-name-if
+@kw scope:span
+@tmpl scope
+@want err
+@match 'if' cannot be used as a name
+@body
+        span if
+@end
+
+@case scope-span-name-unless
+@kw scope:span
+@tmpl scope
+@want err
+@match 'unless' cannot be used as a name
+@body
+        span unless
+@end
+
+@case scope-name-other-case-ok
+@kw scope:span
+@tmpl scope
+@want ok
+@body
+        span If root
+        attribute Unless str(v1)
+        span sp2 parent If
+@end
+
+@case scope-span-name-finish-all
+@kw scope:span
+@tmpl scope
+@want err
+@match '\*' is a 'finish' wildcard
+@body
+        span "*" root
+@end
+
+@case scope-span-name-finish-req
+@kw scope:span
+@tmpl scope
+@want err
+@match '\*req\*' is a 'finish' wildcard
+@body
+        span "*req*" root
+@end
+
+@case scope-span-name-finish-res
+@kw scope:span
+@tmpl scope
+@want err
+@match '\*res\*' is a 'finish' wildcard
+@body
+        span "*res*" root
+@end
+
+@case scope-span-root-parent-span
+@kw scope:span
+@tmpl scope
+@want err
+@match a root span cannot be parented under span
+@body
+        span sp0
+        span sp1 root parent sp0
+@end
+
+@case scope-span-parent-self
+@kw scope:span
+@tmpl scope
+@want err
+@match cannot be its own 'parent'
+@body
+        span sp1 root
+        span sp2 parent sp2
+@end
+
+@case scope-span-parent-self-ok
+@kw scope:span
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        span sp2 parent sp1
+@end
+
+@case scope-span-name-prefix-ok
+@kw scope:span
+@tmpl scope
+@want ok
+@body
+        span iffy root
+@end
+
+@case scope-span-inline-link-cond
+@kw scope:span
+@tmpl scope
+@want err
+@match cannot be used as a reference
+@body
+        span sp1 root
+        span sp2 root link if { path_beg /c1 }
+@end
+
+@case scope-acl-name-if
+@kw scope:acl
+@tmpl scope
+@want err
+@match cannot be used as a name
+@body
+        acl if path_beg /x
+@end
+
+@case scope-acl-name-unless
+@kw scope:acl
+@tmpl scope
+@want err
+@match cannot be used as a name
+@body
+        acl unless path_beg /y
+@end
+
+@case scope-attribute-key-if
+@kw scope:attribute
+@tmpl scope
+@want err
+@match cannot be used as a name
+@body
+        span sp1 root
+        attribute if str(v1)
+@end
+
+@case scope-baggage-key-unless
+@kw scope:baggage
+@tmpl scope
+@want err
+@match cannot be used as a name
+@body
+        span sp1 root
+        baggage unless str(v2)
+@end
+
+@case scope-event-name-if
+@kw scope:event
+@tmpl scope
+@want err
+@match cannot be used as a name
+@body
+        span sp1 root
+        event if k1 str(v3)
+@end
+
+@case scope-event-key-if
+@kw scope:event
+@tmpl scope
+@want err
+@match cannot be used as a name
+@body
+        span sp1 root
+        event ev1 if str(v3)
+@end
+
+@case scope-event-key-time-if
+@kw scope:event
+@tmpl scope
+@want err
+@match cannot be used as a name
+@body
+        span sp1 root
+        event ev1 time s int(1) if str(v3)
+@end
+
+@case scope-inject-name-if
+@kw scope:inject
+@tmpl scope
+@want err
+@match cannot be used as a name
+@body
+        span sp1 root
+        inject if
+@end
+
+@case scope-exception-type-unless
+@kw scope:exception
+@tmpl scope
+@want err
+@match cannot be used as a name
+@body
+        span sp1 root
+        exception unless
+@end
+
+@case scope-exception-attr-key-if
+@kw scope:exception
+@tmpl scope
+@want err
+@match cannot be used as a name
+@body
+        span sp1 root
+        exception t1 attr if str(v1)
+@end
+
+@case scope-instrument-name-if
+@kw scope:instrument
+@tmpl scope
+@want err
+@match cannot be used as a name
+@body
+        instrument cnt_int if value int(1)
+@end
+
+@case scope-instrument-update-name-if
+@kw scope:instrument
+@tmpl scope
+@want err
+@match cannot be used as a name
+@body
+        instrument update if
+@end
+
+@case scope-log-record-event-name-if
+@kw scope:log-record
+@tmpl scope
+@want err
+@match cannot be used as a name
+@body
+        log-record info id 1 event if str(v1)
+@end
+
+@case scope-log-record-attr-key-if
+@kw scope:log-record
+@tmpl scope
+@want err
+@match cannot be used as a name
+@body
+        log-record info attr if str(v1) str(v2)
+@end
+
+@case scope-header-cond
+@kw scope:otel-scope
+@rule condforbid
+@tmpl whole
+@want err
+@match condition is not supported
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope if { path_beg /x }
+        otel-event on-frontend-http-request
+@end
+
+@case scope-header-cond-unless
+@kw scope:otel-scope
+@rule unlessforbid
+@tmpl whole
+@want err
+@match condition is not supported
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope unless { path_beg /x }
+        otel-event on-frontend-http-request
+@end
+
+@case scope-header-no-name
+@kw scope:otel-scope
+@tmpl whole
+@want err
+@match too few arguments
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope
+        otel-event on-frontend-http-request
+@end
+
+@case scope-nosec
+@kw scope:otel-scope
+@tmpl whole
+@want err
+@match otel-scope section not opened in this scope
+@body
+[other]
+    otel-scope other-scope
+
+[parser]
+        span sp1 root
+@end
+
+@case scope-span-same-two-scopes-ok
+@kw scope:span
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp1
+        attribute a_key str(v1)
+        otel-event on-http-end-request
+@end
+
+@case scope-span-redefine-args
+@kw scope:span
+@tmpl scope
+@want err
+@match already defined
+@body
+        span sp1 root
+        span sp1 root
+@end
+
+@case scope-span-bare-then-args
+@kw scope:span
+@tmpl scope
+@want err
+@match already defined
+@body
+        span sp1
+        span sp1 root
+@end
+
+@case scope-span-repeat-cond
+@kw scope:span
+@tmpl scope
+@want err
+@match 'if' condition is not supported
+@body
+        span sp1 root
+        span sp1 if { path_beg /c1 }
+@end
+
+@case scope-span-repeat-cond-unless
+@kw scope:span
+@tmpl scope
+@want err
+@match 'unless' condition is not supported
+@body
+        span sp1 root
+        span sp1 unless { path_beg /c2 }
+@end
+
+@case scope-span-define-across-scopes-ok
+@kw scope:span
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp1 kind client
+        otel-event on-http-end-request
+@end
+
+@case scope-span-bare-then-args-across-scopes-ok
+@kw scope:span
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp1 root
+        otel-event on-http-end-request
+@end
+
+@case scope-span-define-across-scopes-then-dup
+@kw scope:span
+@tmpl whole
+@want err
+@match already defined
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp1 kind client
+        span sp1 kind server
+        otel-event on-http-end-request
+@end
+
+@case scope-span-reactivate-ok
+@kw scope:span
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        attribute a_key str(v1)
+        span sp2
+        attribute a_key str(v2)
+        span sp1
+        attribute b_key str(v3)
+@end
+
+@case scope-span-reactivate-inject-dup
+@kw scope:span
+@tmpl scope
+@want err
+@match only one context per span
+@body
+        span sp1 root
+        inject ctx-i
+        span sp2 root
+        span sp1
+        inject ctx-j
+@end
+
+@case scope-span-reactivate-attr-dup
+@kw scope:span
+@tmpl scope
+@want err
+@match already unconditionally set
+@body
+        span sp1 root
+        attribute a_key str(v1)
+        span sp2 root
+        span sp1
+        attribute a_key str(v2)
+@end
+
+@case scope-attribute-two-spans-ok
+@kw scope:attribute
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        attribute a_key str(v1)
+        span sp2
+        attribute a_key str(v2)
+@end
+
+@case scope-attribute-same-span-two-scopes-ok
+@kw scope:attribute
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        attribute a_key str(v1)
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp1
+        attribute a_key str(v2)
+        otel-event on-http-end-request
+@end
+
+@case scope-baggage-two-spans-ok
+@kw scope:baggage
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        baggage b_key str(v1)
+        span sp2
+        baggage b_key str(v2)
+@end
+
+@case scope-baggage-same-span-two-scopes-ok
+@kw scope:baggage
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        baggage b_key str(v1)
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp1
+        baggage b_key str(v2)
+        otel-event on-http-end-request
+@end
+
+@case scope-set-var-two-scopes-ok
+@kw scope:set-var
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        set-var txn.otel_v1 str(v1)
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        set-var txn.otel_v1 str(v2)
+        otel-event on-http-end-request
+@end
+
+@case scope-set-var-ctx-two-scopes-ok
+@kw scope:set-var-ctx
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        set-var-ctx txn.otel_c1 sp1 trace-id
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp1
+        set-var-ctx txn.otel_c1 sp1 trace-id
+        otel-event on-http-end-request
+@end
+
+@case scope-event-same-key-two-names-ok
+@kw scope:event
+@rule applyall
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        event ev1 e_key str(v1)
+        event ev2 e_key str(v2)
+@end
+
+@case scope-event-two-spans-ok
+@kw scope:event
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        event ev1 e_key str(v1)
+        span sp2
+        event ev1 e_key str(v2)
+@end
+
+@case scope-event-same-span-two-scopes-ok
+@kw scope:event
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        event ev1 e_key str(v1)
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp1
+        event ev1 e_key str(v2)
+        otel-event on-http-end-request
+@end
+
+@case scope-event-time-cond-then-bare-ok
+@kw scope:event
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        event ev1 time ms date e_key str(v1) if { path_beg /c1 }
+        event ev1 time s date e_key str(v2)
+@end
+
+@case scope-event-time-bare-then-cond
+@kw scope:event
+@tmpl scope
+@want err
+@match already unconditionally set
+@body
+        span sp1 root
+        event ev1 time ms date e_key str(v1)
+        event ev1 time s date e_key str(v2) unless { path_beg /c1 }
+@end
+
+@case scope-event-time-two-lines-ok
+@kw scope:event
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        event ev1 time ms date e_key str(v1)
+        event ev1 time s date e_key2 str(v2)
+@end
+
+@case scope-status-no-desc-ok
+@kw scope:status
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        status error if { path_beg /c1 }
+        status ok
+@end
+
+@case scope-status-no-desc-bare-then-cond
+@kw scope:status
+@tmpl scope
+@want err
+@match already unconditionally set
+@body
+        span sp1 root
+        status ok
+        status error if { path_beg /c1 }
+@end
+
+@case scope-status-desc-then-no-desc
+@kw scope:status
+@tmpl scope
+@want err
+@match already unconditionally set
+@body
+        span sp1 root
+        status ok str(v1)
+        status error if { path_beg /c1 }
+@end
+
+@case scope-status-two-codes-bare
+@kw scope:status
+@tmpl scope
+@want err
+@match already unconditionally set
+@body
+        span sp1 root
+        status ok
+        status error
+@end
+
+@case scope-status-two-codes-cond-cond-ok
+@kw scope:status
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        status ok str(v1) if { path_beg /c1 }
+        status error str(v2) unless { path_beg /c2 }
+@end
+
+@case scope-status-two-spans-ok
+@kw scope:status
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        status ok str(v1)
+        span sp2
+        status ok str(v2)
+@end
+
+@case scope-status-same-span-two-scopes-ok
+@kw scope:status
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        status ok str(v1)
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp1
+        status error str(v2)
+        otel-event on-http-end-request
+@end
+
+@case scope-stop-two-scopes-ok
+@kw scope:otel-stop
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        otel-stop
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        otel-stop
+        otel-event on-http-end-request
+@end
+
+@case scope-finish-dup-one-line
+@kw scope:finish
+@tmpl scope
+@want err
+@match already defined
+@body
+        span sp1 root
+        finish sp1 sp1
+@end
+
+@case scope-finish-two-names-ok
+@kw scope:finish
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        span sp2
+        finish sp1 sp2
+@end
+
+@case scope-finish-other-scope-ok
+@kw scope:finish
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        finish sp1
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        finish sp1
+        otel-event on-http-end-request
+@end
+
+@case scope-unset-var-dup-one-line
+@kw scope:unset-var
+@tmpl scope
+@want err
+@match already defined
+@body
+        unset-var txn.otel_u1 txn.otel_u1
+@end
+
+@case scope-unset-var-bare-multi-then-cond
+@kw scope:unset-var
+@tmpl scope
+@want err
+@match already unconditionally set
+@body
+        unset-var txn.otel_u1 txn.otel_u2
+        unset-var txn.otel_u2 if { path_beg /c1 }
+@end
+
+@case scope-unset-var-two-scopes-ok
+@kw scope:unset-var
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        unset-var txn.otel_u1
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        unset-var txn.otel_u1
+        otel-event on-http-end-request
+@end
+
+@case scope-link-dup-one-line
+@kw scope:link
+@tmpl scope
+@want err
+@match already defined
+@body
+        span sp1 root
+        span sp2 root
+        link sp1 sp1
+@end
+
+@case scope-link-two-refs-one-line-ok
+@kw scope:link
+@tmpl scope
+@want ok
+@body
+        span sp0 root
+        span sp1
+        span sp2
+        link sp0 sp1
+@end
+
+@case scope-link-two-refs-cond-ok
+@kw scope:link
+@tmpl scope
+@want ok
+@body
+        span sp0 root
+        span sp1
+        span sp2
+        link sp0 sp1 if { path_beg /c1 }
+@end
+
+@case scope-span-inline-link-dup
+@kw scope:span
+@tmpl scope
+@want err
+@match already set
+@body
+        span sp1 root
+        span sp2 root link sp1 link sp1
+@end
+
+@case scope-span-inline-link-twice
+@kw scope:span
+@rule clause:link
+@tmpl scope
+@want err
+@match already set
+@body
+        span sp1 root
+        span sp3
+        span sp2 link sp1 link sp3
+@end
+
+@case scope-link-inline-then-bare
+@kw scope:link
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        span sp2 link sp1
+        link sp1
+@end
+
+@case scope-link-attr-ok
+@kw scope:link
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        span sp2
+        link sp1 attr l_key str(v1)
+@end
+
+@case scope-link-attr-no-key
+@kw scope:link
+@tmpl scope
+@want err
+@match too few arguments
+@body
+        span sp1 root
+        span sp2
+        link sp1 attr
+@end
+
+@case scope-link-attr-dup-one-line
+@kw scope:link
+@tmpl scope
+@want err
+@match already defined
+@body
+        span sp1 root
+        span sp2 root
+        link sp1 attr l_key str(v1) l_key str(v2)
+@end
+
+@case scope-exception-attr-dup-one-line
+@kw scope:exception
+@tmpl scope
+@want err
+@match already defined
+@body
+        span sp1 root
+        exception timeout attr e_key str(v1) attr e_key str(v2)
+@end
+
+@case scope-exception-attr-keyword-per-pair-ok
+@kw scope:exception
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        exception timeout attr e_key str(v1) attr e_key2 str(v2)
+@end
+
+@case scope-idle-timeout-wrong-event
+@kw scope:idle-timeout
+@tmpl scope
+@want err
+@match \.cfg:8\] .*can only be used with event
+@body
+        idle-timeout 5s
+@end
+
+@case scope-idle-timeout-after-event
+@kw scope:idle-timeout
+@tmpl scope
+@want err
+@match \.cfg:8\] .*can only be used with event
+@body
+        otel-event on-frontend-http-request
+        idle-timeout 5s
+@end
+
+@case scope-idle-timeout-no-event
+@kw scope:idle-timeout
+@tmpl scope
+@event none
+@want err
+@match \.cfg:6\] .*can only be used with event
+@body
+        idle-timeout 5s
+@end
+
+@case scope-idle-timeout-missing
+@kw scope:idle-timeout
+@event on-idle-timeout
+@tmpl scope
+@want err
+@match \.cfg:6\] .*is required for event
+@body
+        span sp1 root
+@end
+
+@case scope-acl-two-scopes-ok
+@kw scope:acl
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        acl a-x path_beg /x
+        otel-stop if a-x
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        acl a-x path_beg /y
+        otel-stop if a-x
+        otel-event on-http-end-request
+@end
+
+@case scope-acl-same-as-instr-ok
+@kw scope:acl
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        acl a-x path_beg /x
+
+    otel-scope parser-scope
+        acl a-x path_beg /y
+        otel-stop if a-x
+        otel-event on-frontend-http-request
+@end
+
+@case scope-acl-instr-only-ok
+@kw scope:acl
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        acl i-x path_beg /i
+
+    otel-scope parser-scope
+        otel-stop if i-x
+        otel-event on-frontend-http-request
+@end
+
+@case scope-acl-other-scope
+@kw scope:acl
+@tmpl whole
+@want err
+@match no such ACL
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        acl s-x path_beg /x
+        otel-stop if s-x
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        otel-stop if s-x
+        otel-event on-http-end-request
+@end
+
+@case scope-acl-instr-two-scopes-ok
+@kw scope:acl
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+        acl i-x path_beg /i
+
+    otel-scope parser-scope
+        otel-stop if i-x
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        otel-stop if i-x
+        otel-event on-http-end-request
+@end
+
+@case scope-acl-defined-later
+@kw scope:acl
+@tmpl scope
+@want err
+@match no such ACL
+@body
+        otel-stop if a-x
+        acl a-x path_beg /x
+@end
+
+@case scope-acl-proxy-fallback-ok
+@kw scope:acl
+@tmpl scope
+@want ok
+@body
+        otel-stop if p-x
+@end
+
+@case scope-acl-proxy-below-filter
+@kw scope:acl
+@tmpl scope
+@want err
+@match no such ACL
+@body
+        otel-stop if p-late
+@end
+
+@case scope-acl-mixed-lists-ok
+@kw scope:acl
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        acl i-x path_beg /i
+
+    otel-scope parser-scope
+        acl s-x path_beg /s
+        otel-stop if s-x i-x p-x
+        otel-event on-frontend-http-request
+@end
+
+@case scope-acl-mixed-lists-undefined
+@kw scope:acl
+@tmpl whole
+@want err
+@match no such ACL
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        acl i-x path_beg /i
+
+    otel-scope parser-scope
+        acl s-x path_beg /s
+        otel-stop if s-x i-x nosuch
+        otel-event on-frontend-http-request
+@end
+
+@case scope-otel-event-unless-ok
+@kw scope:otel-event
+@tmpl scope
+@want ok
+@body
+        otel-event on-frontend-http-request unless { path_beg /c2 }
+@end
+
+@case scope-otel-event-invalid
+@kw scope:otel-event
+@tmpl scope
+@want err
+@match invalid event
+@body
+        otel-event on-no-such-event
+@end
+
+@case scope-inject-tcp-headers
+@kw scope:inject
+@tmpl scope
+@mode tcp
+@event on-client-session-start
+@want err
+@match needs an HTTP-mode proxy
+@body
+        span sp1 root
+        inject ctx-t use-headers
+@end
+
+@case scope-inject-tcp-vars-ok
+@kw scope:inject
+@tmpl scope
+@mode tcp
+@event on-client-session-start
+@want ok
+@body
+        span sp1 root
+        inject ctx-t use-vars
+@end
+
+@case scope-log-record-id-zero
+@kw scope:log-record
+@tmpl scope
+@want err
+@match out of range
+@body
+        log-record info id 0 event ev1 str(v1)
+@end
+
+@case scope-log-record-id-without-event
+@kw scope:log-record
+@tmpl scope
+@want err
+@match must be given together or both omitted
+@body
+        log-record info id 1 str(v1)
+@end
+
+@case scope-log-record-event-without-id
+@kw scope:log-record
+@tmpl scope
+@want err
+@match must be given together or both omitted
+@body
+        log-record info event ev1 str(v1)
+@end
+
+@case scope-log-record-undefined-span
+@kw scope:log-record
+@tmpl scope
+@want err
+@match references undefined span
+@body
+        log-record info span no-such-span str(v1)
+@end
+
+@case scope-log-record-attr-dup-one-line
+@kw scope:log-record
+@tmpl scope
+@want err
+@match already defined
+@body
+        log-record info attr l_key str(v1) attr l_key str(v2) str(body)
+@end
+
+@case scope-log-record-attr-keyword-per-pair-ok
+@kw scope:log-record
+@tmpl scope
+@want ok
+@body
+        log-record info attr l_key str(v1) attr l_key2 str(v2) str(body)
+@end

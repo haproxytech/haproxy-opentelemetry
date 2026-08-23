@@ -1,0 +1,448 @@
+#
+# The 'instrument' keyword: the create form builds a chain per name within one
+# otel-scope, the update form is additive, and a name repeated across scopes
+# keeps one type.
+#
+
+@case instrument-create-chain-ok
+@kw scope:instrument
+@tmpl scope
+@want ok
+@body
+        instrument cnt_int m_one value int(1) if { path_beg /c1 }
+        instrument cnt_int m_one value int(2) if { path_beg /c2 }
+        instrument cnt_int m_one value int(3)
+@end
+
+@case instrument-update-repeat-ok
+@kw scope:instrument
+@rule applyall
+@tmpl scope
+@want ok
+@body
+        instrument cnt_int m_one value int(1)
+        instrument update m_one attr a_key str(v1)
+        instrument update m_one attr a_key str(v2)
+@end
+
+@case instrument-update-with-cond-ok
+@kw scope:instrument
+@tmpl scope
+@want ok
+@body
+        instrument cnt_int m_one value int(1)
+        instrument update m_one attr a_key str(v1) if { path_beg /c1 }
+        instrument update m_one attr a_key str(v2)
+@end
+
+@case instrument-update-bare-then-cond-ok
+@kw scope:instrument
+@tmpl scope
+@want ok
+@body
+        instrument cnt_int m_one value int(1)
+        instrument update m_one attr a_key str(v1)
+        instrument update m_one attr a_key str(v2) if { path_beg /c1 }
+@end
+
+@case instrument-update-gauge-repeat-ok
+@kw scope:instrument
+@tmpl scope
+@want ok
+@body
+        instrument gauge_int m_one value int(1)
+        instrument update m_one attr a_key str(v1)
+        instrument update m_one attr a_key str(v2) if { path_beg /c1 }
+@end
+
+@case instrument-update-udcnt-repeat-ok
+@kw scope:instrument
+@tmpl scope
+@want ok
+@body
+        instrument udcnt_int m_one value int(1)
+        instrument update m_one attr a_key str(v1)
+        instrument update m_one attr a_key str(v2) if { path_beg /c1 }
+@end
+
+@case instrument-update-histogram-repeat-ok
+@kw scope:instrument
+@tmpl scope
+@want ok
+@body
+        instrument hist_int m_one value int(1) bounds "1 2 3"
+        instrument update m_one attr a_key str(v1)
+        instrument update m_one attr a_key str(v2) if { path_beg /c1 }
+@end
+
+@case instrument-update-attr-dup-one-line
+@kw scope:instrument
+@tmpl scope
+@want err
+@match already defined
+@body
+        instrument cnt_int m_one value int(1)
+        instrument update m_one attr a_key str(v1) a_key str(v2)
+@end
+
+@case instrument-update-attr-keyword-per-pair-ok
+@kw scope:instrument
+@tmpl scope
+@want ok
+@body
+        instrument cnt_int m_one value int(1)
+        instrument update m_one attr a_key str(v1) attr a_key2 str(v2)
+@end
+
+@case instrument-update-attr-keyword-no-pair
+@kw scope:instrument
+@tmpl scope
+@want err
+@match too few arguments
+@body
+        instrument cnt_int m_one value int(1)
+        instrument update m_one attr a_key str(v1) attr if { path_beg /c1 }
+@end
+
+@case instrument-update-without-create
+@kw scope:instrument
+@tmpl scope
+@want err
+@match no matching create-form definition
+@body
+        instrument update m_one attr a_key str(v1)
+@end
+
+@case instrument-update-other-scope-ok
+@kw scope:instrument
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        instrument cnt_int m_one value int(1)
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        instrument update m_one attr a_key str(v1)
+        otel-event on-http-end-request
+@end
+
+@case instrument-update-create-unused-scope
+@kw scope:instrument
+@tmpl whole
+@want err
+@match no create-form definition in an otel-scope that runs
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        instrument update m_one attr a_key str(v1)
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        instrument cnt_int m_one value int(1)
+        otel-event on-http-end-request
+@end
+
+@case instrument-update-create-group-scope-ok
+@kw scope:instrument
+@tmpl whole
+@want ok
+@nowarn so it never runs
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        groups parser-group
+
+    otel-group parser-group
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        instrument update m_one attr a_key str(v1)
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        instrument cnt_int m_one value int(1)
+@end
+
+@case instrument-update-create-used-and-unused-ok
+@kw scope:instrument
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-3
+
+    otel-scope parser-scope
+        instrument update m_one attr a_key str(v1)
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        instrument cnt_int m_one value int(1)
+        otel-event on-http-end-request
+
+    otel-scope parser-scope-3
+        instrument cnt_int m_one value int(1)
+        otel-event on-backend-http-request
+@end
+
+@case instrument-update-unused-scope-ok
+@kw scope:instrument
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        instrument cnt_int m_one value int(1)
+        otel-event on-http-end-request
+
+    otel-scope parser-scope-3
+        instrument update m_one attr a_key str(v1)
+        otel-event on-backend-http-request
+@end
+
+@case instrument-update-name-case-ok
+@kw scope:instrument
+@tmpl scope
+@want ok
+@body
+        instrument cnt_int m_one value int(1)
+        instrument update M_ONE attr a_key str(v1)
+@end
+
+@case instrument-update-create-later-scope-ok
+@kw scope:instrument
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        instrument update m_one attr a_key str(v1)
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        instrument cnt_int m_one value int(1)
+        otel-event on-http-end-request
+@end
+
+@case instrument-create-without-value
+@kw scope:instrument
+@tmpl scope
+@want err
+@match missing value expression
+@body
+        instrument cnt_int m_one desc "counter"
+@end
+
+@case instrument-two-scopes-same-type-ok
+@kw scope:instrument
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        instrument cnt_int m_one value int(1)
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        instrument cnt_int m_one value int(2)
+        otel-event on-http-end-request
+@end
+
+@case instrument-two-scopes-different-type
+@kw scope:instrument
+@tmpl whole
+@want err
+@match repeated with a different type
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        instrument cnt_int m_one value int(1)
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        instrument gauge_int m_one value int(2)
+        otel-event on-http-end-request
+@end
+
+@case instrument-same-scope-different-type
+@kw scope:instrument
+@tmpl scope
+@want err
+@match repeated with a different type
+@body
+        instrument cnt_int m_one value int(1) if { path_beg /c1 }
+        instrument gauge_int m_one value int(2) if { path_beg /c2 }
+@end
+
+@case instrument-name-case-same-scope
+@kw scope:instrument
+@tmpl scope
+@want err
+@match already unconditionally set
+@body
+        instrument cnt_int m_one value int(1)
+        instrument cnt_int M_ONE value int(2)
+@end
+
+@case instrument-name-case-different-type
+@kw scope:instrument
+@tmpl whole
+@want err
+@match repeated with a different type
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        instrument cnt_int m_one value int(1)
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        instrument gauge_int M_ONE value int(2)
+        otel-event on-http-end-request
+@end
+
+@case instrument-desc-differs-same-scope
+@kw scope:instrument
+@tmpl scope
+@want err
+@match repeated with a different 'desc'
+@body
+        instrument cnt_int m_one desc "one" value int(1) if { path_beg /c1 }
+        instrument cnt_int m_one desc "two" value int(2)
+@end
+
+@case instrument-unit-differs-two-scopes
+@kw scope:instrument
+@tmpl whole
+@want err
+@match repeated with a different 'unit'
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        instrument cnt_int m_one unit "By" value int(1)
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        instrument cnt_int m_one unit "ms" value int(2)
+        otel-event on-http-end-request
+@end
+
+@case instrument-bounds-differ-same-scope
+@kw scope:instrument
+@tmpl scope
+@want err
+@match repeated with a different 'bounds'
+@body
+        instrument hist_int m_one value int(1) bounds "1 2 3" if { path_beg /c1 }
+        instrument hist_int m_one value int(2) bounds "1 2 4"
+@end
+
+@case instrument-aggr-differs-same-scope
+@kw scope:instrument
+@tmpl scope
+@want err
+@match repeated with a different 'aggr'
+@body
+        instrument cnt_int m_one aggr sum value int(1) if { path_beg /c1 }
+        instrument cnt_int m_one value int(2)
+@end
+
+@case instrument-histogram-aggr-default-ok
+@kw scope:instrument
+@tmpl scope
+@want ok
+@body
+        instrument hist_int m_one aggr histogram value int(1) if { path_beg /c1 }
+        instrument hist_int m_one value int(2)
+@end
+
+@case instrument-same-def-chain-ok
+@kw scope:instrument
+@tmpl scope
+@want ok
+@body
+        instrument hist_int m_one desc "d" unit "ms" value int(1) bounds "1 2 3" if { path_beg /c1 }
+        instrument hist_int m_one desc "d" unit "ms" value int(2) bounds "1 2 3"
+        instrument update m_one
+@end
+
+@case instrument-invalid-type
+@kw scope:instrument
+@tmpl scope
+@want err
+@match invalid instrument type
+@body
+        instrument no_such_type m_one value int(1)
+@end
+
+@case instrument-bounds-on-counter
+@kw scope:instrument
+@tmpl scope
+@want err
+@match bounds only valid for
+@body
+        instrument cnt_int m_one value int(1) bounds "1 2 3"
+@end
+
+@case instrument-histogram-bounds-ok
+@kw scope:instrument
+@tmpl scope
+@want ok
+@body
+        instrument hist_int m_one value int(1) bounds "1 2 3"
+@end
+
+@case instrument-update-attr-alone
+@kw scope:instrument
+@want err
+@match 'attr' : too few arguments
+@body
+        instrument cnt_int m_one value int(1)
+        instrument update m_one attr
+@end
