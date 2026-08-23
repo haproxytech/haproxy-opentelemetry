@@ -1225,7 +1225,7 @@ static int flt_otel_find_cond_pos(char **args, int idx)
  *
  * DESCRIPTION
  *   Builds the ACL condition starting at <args[cond_pos]> and stores it in
- *   <*cond>, so the gated item runs only when the condition is met at runtime.
+ *   <*cond>, so the item runs only when the condition is met at runtime.
  *   Used for span item samples, the scope condition and the 'otel-stop' action.
  *
  * RETURN VALUE
@@ -1510,7 +1510,7 @@ static const struct flt_otel_kw_map *flt_otel_kw_lookup(const struct flt_otel_kw
  *   expression for the value, and optional histogram bucket boundaries
  *   (preceded by the 'bounds' keyword).  The 'bounds' keyword is only valid for
  *   histogram instrument types.  Either form may also end with an optional
- *   'if'/'unless' ACL condition gating the recorded measurement at runtime.
+ *   'if'/'unless' ACL condition on the recorded measurement at runtime.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -1698,7 +1698,7 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
  *   argument is a required severity level string.  Optional keywords "id",
  *   "event", "time", "span", and "attr" follow in any order.  The remaining
  *   arguments at the end are parsed as fetch expressions or a log-format
- *   string, with an optional trailing 'if'/'unless' condition that gates the
+ *   string, with an optional trailing 'if'/'unless' condition that covers the
  *   whole record.
  *
  * RETURN VALUE
@@ -1779,7 +1779,7 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
 			 * Not a recognized keyword -- the remaining arguments
 			 * are sample fetch expressions or a log-format string,
 			 * optionally followed by an 'if'/'unless' condition that
-			 * gates the whole record.
+			 * covers the whole record.
 			 */
 			cond_pos = flt_otel_find_cond_pos(args, i);
 
@@ -1821,7 +1821,7 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
  *   argument is the required exception type.  An optional "message" keyword
  *   introduces the sample expressions for the exception message, and
  *   repeatable "attr <key> <sample>" clauses add further attributes.  A
- *   trailing 'if'/'unless' condition gates the record.  At runtime the span's
+ *   trailing 'if'/'unless' condition covers the record.  At runtime the span's
  *   record_exception() operation is invoked with these values.
  *
  * RETURN VALUE
@@ -1909,7 +1909,7 @@ static int flt_otel_parse_cfg_exception(const char *file, int line, char **args,
  *   optional parenthesised key, such as 'trace-id', 'baggage(userId)' or
  *   'tracestate(vendor)'.  A key is optional for 'baggage' and 'tracestate',
  *   and rejected for the other fields.  An optional trailing 'if'/'unless'
- *   condition at <args>[4] gates the assignment at runtime.
+ *   condition at <args>[4] controls the assignment at runtime.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -1986,7 +1986,7 @@ static int flt_otel_parse_cfg_set_var_ctx(const char *file, int line, char **arg
 	else if (field_key != NULL)
 		FLT_OTEL_PARSE_ERR(err, "'%s' : field '%s' does not take a key", args[0], field_name);
 
-	/* An optional trailing 'if'/'unless' condition gates the assignment. */
+	/* An optional trailing 'if'/'unless' condition controls the assignment. */
 	if (!(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(4))
 		retval = flt_otel_parse_trailing_cond(file, line, args, 4, &(conf->cond), err);
 
@@ -2012,7 +2012,7 @@ static int flt_otel_parse_cfg_set_var_ctx(const char *file, int line, char **arg
  *   followed by an 'if'/'unless' ACL condition.  Each name is validated and
  *   registered with the variable subsystem, as for 'set-var', then stored in a
  *   new conf_unset_var directive appended to the current scope; the condition,
- *   when present, gates the removal of all of them at runtime.
+ *   when present, controls the removal of all of them at runtime.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
