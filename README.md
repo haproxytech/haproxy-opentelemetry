@@ -33,7 +33,9 @@ observability framework.
 - **Rate limiting** -- percentage-based sampling (0.0--100.0) for controlling
   overhead.
 - **ACL integration** -- fine-grained conditional execution at instrumentation,
-  scope and event levels.
+  scope and event levels; an ACL declared in the HAProxy configuration reaches
+  everywhere, one in the `otel-instrumentation` section every `otel-scope`, and
+  one in an `otel-scope` only that scope.
 - **CLI management** -- runtime enable/disable, rate adjustment, error mode
   switching and status inspection.
 - **Context propagation** -- inject/extract span contexts between cascaded
@@ -181,6 +183,61 @@ The OTel configuration file contains the following section types:
 - `otel-group` -- a named collection of scopes triggered from HAProxy TCP/HTTP
   rules.
 
+#### Instrumentation keywords
+
+| Keyword       | Description                                              |
+|---------------|----------------------------------------------------------|
+| `config`      | Set the YAML SDK configuration file (mandatory)          |
+| `groups`      | Declare the `otel-group` sections used                   |
+| `scopes`      | Declare the `otel-scope` sections used                   |
+| `rate-limit`  | Set the per-stream activation rate limit (0.0--100.0)    |
+| `option`      | Set options (disabled, dontlog-normal, hard-errors, ...) |
+| `log`         | Enable per-instance logging of events and traffic        |
+| `acl`         | Declare an ACL usable in every otel-scope                |
+| `debug-level` | Set the debug level bitmask (debug build only)           |
+
+#### Scope keywords
+
+| Keyword        | Description                                             |
+|----------------|---------------------------------------------------------|
+| `span`         | Create or reference a span (accepts `kind`)             |
+| `attribute`    | Set key-value span attributes                           |
+| `event`        | Add timestamped span events                             |
+| `baggage`      | Set context propagation data                            |
+| `status`       | Set span status (ok/error/ignore/unset)                 |
+| `exception`    | Record an exception as a span event                     |
+| `link`         | Add span links to related spans                         |
+| `inject`       | Inject context into headers or variables                |
+| `extract`      | Extract context from headers or variables               |
+| `finish`       | Close spans (supports wildcards: `*`, `*req*`, `*res*`) |
+| `instrument`   | Create or update metric instruments                     |
+| `log-record`   | Emit a log record with severity                         |
+| `otel-event`   | Bind scope to a filter event with optional ACL          |
+| `otel-stop`    | Stop tracing for the rest of the connection             |
+| `idle-timeout` | Set periodic event interval for idle streams            |
+| `acl`          | Declare an ACL usable only in this scope                |
+| `set-var`      | Set a HAProxy variable from sample expressions          |
+| `set-var-ctx`  | Store a span/context field in a HAProxy variable        |
+| `unset-var`    | Remove one or more HAProxy variables                    |
+
+Most of these keywords accept a trailing `{ if | unless } <condition>` clause
+that decides at run time whether the line runs.
+
+#### Group keywords
+
+| Keyword  | Description                                         |
+|----------|-----------------------------------------------------|
+| `scopes` | Declare the `otel-scope` sections forming the group |
+
+A group is not bound to an event; instead a HAProxy rule runs it through the
+`otel-group` action, which takes the filter id and the group name.  The rule
+types supported are `http-request`, `http-response`, `http-after-response`,
+`tcp-request content` and `tcp-response content`:
+
+```
+http-response otel-group <filter-id> <group-name> [{ if | unless } <condition>]
+```
+
 #### Minimal YAML configuration
 
 ```yaml
@@ -224,30 +281,6 @@ signals:
 | `ostream`       | Text output to a file (for debugging) |
 | `memory`        | In-memory buffer (for testing)        |
 
-### Scope keywords
-
-| Keyword        | Description                                             |
-|----------------|---------------------------------------------------------|
-| `span`         | Create or reference a span (accepts `kind`)             |
-| `attribute`    | Set key-value span attributes                           |
-| `event`        | Add timestamped span events                             |
-| `baggage`      | Set context propagation data                            |
-| `status`       | Set span status (ok/error/ignore/unset)                 |
-| `exception`    | Record an exception as a span event                     |
-| `link`         | Add span links to related spans                         |
-| `inject`       | Inject context into headers or variables                |
-| `extract`      | Extract context from headers or variables               |
-| `finish`       | Close spans (supports wildcards: `*`, `*req*`, `*res*`) |
-| `instrument`   | Create or update metric instruments                     |
-| `log-record`   | Emit a log record with severity                         |
-| `otel-event`   | Bind scope to a filter event with optional ACL          |
-| `otel-stop`    | Stop tracing for the rest of the connection             |
-| `idle-timeout` | Set periodic event interval for idle streams            |
-| `acl`          | Declare an ACL usable in conditions                     |
-| `set-var`      | Set a HAProxy variable from sample expressions          |
-| `set-var-ctx`  | Store a span/context field in a HAProxy variable        |
-| `unset-var`    | Remove one or more HAProxy variables                    |
-
 ### CLI commands
 
 Available via the HAProxy CLI socket (prefix: `flt-otel`):
@@ -268,8 +301,8 @@ Available via the HAProxy CLI socket (prefix: `flt-otel`):
 | `flt-otel flush [@<filter>]`           | Force-export buffered telemetry    |
 | `flt-otel debug [level]`               | Set debug level (debug build only) |
 
-When invoked without arguments, `rate`, `logging`, `noflush` and `debug`
-display the current value.  The optional `@<filter>` token, accepted by every command
+When invoked without arguments, `rate`, `logging`, `noflush` and `debug` display
+the current value.  The optional `@<filter>` token, accepted by every command
 except `debug`, restricts a command to the single filter instance whose id
 matches; without it, a command operates on every configured instance at once.
 Surplus arguments are rejected.
@@ -345,7 +378,7 @@ Detailed documentation is available in the following files:
 
 - [README](README) -- complete reference documentation
 - [README-configuration](README-configuration) -- configuration guide
-- [README-conf](README-conf) -- configuration details
+- [README-conf](README-conf) -- configuration structure internals
 - [README-design](README-design) -- cross-cutting design patterns
 - [README-implementation](README-implementation) -- component architecture
 - [README-func](README-func) -- function reference

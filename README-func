@@ -58,8 +58,8 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
   flt_otel_ops_check
       Filter check callback (flt_ops.check).  Validates the parsed
       configuration: checks for duplicate filter IDs, resolves group/scope
-      placeholder references, rejects a group no 'groups' line names, verifies
-      root span count, warns about the events the proxy's mode or the filter's
+      placeholder references, rejects a group no 'groups' line names, checks the
+      root span rules, warns about the events the proxy's mode or the filter's
       placement keeps from firing, and sets analyzer bits.
 
   flt_otel_check_cond_loc
@@ -191,18 +191,36 @@ Event dispatching, metrics recording and scope/span execution engine.
       create-form instrument (instr_ref), and submits the value to the meter
       via update_instrument_kv_n().
 
+  flt_otel_scope_instrument_create
+      Creates a create-form metric instrument on its first use.  The index is
+      held by the create line that owns the name, so all the create lines of one
+      name share one instrument; exactly one otel-scope creates it, and a create
+      line of another otel-scope that finds it already created is refused.  The
+      instrument index is claimed with HA_ATOMIC_CAS so that a single thread
+      performs the creation: the winning thread registers the bucket-bounds
+      view, when the instrument defines one, and then the instrument itself,
+      storing the index that it gets back; a losing thread returns at once and
+      its caller waits out the PENDING index.  A failure stores UNSET so that a
+      transient failure can be retried, but only up to FLT_OTEL_INSTR_FAIL_MAX
+      attempts, after which the index becomes FAILED and the instrument is given
+      up.  A view or an instrument that cannot be created is reported through
+      the rate-limited runtime log.
+
   flt_otel_scope_run_instrument
       Processes all metric instruments for a scope.  Runs in two passes: the
       first lazily creates create-form instruments via the meter, using
       HA_ATOMIC_CAS to guarantee thread-safe one-time initialization; the second
       iterates update-form instruments and records measurements via
-      flt_otel_scope_run_instrument_record().  An instrument another thread is
-      creating right now (PENDING index) is waited for until that creation
+      flt_otel_scope_run_instrument_record().  An update takes the create
+      chain of its own scope when a create line stands there, otherwise the
+      one of the scope the instrument is in.  An instrument another thread
+      is creating right now (PENDING index) is waited for until that creation
       completes rather than skipped, so a concurrent first use does not lose its
       measurement; one not created at all (UNSET index) or given up after too
       many failed creation attempts (FAILED index) is skipped.  A measurement is
-      recorded only when the create-form and update-form if/unless conditions
-      pass; instrument creation produces no data point and obeys no condition.
+      recorded only when the update-form if/unless condition passes, taking the
+      value from the first line of the chain whose condition holds; instrument
+      creation produces no data point, condition or not.
 
   flt_otel_scope_run_log_record
       Emits log records for a scope.  Iterates over the configured log-record
@@ -261,7 +279,9 @@ Runtime context, span and context lifecycle management.
 
   flt_otel_scope_span_init
       Finds an existing scope span by name or creates a new one.  Resolves the
-      parent reference (span or extracted context).
+      parent reference (span or extracted context).  A defining line that finds
+      the span created by another line is refused, so exactly one line creates
+      it; a bare line only re-activates the span it names.
 
   flt_otel_scope_span_free
       Frees a scope span entry if its OTel span has been ended.  Refuses to free
@@ -315,7 +335,7 @@ sections.
 
   flt_otel_parse_invalid_char
       Validates characters in a name according to the specified type
-      (identifier, domain, context prefix, variable).
+      (identifier, domain, context prefix, variable, metric instrument name).
 
   flt_otel_parse_ctx_name_warn
       Warns when a variable-stored span context name has '-' or an uppercase
@@ -323,8 +343,7 @@ sections.
 
   flt_otel_parse_cfg_check
       Common validation for config keywords: looks up the keyword, checks the
-      argument count and character validity, and requires the instrumentation to
-      be defined when the section calls for it.
+      argument count bounds and validates the name's characters.
 
   flt_otel_parse_cfg_sample_expr
       Parses a single HAProxy sample expression within a sample definition.
@@ -332,7 +351,8 @@ sections.
 
   flt_otel_parse_cfg_sample
       Parses a complete sample definition (key plus one or more sample
-      expressions).
+      expressions).  The key is the argument before the value, or the one the
+      caller names where the value stands on its own.
 
   flt_otel_parse_cfg_sample_cond
       Parses a sample definition optionally followed by an 'if'/'unless' ACL
@@ -343,9 +363,12 @@ sections.
       trailing ACL condition in an argument array.
 
   flt_otel_parse_attach_cond
-      Builds the ACL condition found at a given argument position and stores it
-      into a destination pointer, so the item runs only when the
-      condition is met at runtime.
+      Builds the ACL condition found at a given argument position and stores
+      it into a destination pointer; at runtime the directive carrying it is
+      applied only when the condition holds.  The scope's, instrumentation's
+      and proxy's ACL lists are merged for the build, so each name resolves
+      against them in that order; an instrumentation parsed later in the file
+      contributes no list.
 
   flt_otel_parse_cfg_time
       Parses the value part of an optional 'time [s|ms|us|ns] <sample>' clause
@@ -355,13 +378,18 @@ sections.
       Parses one or more string arguments into a conf_str list (used for the
       "finish" keyword).
 
+  flt_otel_cfg_file_check
+      Checks that a configuration file path is readable and names a regular
+      file; used both for the filter's own configuration file and for the YAML
+      file that the 'config' keyword names.
+
   flt_otel_parse_cfg_file
       Parses and validates a file path argument; checks that the file exists and
-      is readable.
+      is readable and that no trailing condition follows it.
 
   flt_otel_parse_check_scope
-      Checks whether the current config parsing is within the correct HAProxy
-      configuration scope (cfg_scope filtering).
+      Checks whether the current config line is within the correct OTel scope
+      (cfg_scope filtering); rejects a line outside of any scope.
 
   flt_otel_kw_lookup
       Scans a keyword/code mapping table for the entry whose keyword equals the
@@ -369,7 +397,8 @@ sections.
 
   flt_otel_parse_cfg_acl
       Parses the 'acl' keyword shared by the otel-instrumentation and otel-scope
-      sections, rejecting 'or' as a name before calling parse_acl().
+      sections, rejecting 'if', 'unless' and 'or' as a name before calling
+      parse_acl().
 
   flt_otel_parse_cfg_instr
       Section parser for the otel-instrumentation block.  Handles keywords:
@@ -458,7 +487,9 @@ sections.
       registers temporary otel-instrumentation/group/scope section parsers,
       loads and parses the file, then restores the original sections and clears
       the section state, so a parse that stopped at an error leaves no pointer
-      of this file behind for the next filter line.
+      of this file behind for the next filter line.  Rejects a selected scope
+      that holds no otel-instrumentation section, naming the 'filter' line in
+      the alert.
 
   flt_otel_parse
       Main filter parser entry point, registered for the "opentelemetry" filter
@@ -507,8 +538,9 @@ generated by the FLT_OTEL_CONF_FUNC_INIT and FLT_OTEL_CONF_FUNC_FREE macros.
       Allocates and initializes a conf_sample structure.
 
   flt_otel_conf_sample_init_ex
-      Extended sample initialization: sets the key, extra data (event name or
-      status code), concatenated value string, and expression count.
+      Extended sample initialization: sets the key, taken from the argument
+      before the value unless the caller names one, the extra data (event name
+      or status code), the concatenated value string and the expression count.
 
   flt_otel_conf_sample_init_code
       Allocates a conf_sample that carries only an int32 status code in its
