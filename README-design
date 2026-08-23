@@ -643,14 +643,14 @@ flags.  This enables:
 
   - FLT_OTEL_USE_COUNTERS (config.h), which activates the attach and disable
     outcome counters in flt_otel_counters, ie the attached[] and disabled[]
-    arrays.  The per-event dispatch counters (cnt.event[]) are gated directly
+    arrays.  The per-event dispatch counters (cnt.event[]) are switched directly
     by DEBUG_OTEL.
 
   - Debug-only functions throughout the codebase, marked with [D] in
     README-func: flt_otel_scope_data_dump, flt_otel_http_headers_dump,
     flt_otel_vars_dump, flt_otel_args_dump, flt_otel_filters_dump, etc.
 
-  - The OTELC_DBG() macro for level-gated debug output.
+  - The OTELC_DBG() macro for level-filtered debug output.
 
 9.2  Debug Level Bitmask
 

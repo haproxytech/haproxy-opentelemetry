@@ -171,7 +171,7 @@ struct flt_otel_conf_sample {
 	struct lf_expr      lf_expr;    /* The log-format expression. */
 	bool                lf_used;    /* Whether lf_expr is used instead of exprs. */
 	struct list         time;       /* Optional per-event timestamp (single sample). */
-	struct acl_cond    *cond;       /* Optional if/unless condition gating this item. */
+	struct acl_cond    *cond;       /* Optional if/unless condition controlling this item. */
 };
 
 /*
@@ -224,7 +224,7 @@ struct flt_otel_conf_exception {
 	char            *type;       /* The exception type (exception.type). */
 	struct list      message;    /* Optional message value (single flt_otel_conf_sample). */
 	struct list      attributes; /* Additional attributes (flt_otel_conf_sample). */
-	struct acl_cond *cond;       /* Optional if/unless condition gating the record. */
+	struct acl_cond *cond;       /* Optional if/unless condition controlling the record. */
 };
 
 /*
@@ -244,7 +244,7 @@ struct flt_otel_conf_instrument {
 	size_t                             bounds_num;  /* Number of histogram bucket boundaries. */
 	struct list                        attributes;  /* Instrument attributes (update only, flt_otel_conf_sample). */
 	struct flt_otel_conf_instrument   *ref;         /* Resolved create-form instrument (update only). */
-	struct acl_cond                   *cond;        /* Optional if/unless condition gating recording. */
+	struct acl_cond                   *cond;        /* Optional if/unless condition controlling recording. */
 };
 
 /* Unit of the optional log-record timestamp expression. */
@@ -268,7 +268,7 @@ struct flt_otel_conf_log_record {
 	struct list           time;       /* Optional timestamp expression (single flt_otel_conf_sample). */
 	struct list           attributes; /* Log record attributes (flt_otel_conf_sample). */
 	struct list           samples;    /* Sample expressions for the body. */
-	struct acl_cond      *cond;       /* Optional if/unless condition gating the record. */
+	struct acl_cond      *cond;       /* Optional if/unless condition controlling the record. */
 };
 
 /*
@@ -302,18 +302,18 @@ struct flt_otel_conf_set_var_ctx {
 	char            *ref;       /* The referenced span or context name. */
 	int              field;     /* FLT_OTEL_VAR_FIELD_* */
 	char            *field_key; /* The baggage or tracestate key, or NULL. */
-	struct acl_cond *cond;      /* Optional if/unless condition gating the assignment. */
+	struct acl_cond *cond;      /* Optional if/unless condition controlling the assignment. */
 };
 
 /*
  * The unset-var directive within a scope, removing one or more HAProxy
- * variables when the scope's event fires, optionally gated by a condition.
+ * variables when the scope's event fires, optionally subject to a condition.
  *   flt_otel_conf_scope->unset_vars
  */
 struct flt_otel_conf_unset_var {
 	FLT_OTEL_CONF_HDR(id); /* Required by macro; member <id> is not used directly. */
 	struct list      vars; /* The variable names to remove (flt_otel_conf_str). */
-	struct acl_cond *cond; /* Optional if/unless condition gating the removal. */
+	struct acl_cond *cond; /* Optional if/unless condition controlling the removal. */
 };
 
 /* Configuration for a single event scope. */
@@ -325,7 +325,7 @@ struct flt_otel_conf_scope {
 	uint             idle_timeout;    /* Idle timeout interval in milliseconds (0 = off). */
 	struct list      acls;            /* ACLs declared on this scope. */
 	struct acl_cond *cond;            /* ACL condition to meet. */
-	struct acl_cond *stop_cond;       /* ACL condition gating the stop, or NULL if unconditional. */
+	struct acl_cond *stop_cond;       /* ACL condition for the stop, or NULL if unconditional. */
 	struct list      contexts;        /* Declared contexts. */
 	struct list      spans;           /* Declared spans. */
 	struct list      spans_to_finish; /* The list of spans scheduled for finishing. */

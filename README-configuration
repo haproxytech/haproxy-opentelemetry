@@ -313,7 +313,7 @@ Supported keywords:
       Set an attribute on the currently active span.  A single sample preserves
       its native type; multiple samples are concatenated as a string.
 
-      An optional trailing 'if'/'unless' ACL condition gates the attribute: it
+      An optional trailing 'if'/'unless' ACL condition covers the attribute: it
       is set only when the condition is met at request time.  The keyword may be
       repeated to set several attributes on one span, and every line whose
       condition holds is applied.
@@ -335,7 +335,7 @@ Supported keywords:
         Note that a 'time' token directly after <name> is read as this clause,
         so it cannot also serve as an attribute key in that position.
 
-      An optional trailing 'if'/'unless' ACL condition gates the event.  The
+      An optional trailing 'if'/'unless' ACL condition covers the event.  The
       keyword may be repeated, and every line whose condition holds is applied.
       The lines of one span definition are grouped by <name>: each distinct
       name produces a single span event, and the <key>/<sample> pairs of all
@@ -354,7 +354,7 @@ Supported keywords:
       Set baggage on the currently active span.  Baggage propagates to all child
       spans.  The data type is always string.
 
-      An optional trailing 'if'/'unless' ACL condition gates the baggage.  The
+      An optional trailing 'if'/'unless' ACL condition covers the baggage.  The
       keyword may be repeated to set several baggage items on one span, and
       every line whose condition holds is applied.
 
@@ -369,7 +369,7 @@ Supported keywords:
       follows the code, but the OTLP exporter keeps the status message only for
       the 'error' code, dropping it for 'ok' and 'unset'.
 
-      An optional trailing 'if'/'unless' ACL condition gates the status.  The
+      An optional trailing 'if'/'unless' ACL condition covers the status.  The
       keyword may be given more than once per span; the lines are tried in
       configuration order and the first whose condition holds sets the status,
       the remaining lines being skipped.  A line without a condition always
@@ -396,7 +396,7 @@ Supported keywords:
 
       Recording an exception does not change the span status, so pair it with a
       'status error' line when the exception marks the span as failed.  An
-      optional 'if'/'unless' ACL condition gates the record, and the keyword may
+      optional 'if'/'unless' ACL condition covers the line, and the keyword may
       be repeated to record several exceptions on one span.
 
       Examples:
@@ -549,10 +549,9 @@ Supported keywords:
       A create form registers the instrument and supplies the value to record;
       it emits no measurement on its own.  A data point is produced only when an
       update form for that instrument runs, recording the create form's value.
-      An optional trailing 'if'/'unless' ACL condition gates that measurement:
-      on a create form it gates every recording of the instrument, on an update
-      form only that one.  Registration produces no data point and is never
-      gated.
+      An optional trailing 'if'/'unless' ACL condition covers that measurement:
+      on a create form every recording of the instrument, on an update form only
+      that one.  Registration produces no data point and obeys no condition.
 
       The update form itself supplies no value, only attributes and an optional
       condition; to record a different quantity, define a separate instrument.
@@ -647,7 +646,7 @@ Supported keywords:
       configuration).  If a 'span' reference is given but the named span is not
       found at runtime, the log record is emitted without span correlation.
 
-      An optional trailing 'if'/'unless' ACL condition gates the whole record;
+      An optional trailing 'if'/'unless' ACL condition covers the whole record;
       when it does not pass at runtime, the record is skipped entirely, with no
       body or attributes evaluated.
 
@@ -673,7 +672,7 @@ Supported keywords:
       before the scope's spans, so span attributes, instruments and log records
       can read the new value through 'var(...)'.
 
-      An optional trailing 'if'/'unless' ACL condition gates the assignment.
+      An optional trailing 'if'/'unless' ACL condition covers the assignment.
 
       Examples:
         set-var txn.otel_method method
@@ -690,7 +689,7 @@ Supported keywords:
       unchanged.  Because these assignments run after the scope's spans, a span
       created in the same scope may be referenced.
 
-      An optional trailing 'if'/'unless' ACL condition gates the assignment.
+      An optional trailing 'if'/'unless' ACL condition covers the assignment.
 
       Supported fields:
         trace-id          - trace id, lowercase hex
@@ -730,7 +729,7 @@ Supported keywords:
       after the scope's spans, instruments and log records, so all still read
       the variables; only 'finish' and 'otel-stop' run afterwards.
 
-      An optional trailing 'if'/'unless' ACL condition gates the whole
+      An optional trailing 'if'/'unless' ACL condition covers the whole
       directive; when it does not pass, none of the listed variables are
       removed.
 
