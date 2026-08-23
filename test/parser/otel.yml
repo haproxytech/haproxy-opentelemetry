@@ -1,0 +1,66 @@
+exporters:
+  exporter_traces:
+    type:     ostream
+    filename: /dev/null
+
+  exporter_metrics:
+    type:     ostream
+    filename: /dev/null
+
+  exporter_logs:
+    type:     ostream
+    filename: /dev/null
+
+readers:
+  reader_metrics:
+    thread_name:     "reader metr"
+    export_interval: 10000
+    export_timeout:  5000
+
+samplers:
+  sampler_traces:
+    type:     parent_based
+    delegate: always_on
+
+processors:
+  processor_traces:
+    type: single
+
+  processor_logs:
+    type: single
+
+providers:
+  provider_traces:
+    resources:
+      - service.name: "parser"
+
+  provider_metrics:
+    resources:
+      - service.name: "parser"
+
+  provider_logs:
+    resources:
+      - service.name: "parser"
+
+signals:
+  traces:
+    default:
+      scope_name: "HAProxy OTEL - traces"
+      exporters:  exporter_traces
+      samplers:   sampler_traces
+      processors: processor_traces
+      providers:  provider_traces
+
+  metrics:
+    default:
+      scope_name: "HAProxy OTEL - metrics"
+      exporters:  exporter_metrics
+      readers:    reader_metrics
+      providers:  provider_metrics
+
+  logs:
+    default:
+      scope_name: "HAProxy OTEL - logs"
+      exporters:  exporter_logs
+      processors: processor_logs
+      providers:  provider_logs
