@@ -1,0 +1,117 @@
+#
+# Section ordering: the sections of one OTel scope parse in any order.  A
+# named ACL of an instrumentation written below its use is the one forward
+# reference that cannot resolve, and a file with no otel-instrumentation
+# at all still fails once the whole HAProxy configuration is known.
+#
+
+@case scope-before-instr-ok
+@kw scope:otel-scope
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-scope parser-scope
+        span sp1 root
+        attribute a_key str(v1)
+        otel-event on-frontend-http-request
+
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+@end
+
+@case scope-before-instr-no-span-ok
+@kw scope:otel-scope
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-scope parser-scope
+        set-var txn.otel_v1 str(v1)
+        otel-event on-frontend-http-request
+
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+@end
+
+@case scope-cond-before-instr-ok
+@kw scope:otel-scope
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-scope parser-scope
+        set-var txn.otel_v1 str(v1) if { path_beg /c1 }
+        span sp1 root
+        attribute a_key str(v2) unless { path_beg /c2 }
+        otel-event on-frontend-http-request
+
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+@end
+
+@case scope-acl-before-instr-ok
+@kw scope:acl
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-scope parser-scope
+        acl a-x path_beg /x
+        otel-stop if a-x
+        otel-event on-frontend-http-request
+
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+@end
+
+@case scope-instr-acl-defined-later
+@kw scope:acl
+@tmpl whole
+@want err
+@match no such ACL
+@body
+[parser]
+    otel-scope parser-scope
+        otel-stop if a-x
+        otel-event on-frontend-http-request
+
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        acl a-x path_beg /x
+@end
+
+@case group-before-instr-ok
+@kw group:otel-group
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-group parser-group
+        scopes parser-scope
+
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case scope-no-instr
+@kw scope:otel-scope
+@tmpl whole
+@want err
+@match haproxy\.cfg:22\] .*no instrumentation found
+@body
+[parser]
+    otel-scope parser-scope
+        span sp1 root
+        attribute a_key str(v1) if { path_beg /c1 }
+        otel-event on-frontend-http-request
+@end

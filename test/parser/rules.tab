@@ -1,0 +1,66 @@
+#
+# Machine-readable transcription of README-implementation section 4.5
+# "Keyword Definition Rules".  One row per keyword; gen.awk expands each row
+# into the cases of the shapes listed in the last column.
+#
+# Fields, separated by '|' and trimmed:
+#
+#   1 name       keyword under test, also the case name prefix
+#   2 sect       configuration section: instr, group or scope
+#   3 event      scope event to bind ('-' selects on-frontend-http-request)
+#   4 prelude    ';'-separated lines emitted before the tested ones ('-' none)
+#   5 fragment   the tested line; @KEY@ is the key slot, @COND@ the condition
+#                slot and @N@ the line number within the case
+#   6 key1       value of the first key ('-' when the keyword has no key)
+#   7 key2       value of the second key, used by the 'twokeys' shape
+#   8 condmatch  alert text of the forbidden-condition shapes ('-' no error)
+#   9 dupmatch   alert text expected by the failing repetition shapes
+#  10 shapes     shapes to generate, ',' separated; a ':ok' or ':err' suffix
+#                overrides the verdict the shape carries by default
+#
+# Shapes and their default verdict:
+#
+#   bare        one line without a condition                              ok
+#   barebare    the same key twice, neither line conditional             err
+#   condcond    the same key twice, each line with its own condition       ok
+#   condbare    a conditional line followed by the bare default line       ok
+#   barecond    the bare line followed by a conditional one               err
+#   twokeys     two lines naming different keys                           ok
+#   condok      a single line carrying a condition                         ok
+#   condforbid  a single line carrying a condition where none is allowed  err
+#   unlessforbid  the condforbid line with the 'unless' spelling          err
+#   nospan      the keyword without an open span, prelude suppressed      err
+#   fewargs     the keyword alone, without the arguments it requires      err
+#   badname     the key holding a character the keyword does not allow    err
+#
+# The two condition slots differ in spelling: the first is written with 'if' and
+# the second with 'unless', so every shape that writes two conditions exercises
+# both of them, as does the 'unlessforbid' shape.
+#
+# The 'fewargs' and 'badname' shapes carry their own alert text, so the row's
+# condmatch and dupmatch fields do not describe them.
+#
+attribute    | scope | -               | span sp1 root                               | attribute @KEY@ str(v@N@)@COND@         | a_key       | a_key2      | -                          | already unconditionally set | bare,barebare,condcond,condbare,barecond,twokeys,condok,nospan,fewargs
+baggage      | scope | -               | span sp1 root                               | baggage @KEY@ str(v@N@)@COND@           | b_key       | b_key2      | -                          | already unconditionally set | bare,barebare,condcond,condbare,barecond,twokeys,condok,nospan,fewargs,badname
+event        | scope | -               | span sp1 root                               | event ev1 @KEY@ str(v@N@)@COND@         | e_key       | e_key2      | -                          | already unconditionally set | bare,barebare,condcond,condbare,barecond,twokeys,condok,nospan,fewargs
+status       | scope | -               | span sp1 root                               | status ok str(v@N@)@COND@               | -           | -           | -                          | already unconditionally set | bare,barebare,condcond,condbare,barecond,condok,nospan,fewargs
+exception    | scope | -               | span sp1 root                               | exception @KEY@ message str(v@N@)@COND@ | timeout     | refused     | -                          | -                           | bare,barebare:ok,condcond,condbare,barecond:ok,twokeys,condok,nospan,fewargs
+link         | scope | -               | span sp0 root;span sp1;span sp2             | link @KEY@@COND@                        | sp0         | sp1         | -                          | -                           | bare,barebare:ok,condcond,condbare,barecond:ok,twokeys,condok,nospan,fewargs
+inject       | scope | -               | span sp1 root                               | inject @KEY@                            | ctx-i       | ctx-j       | condition is not supported | only one context per span   | bare,barebare,twokeys:err,condforbid,unlessforbid,nospan,fewargs,badname
+extract      | scope | -               | -                                           | extract @KEY@                           | ctx-a       | ctx-b       | condition is not supported | already defined             | bare,barebare,twokeys,condforbid,unlessforbid,fewargs,badname
+finish       | scope | -               | span sp1 root;span sp2                      | finish @KEY@                            | sp1         | sp2         | condition is not supported | already defined             | bare,barebare,twokeys,condforbid,unlessforbid,fewargs
+span         | scope | -               | -                                           | span @KEY@                              | sp1         | sp2         | condition is not supported | -                           | bare,barebare:ok,twokeys,condforbid,unlessforbid,fewargs
+otel-stop    | scope | -               | -                                           | otel-stop@COND@                         | -           | -           | -                          | already unconditionally set | bare,barebare,condcond,condbare,barecond,condok
+instrument   | scope | -               | -                                           | instrument cnt_int @KEY@ value int(@N@)@COND@ | m_one | m_two       | -                          | already unconditionally set | bare,barebare,condcond,condbare,barecond,twokeys,condok,fewargs
+log-record   | scope | -               | -                                           | log-record info str(v@N@)@COND@         | -           | -           | -                          | -                           | bare,barebare:ok,condcond,condbare,barecond:ok,condok,fewargs
+idle-timeout | scope | on-idle-timeout | -                                           | idle-timeout 5s                         | -           | -           | condition is not supported | already set                 | bare,barebare,condforbid,unlessforbid,fewargs
+acl          | scope | -               | -                                           | acl @KEY@ path_beg /x                   | a-x         | a-y         | -                          | already defined             | bare,barebare,twokeys,condforbid,unlessforbid,fewargs,badname
+otel-event   | scope | -               | -                                           | otel-event @KEY@@COND@                  | on-frontend-http-request | on-http-end-request | - | already set | bare,barebare,condcond:err,condbare:err,barecond,twokeys:err,condok,fewargs
+set-var      | scope | -               | -                                           | set-var @KEY@ str(v@N@)@COND@           | txn.otel_v1 | txn.otel_v2 | -                          | already unconditionally set | bare,barebare,condcond,condbare,barecond,twokeys,condok,fewargs
+set-var-ctx  | scope | -               | span sp1 root                               | set-var-ctx @KEY@ sp1 trace-id@COND@    | txn.otel_c1 | txn.otel_c2 | -                          | already unconditionally set | bare,barebare,condcond,condbare,barecond,twokeys,condok,fewargs
+unset-var    | scope | -               | -                                           | unset-var @KEY@@COND@                   | txn.otel_u1 | txn.otel_u2 | -                          | already unconditionally set | bare,barebare,condcond,condbare,barecond,twokeys,condok,fewargs
+acl          | instr | -               | -                                           | acl @KEY@ path_beg /x                   | i-x         | i-y         | -                          | already defined             | bare,barebare,twokeys,condforbid,unlessforbid,fewargs,badname
+log          | instr | -               | -                                           | log 127.0.0.1:514 local0                | -           | -           | condition is not supported | already set                 | bare,barebare,condforbid,unlessforbid
+rate-limit   | instr | -               | -                                           | rate-limit 100                          | -           | -           | condition is not supported | already set                 | bare,barebare,condforbid,unlessforbid,fewargs
+option       | instr | -               | -                                           | option disabled                         | -           | -           | condition is not supported | already set                 | bare,barebare,condforbid,unlessforbid,fewargs
+debug-level  | instr | -               | -                                           | debug-level 1                           | -           | -           | condition is not supported | already set                 | bare,barebare,condforbid,unlessforbid,fewargs

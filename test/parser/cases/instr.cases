@@ -1,0 +1,787 @@
+#
+# Section "otel-instrumentation": one section per OTel scope, unique names on
+# the keywords that may be repeated, and no keyword outside an open section.
+#
+
+@case instr-two-sections
+@kw instr:otel-instrumentation
+@tmpl whole
+@want err
+@match instrumentation can be defined only once
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-instrumentation other-instr
+        config @YML@
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-same-name-twice
+@kw instr:otel-instrumentation
+@tmpl whole
+@want err
+@match instrumentation can be defined only once
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-instrumentation parser-instr
+        config @YML@
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-bad-name
+@kw instr:otel-instrumentation
+@tmpl whole
+@want err
+@match invalid character '!'
+@body
+[parser]
+    otel-instrumentation bad!name
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-name-too-long
+@kw instr:otel-instrumentation
+@tmpl whole
+@want err
+@match name too long
+@body
+[parser]
+    otel-instrumentation iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-header-cond
+@kw instr:otel-instrumentation
+@rule condforbid
+@tmpl whole
+@want err
+@match condition is not supported
+@body
+[parser]
+    otel-instrumentation parser-instr if { path_beg /x }
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-header-cond-unless
+@kw instr:otel-instrumentation
+@rule unlessforbid
+@tmpl whole
+@want err
+@match condition is not supported
+@body
+[parser]
+    otel-instrumentation parser-instr unless { path_beg /x }
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-header-no-name
+@kw instr:otel-instrumentation
+@tmpl whole
+@want err
+@match too few arguments
+@body
+[parser]
+    otel-instrumentation
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-kw-before-header
+@kw instr:otel-instrumentation
+@tmpl whole
+@want err
+@match out of section
+@body
+[parser]
+        scopes parser-scope
+
+    otel-instrumentation parser-instr
+        config @YML@
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-kw-after-scope-header
+@kw instr:otel-instrumentation
+@tmpl whole
+@want err
+@match unknown keyword
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+        rate-limit 100
+@end
+
+@case instr-nosec
+@kw instr:config
+@tmpl whole
+@want err
+@match otel-instrumentation section not opened in this scope
+@body
+[other]
+    otel-instrumentation other-instr
+
+[parser]
+        config @YML@
+@end
+
+@case instr-config-twice
+@kw instr:config
+@tmpl instr
+@want err
+@match already set
+@body
+        config @YML@
+@end
+
+@case instr-config-cond
+@kw instr:config
+@rule condforbid
+@tmpl whole
+@want err
+@match condition is not supported
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@ if { path_beg /c1 }
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-config-no-file
+@kw instr:config
+@tmpl instr
+@want err
+@match too few arguments
+@body
+        config
+@end
+
+@case instr-config-bare-if
+@kw instr:config
+@tmpl whole
+@want err
+@match condition is not supported
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@ if
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-config-bare-unless
+@kw instr:config
+@tmpl whole
+@want err
+@match condition is not supported
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@ unless
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-config-context-length-exempt-ok
+@kw instr:config
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-config-context-cond
+@kw instr:config
+@tmpl whole
+@want err
+@match condition is not supported
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@ default if { path_beg /c1 }
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-config-missing-file
+@kw instr:config
+@tmpl whole
+@want err
+@match No such file or directory
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config /no/such/directory/otel.yml
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-config-invalid-yaml
+@kw instr:config
+@tmpl whole
+@want err
+@match signal creation fails
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YMLBAD@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-groups-dup-one-line
+@kw instr:groups
+@tmpl whole
+@want err
+@match already defined
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group parser-group
+
+    otel-group parser-group
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-groups-dup-two-lines
+@kw instr:groups
+@tmpl whole
+@want err
+@match already defined
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+        groups parser-group
+
+    otel-group parser-group
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-groups-two-lines-ok
+@kw instr:groups
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group-1
+        groups parser-group-2
+
+    otel-group parser-group-1
+        scopes parser-scope
+
+    otel-group parser-group-2
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-groups-no-name
+@kw instr:groups
+@tmpl instr
+@want err
+@match too few arguments
+@body
+        groups
+@end
+
+@case instr-groups-cond
+@kw instr:groups
+@rule condforbid
+@tmpl whole
+@want err
+@match condition is not supported
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group if { path_beg /c1 }
+
+    otel-group parser-group
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-groups-cond-unless
+@kw instr:groups
+@tmpl whole
+@want err
+@match condition is not supported
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group unless { path_beg /c2 }
+
+    otel-group parser-group
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-scopes-dup-one-line
+@kw instr:scopes
+@tmpl whole
+@want err
+@match already defined
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-scopes-dup-two-lines
+@kw instr:scopes
+@tmpl instr
+@want err
+@match already defined
+@body
+        scopes parser-scope
+@end
+
+@case instr-scopes-two-lines-ok
+@kw instr:scopes
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        otel-event on-http-end-request
+@end
+
+@case instr-scopes-no-name
+@kw instr:scopes
+@tmpl instr
+@want err
+@match too few arguments
+@body
+        scopes
+@end
+
+@case instr-scopes-cond
+@kw instr:scopes
+@rule condforbid
+@tmpl whole
+@want err
+@match condition is not supported
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope if { path_beg /c1 }
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-scopes-cond-unless
+@kw instr:scopes
+@tmpl whole
+@want err
+@match condition is not supported
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope unless { path_beg /c2 }
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-option-no-after-set
+@kw instr:option
+@tmpl instr
+@want err
+@match already set
+@body
+        option disabled
+        no option disabled
+@end
+
+@case instr-option-set-after-no
+@kw instr:option
+@tmpl instr
+@want err
+@match already set
+@body
+        no option disabled
+        option disabled
+@end
+
+@case instr-option-no-twice
+@kw instr:option
+@tmpl instr
+@want err
+@match already set
+@body
+        no option disabled
+        no option disabled
+@end
+
+@case instr-option-default-after-set
+@kw instr:option
+@tmpl instr
+@want err
+@match already set
+@body
+        option hard-errors
+        default option hard-errors
+@end
+
+@case instr-option-default-not-set
+@kw instr:option
+@tmpl instr
+@want ok
+@body
+        default option require-context
+@end
+
+@case instr-option-two-different-ok
+@kw instr:option
+@tmpl instr
+@want ok
+@body
+        option hard-errors
+        option dontlog-normal
+@end
+
+@case instr-option-invalid
+@kw instr:option
+@tmpl instr
+@want err
+@match invalid option
+@body
+        option no-such-option
+@end
+
+@case instr-log-no-after-set
+@kw instr:log
+@tmpl instr
+@want err
+@match already set
+@body
+        log global
+        no log
+@end
+
+@case instr-log-no-twice
+@kw instr:log
+@tmpl instr
+@want err
+@match already set
+@body
+        no log
+        no log
+@end
+
+@case instr-log-bad-facility
+@kw instr:log
+@tmpl instr
+@want err
+@match unknown log facility
+@body
+        log 127.0.0.1:514 no-such-facility debug
+@end
+
+@case instr-log-default-ok
+@kw instr:log
+@tmpl instr
+@want ok
+@body
+        default log global
+@end
+
+@case instr-log-default-after-set
+@kw instr:log
+@tmpl instr
+@want err
+@match already set
+@body
+        log global
+        default log global
+@end
+
+@case instr-log-global-ok
+@kw instr:log
+@tmpl instr
+@want ok
+@body
+        log global
+@end
+
+@case instr-log-global-cond
+@kw instr:log
+@tmpl instr
+@want err
+@match condition is not supported
+@body
+        log global if { path_beg /c1 }
+@end
+
+@case instr-rate-limit-out-of-range
+@kw instr:rate-limit
+@tmpl instr
+@want err
+@match out of range
+@body
+        rate-limit 101
+@end
+
+@case instr-rate-limit-below-100-ok
+@kw instr:rate-limit
+@tmpl instr
+@want ok
+@warn 'rate-limit' : below 100.0
+@body
+        rate-limit 50.0
+@end
+
+@case instr-rate-limit-100-ok
+@kw instr:rate-limit
+@tmpl instr
+@want ok
+@nowarn 'rate-limit' : below 100.0
+@body
+        rate-limit 100.0
+@end
+
+@case instr-debug-level-cond-word-as-value
+@kw instr:debug-level
+@tmpl instr
+@want err
+@match 'if' condition is not supported
+@body
+        debug-level if
+@end
+
+@case instr-debug-level-cond-word-as-value-unless
+@kw instr:debug-level
+@tmpl instr
+@want err
+@match 'unless' condition is not supported
+@body
+        debug-level unless
+@end
+
+@case instr-debug-level-not-a-number
+@kw instr:debug-level
+@tmpl instr
+@want err
+@match invalid value
+@body
+        debug-level nonsense
+@end
+
+@case instr-debug-level-negative
+@kw instr:debug-level
+@tmpl instr
+@want err
+@match value out of range
+@body
+        debug-level -7
+@end
+
+@case instr-debug-level-over-mask
+@kw instr:debug-level
+@tmpl instr
+@want err
+@match value out of range
+@body
+        debug-level 0x800
+@end
+
+@case instr-debug-level-hex-ok
+@kw instr:debug-level
+@tmpl instr
+@want ok
+@body
+        debug-level 0x77f
+@end
+
+@case instr-scope-references-undefined
+@kw instr:scopes
+@tmpl whole
+@want err
+@match references undefined otel-scope
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes no-such-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-group-references-undefined
+@kw instr:groups
+@tmpl whole
+@want err
+@match references undefined otel-group
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups no-such-group
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-id-name-if
+@kw instr:otel-instrumentation
+@tmpl whole
+@want err
+@match cannot be used as a name
+@body
+[parser]
+    otel-instrumentation if
+        config @YML@
+@end
+
+@case instr-acl-reserved-name
+@kw instr:acl
+@tmpl whole
+@want err
+@match invalid ACL name
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        acl or path_beg /x
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-acl-reserved-name-upper
+@kw instr:acl
+@tmpl whole
+@want err
+@match invalid ACL name
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        acl OR path_beg /x
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-acl-name-if
+@kw instr:acl
+@tmpl whole
+@want err
+@match cannot be used as a name
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        acl if path_beg /x
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end
+
+@case instr-acl-name-unless
+@kw instr:acl
+@tmpl whole
+@want err
+@match cannot be used as a name
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        acl unless path_beg /x
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+@end

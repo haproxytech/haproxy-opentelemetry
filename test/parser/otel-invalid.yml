@@ -1,0 +1,8 @@
+#
+# Invalid SDK pipeline, used by the case that checks that the OpenTelemetry
+# configuration is validated already by 'haproxy -c': the 'traces' signal
+# holds a sequence where the named contexts of the signal are expected.
+#
+signals:
+  traces:
+    - default

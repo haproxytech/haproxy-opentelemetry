@@ -1,0 +1,439 @@
+#
+# The 'inject' keyword: at most one context per span of one otel-scope, resolved
+# names unique across the whole configuration, and at most one nameless-header
+# context.
+#
+
+@case inject-two-spans-different-ok
+@kw scope:inject
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        inject ctx-i
+        span sp2
+        inject ctx-j
+@end
+
+@case inject-two-spans-same-name
+@kw scope:inject
+@tmpl scope
+@want err
+@match context name already used
+@body
+        span sp1 root
+        inject ctx-i
+        span sp2 root
+        inject ctx-i
+@end
+
+@case inject-two-spans-name-case
+@kw scope:inject
+@tmpl scope
+@want err
+@match context name already used
+@body
+        span sp1 root
+        inject Ctx-I
+        span sp2
+        inject ctx-i
+@end
+
+@case inject-same-name-two-scopes
+@kw scope:inject
+@tmpl whole
+@want err
+@match context name already used
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        inject ctx-i
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp2 root
+        inject ctx-i
+        otel-event on-backend-http-request
+@end
+
+@case inject-different-names-two-scopes-ok
+@kw scope:inject
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        inject ctx-i
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp2
+        inject ctx-j
+        otel-event on-backend-http-request
+@end
+
+@case inject-same-span-two-scopes-ok
+@kw scope:inject
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        inject ctx-i
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp1
+        inject ctx-j
+        otel-event on-backend-http-request
+@end
+
+@case inject-two-autonames-one-scope
+@kw scope:inject
+@tmpl scope
+@want err
+@match context name already used
+@body
+        span sp1 root
+        inject -
+        span sp2 root
+        inject -
+@end
+
+@case inject-named-matches-autoname-one-scope
+@kw scope:inject
+@tmpl scope
+@want err
+@match context name already used
+@body
+        span sp1 root
+        inject -
+        span sp2 root
+        inject -on-frontend-http-request
+@end
+
+@case inject-two-autonames
+@kw scope:inject
+@tmpl whole
+@want err
+@match only one nameless-header context is allowed
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        inject -
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp2 root
+        inject -
+        otel-event on-backend-http-request
+@end
+
+@case inject-two-ignored-names-headers
+@kw scope:inject
+@tmpl whole
+@want err
+@match only one nameless-header context is allowed
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        inject -ctx-a use-headers
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp2 root
+        inject -ctx-b use-headers
+        otel-event on-backend-http-request
+@end
+
+@case inject-autoname-plus-named-ok
+@kw scope:inject
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        inject -
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp2
+        inject ctx-j
+        otel-event on-backend-http-request
+@end
+
+@case inject-named-matches-autoname
+@kw scope:inject
+@tmpl whole
+@want err
+@match context name already used
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        inject -
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp2 root
+        inject -on-frontend-http-request
+        otel-event on-backend-http-request
+@end
+
+@case inject-two-autonames-vars-ok
+@kw scope:inject
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        inject - use-vars
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp2
+        inject - use-vars
+        otel-event on-backend-http-request
+@end
+
+@case inject-two-autonames-mixed-ok
+@kw scope:inject
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        span sp1 root
+        inject -
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        span sp2
+        inject - use-vars
+        otel-event on-backend-http-request
+@end
+
+@case inject-both-storage-types-ok
+@kw scope:inject
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        inject ctx-i use-vars use-headers
+@end
+
+@case inject-storage-type-twice
+@kw scope:inject
+@tmpl scope
+@want err
+@match already used
+@body
+        span sp1 root
+        inject ctx-i use-vars use-vars
+@end
+
+@case inject-unsupported-event
+@kw scope:inject
+@tmpl scope
+@event on-stream-stop
+@want err
+@match \.cfg:9\] .*cannot use on this event
+@body
+        span sp1 root
+        inject ctx-i use-headers
+@end
+
+@case inject-unsupported-event-first
+@kw scope:inject
+@tmpl scope
+@want err
+@match \.cfg:9\] .*cannot use on this event
+@body
+        otel-event on-stream-stop
+        span sp1 root
+        inject ctx-i use-headers
+@end
+
+@case inject-no-event-headers
+@kw scope:inject
+@tmpl whole
+@want err
+@match \.cfg:10\] .*cannot use on this event
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+
+    otel-group parser-group
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+        inject ctx-i use-headers
+@end
+
+@case inject-no-event-vars-ok
+@kw scope:inject
+@tmpl whole
+@want ok
+@nowarn so it never runs
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+
+    otel-group parser-group
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+        inject ctx-i use-vars
+@end
+
+@case extract-unsupported-event
+@kw scope:extract
+@tmpl scope
+@event on-stream-stop
+@want err
+@match \.cfg:8\] .*cannot use on this event
+@body
+        extract ctx-a use-headers
+@end
+
+@case extract-unsupported-event-first
+@kw scope:extract
+@tmpl scope
+@want err
+@match \.cfg:8\] .*cannot use on this event
+@body
+        otel-event on-stream-stop
+        extract ctx-a use-headers
+@end
+
+@case extract-unsupported-event-vars-ok
+@kw scope:extract
+@tmpl scope
+@event on-stream-stop
+@want ok
+@body
+        extract ctx-a use-vars
+@end
+
+@case extract-no-event-headers-ok
+@kw scope:extract
+@tmpl whole
+@want ok
+@nowarn so it never runs
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+
+    otel-group parser-group
+        scopes parser-scope
+
+    otel-scope parser-scope
+        extract ctx-a use-headers
+@end
+
+@case extract-name-if
+@kw scope:extract
+@tmpl scope
+@want err
+@match 'if' cannot be used as a name
+@body
+        extract if
+@end
+
+@case extract-name-unless
+@kw scope:extract
+@tmpl scope
+@want err
+@match 'unless' cannot be used as a name
+@body
+        extract unless
+@end
+
+@case extract-two-scopes-same-name-ok
+@kw scope:extract
+@tmpl whole
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+        scopes parser-scope-2
+
+    otel-scope parser-scope
+        extract ctx-a
+        otel-event on-frontend-http-request
+
+    otel-scope parser-scope-2
+        extract ctx-a
+        otel-event on-backend-http-request
+@end
+
+@case scope-inject-use-vars-name-warning-ok
+@kw scope:inject
+@want ok
+@warn lowercases letters and maps '-' to 'D'
+@body
+        span sp1 root
+        inject Ctx-Upper use-vars
+@end
