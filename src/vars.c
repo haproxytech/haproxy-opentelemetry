@@ -280,7 +280,7 @@ void flt_otel_vars_dump(struct stream *s)
  * DESCRIPTION
  *   Normalizes a variable name component into the output buffer.  Adds a
  *   dot separator between components when needed.  When <flag_cpy> is set,
- *   the name is copied verbatim; otherwise, dashes are replaced with
+ *   the name is copied unchanged; otherwise, dashes are replaced with
  *   FLT_OTEL_VAR_CHAR_DASH, spaces with FLT_OTEL_VAR_CHAR_SPACE, and uppercase
  *   letters are converted to lowercase.
  *
