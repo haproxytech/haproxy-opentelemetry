@@ -393,12 +393,14 @@ static int flt_otel_denormalize_name(const char *var_name, char *name, size_t si
 {
 	int len;
 
+	OTELC_FUNC("\"%s\", %p, %zu, %p:%p", OTELC_STR_ARG(var_name), name, size, OTELC_DPTR_ARGS(err));
+
 	/* Reverse character substitutions applied during normalization. */
 	for (len = 0; var_name[len] != '\0'; len++) {
 		if (len >= (size - 1)) {
 			FLT_OTEL_ERR_VAR_REV();
 
-			return FLT_OTEL_RET_ERROR;
+			OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
 		}
 
 		if (var_name[len] == FLT_OTEL_VAR_CHAR_DASH)
@@ -410,7 +412,7 @@ static int flt_otel_denormalize_name(const char *var_name, char *name, size_t si
 	}
 	name[len] = '\0';
 
-	return len;
+	OTELC_RETURN_INT(len);
 }
 
 
@@ -479,6 +481,8 @@ static int flt_otel_var_name(const char *scope, const char *prefix, const char *
  */
 static inline void flt_otel_smp_init(struct stream *s, struct sample *smp, uint opt, int type, const char *data)
 {
+	OTELC_FUNC("%p, %p, %u, %d, \"%s\"", s, smp, opt, type, OTELC_STR_ARG(data));
+
 	(void)memset(smp, 0, sizeof(*smp));
 	(void)smp_set_owner(smp, s->be, s->sess, s, opt | SMP_OPT_FINAL);
 
@@ -487,6 +491,8 @@ static inline void flt_otel_smp_init(struct stream *s, struct sample *smp, uint 
 
 		chunk_initstr(&(smp->data.u.str), data);
 	}
+
+	OTELC_RETURN();
 }
 
 
@@ -1087,18 +1093,22 @@ struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, co
  */
 static struct vars *flt_otel_vars_get_scope(struct stream *s, const char *scope)
 {
-	if (strcmp(scope, "txn") == 0)
-		return &(s->vars_txn);
-	else if (strcmp(scope, "req") == 0)
-		return &(s->vars_reqres);
-	else if (strcmp(scope, "res") == 0)
-		return &(s->vars_reqres);
-	else if (strcmp(scope, "sess") == 0)
-		return &(s->sess->vars);
-	else if (strcmp(scope, "proc") == 0)
-		return &proc_vars;
+	struct vars *retptr = NULL;
 
-	return NULL;
+	OTELC_FUNC("%p, \"%s\"", s, OTELC_STR_ARG(scope));
+
+	if (strcmp(scope, "txn") == 0)
+		retptr = &(s->vars_txn);
+	else if (strcmp(scope, "req") == 0)
+		retptr = &(s->vars_reqres);
+	else if (strcmp(scope, "res") == 0)
+		retptr = &(s->vars_reqres);
+	else if (strcmp(scope, "sess") == 0)
+		retptr = &(s->sess->vars);
+	else if (strcmp(scope, "proc") == 0)
+		retptr = &proc_vars;
+
+	OTELC_RETURN_PTR(retptr);
 }
 
 
