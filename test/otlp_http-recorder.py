@@ -6,7 +6,7 @@
 #
 # Listens for OTLP/HTTP POST requests on /v1/(traces|metrics|logs) and appends
 # each request (headers + body) to the configured output file.  JSON bodies are
-# written verbatim, or re-emitted with indentation when --pretty is set; non-
+# written as received, or re-emitted with indentation when --pretty is set; non-
 # JSON bodies (e.g. protobuf) are written base64-encoded so that the log file
 # stays text-safe.  Bodies sent with Content-Encoding: gzip are decompressed
 # before recording (the original header is preserved in the record, and a note

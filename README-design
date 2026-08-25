@@ -248,7 +248,7 @@ lines tallied in log.sup_pending and reported as a suffix on the next emitted
 line, and counted in log.sup_total, a lifetime total that is never reset.
 
 A message may quote a sample value, so whatever bytes the peer sent would reach
-the log verbatim.  Both helpers therefore escape the text before logging it,
+the log as sent.  Both helpers therefore escape the text before logging it,
 through flt_otel_str_escape() (util.c): the non-printable bytes are rewritten
 in HAProxy's '#XX' form and the length is bounded by FLT_OTEL_LOG_MSG_SIZE.
 

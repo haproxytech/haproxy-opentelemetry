@@ -12,7 +12,7 @@ otlp_http-recorder.py
 A simple OTLP/HTTP receiver that records all incoming traffic to files.  It
 listens for OTLP/HTTP POST requests on /v1/traces, /v1/metrics and /v1/logs
 and appends each request (headers and body) to the output file of the matching
-signal.  JSON bodies are written verbatim, or re-emitted with indentation when
+signal.  JSON bodies are written unchanged, or re-emitted with indentation when
 --pretty is set; non-JSON bodies (e.g. protobuf) are written base64-encoded so
 that the log file stays text-safe.  Bodies sent with Content-Encoding: gzip are
 decompressed before recording.
