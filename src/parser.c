@@ -2435,7 +2435,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		if (!(retval & ERR_CODE) && (conf_ctx->flags & FLT_OTEL_CTX_USE_HEADERS) &&
 		    (flt_otel_current_scope->event != FLT_OTEL_EVENT__NONE) &&
 		    !flt_otel_event_data[flt_otel_current_scope->event].flag_http_extract)
-			FLT_OTEL_PARSE_ERR(&err, "%s '%s' : cannot use on this event", args[0], args[1]);
+			FLT_OTEL_PARSE_ERR(&err, "%s '%s' : " FLT_OTEL_MSG_CTXEVENT, args[0], args[1]);
 
 		if ((conf_ctx != NULL) && (conf_ctx->flags & FLT_OTEL_CTX_USE_VARS))
 			flt_otel_parse_ctx_name_warn(file, line, args[0], args[1]);
@@ -2513,7 +2513,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			if (!(retval & ERR_CODE) && !flt_otel_event_data[flt_otel_current_scope->event].flag_http_extract)
 				list_for_each_entry(conf_ctx, &(flt_otel_current_scope->contexts), list)
 					if (conf_ctx->flags & FLT_OTEL_CTX_USE_HEADERS) {
-						FLT_OTEL_PARSE_ERR(&err, "'%s' : extract '%s' : cannot use on this event", args[0], conf_ctx->id);
+						FLT_OTEL_PARSE_ERR(&err, "'%s' : extract '%s' : " FLT_OTEL_MSG_CTXEVENT, args[0], conf_ctx->id);
 
 						break;
 					}
@@ -2683,7 +2683,7 @@ static int flt_otel_post_parse_cfg_scope(void)
 		 */
 		if ((conf_span->ctx_id != NULL) && (strcmp(conf_span->ctx_id, FLT_OTEL_PARSE_CTX_AUTONAME) != 0) && (conf_span->ctx_flags & FLT_OTEL_CTX_USE_HEADERS))
 			if (!flt_otel_event_data[flt_otel_current_scope->event].flag_http_inject)
-				FLT_OTEL_POST_PARSE_ALERT("inject '%s' : cannot use on this event", conf_span->cfg_line, conf_span->ctx_id);
+				FLT_OTEL_POST_PARSE_ALERT("inject '%s' : " FLT_OTEL_MSG_CTXEVENT, conf_span->cfg_line, conf_span->ctx_id);
 	}
 
 	/* Validate idle-timeout / on-idle-timeout consistency. */
@@ -2692,7 +2692,7 @@ static int flt_otel_post_parse_cfg_scope(void)
 			FLT_OTEL_POST_PARSE_ALERT("'%s' : 'idle-timeout' is required for event 'on-idle-timeout'", flt_otel_current_scope->cfg_line, flt_otel_current_scope->id);
 	}
 	else if (flt_otel_current_scope->event != FLT_OTEL_EVENT__IDLE_TIMEOUT) {
-		FLT_OTEL_POST_PARSE_ALERT("'%s' : 'idle-timeout' can only be used with event 'on-idle-timeout'", flt_otel_current_scope->cfg_line, flt_otel_current_scope->id);
+		FLT_OTEL_POST_PARSE_ALERT("'%s' : 'idle-timeout' " FLT_OTEL_MSG_IDLEEVENT, flt_otel_current_scope->cfg_line, flt_otel_current_scope->id);
 	}
 
 	if (retval & ERR_CODE)
