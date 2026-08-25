@@ -70,15 +70,17 @@ static int flt_otel_cond_pass(struct acl_cond *cond, struct stream *s, uint dir)
 	enum acl_test_res res;
 	int               rc = 1;
 
+	OTELC_FUNC("%p, %p, %u", cond, s, dir);
+
 	if (cond == NULL)
-		return rc;
+		OTELC_RETURN_INT(rc);
 
 	res = acl_exec_cond(cond, s->be, s->sess, s, dir | SMP_OPT_FINAL);
 	rc  = acl_pass(res);
 	if (cond->pol == ACL_COND_UNLESS)
 		rc = !rc;
 
-	return rc;
+	OTELC_RETURN_INT(rc);
 }
 
 
@@ -712,10 +714,10 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 		struct flt_otel_conf_exception *conf_exc;
 
 		list_for_each_entry(conf_exc, &(conf_span->exceptions), list) {
-			struct flt_otel_conf_sample   *exc_sample;
-			struct flt_otel_scope_data_kv  exc_attr;
-			struct otelc_value             msg_value;
-			const char                    *message = NULL;
+			struct flt_otel_conf_sample    *exc_sample;
+			struct flt_otel_scope_data_kv   exc_attr;
+			struct otelc_value              msg_value;
+			const char                     *message = NULL;
 
 			if (flt_otel_cond_pass(conf_exc->cond, s, dir) == 0)
 				continue;

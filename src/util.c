@@ -278,8 +278,10 @@ int flt_otel_args_count(const char **args)
 {
 	int i, retval = 0;
 
+	OTELC_FUNC("%p", args);
+
 	if (args == NULL)
-		return retval;
+		OTELC_RETURN_INT(retval);
 
 	/*
 	 * It is possible that some arguments within the configuration line
@@ -301,7 +303,7 @@ int flt_otel_args_count(const char **args)
 		if (FLT_OTEL_ARG_ISVALID(i))
 			retval = i + 1;
 
-	return retval;
+	OTELC_RETURN_INT(retval);
 }
 
 
@@ -331,10 +333,12 @@ int flt_otel_args_concat(const char **args, int idx, int n, char **str)
 {
 	int i, argc;
 
+	OTELC_FUNC("%p, %d, %d, %p:%p", args, idx, n, OTELC_DPTR_ARGS(str));
+
 	if ((args == NULL) || (str == NULL))
-		return FLT_OTEL_RET_ERROR;
+		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
 	else if ((idx < 0) || (n < 0))
-		return FLT_OTEL_RET_ERROR;
+		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
 
 	argc = (n == 0) ? flt_otel_args_count(args) : OTELC_MIN(flt_otel_args_count(args), idx + n);
 
@@ -343,7 +347,7 @@ int flt_otel_args_concat(const char **args, int idx, int n, char **str)
 
 	OTELC_DBG(DEBUG, "args[%d, %d]: '%s'", idx, argc, (*str == NULL) ? "" : *str);
 
-	return (*str == NULL) ? FLT_OTEL_RET_ERROR : (i - idx);
+	OTELC_RETURN_INT((*str == NULL) ? FLT_OTEL_RET_ERROR : (i - idx));
 }
 
 
@@ -372,6 +376,8 @@ int flt_otel_flush_budget(const struct timespec *deadline, struct timespec *time
 {
 	struct timespec ts_now;
 
+	OTELC_FUNC("%p, %p", deadline, timeout);
+
 	(void)clock_gettime(CLOCK_MONOTONIC, &ts_now);
 
 	timeout->tv_sec  = deadline->tv_sec - ts_now.tv_sec;
@@ -383,9 +389,9 @@ int flt_otel_flush_budget(const struct timespec *deadline, struct timespec *time
 	}
 
 	if (timeout->tv_sec < 0)
-		return 0;
+		OTELC_RETURN_INT(0);
 
-	return ((timeout->tv_sec > 0) || (timeout->tv_nsec > 0)) ? 1 : 0;
+	OTELC_RETURN_INT(((timeout->tv_sec > 0) || (timeout->tv_nsec > 0)) ? 1 : 0);
 }
 
 
@@ -417,8 +423,10 @@ const char *flt_otel_str_escape(char *dst, size_t size, const char *src)
 	static const char hex[] = "0123456789ABCDEF";
 	size_t            i;
 
+	OTELC_FUNC("%p, %zu, \"%s\"", dst, size, OTELC_STR_ARG(src));
+
 	if ((dst == NULL) || (size == 0))
-		return src;
+		OTELC_RETURN_EX(src, const char *, "%p");
 	else if (src == NULL)
 		src = "";
 
@@ -439,7 +447,7 @@ const char *flt_otel_str_escape(char *dst, size_t size, const char *src)
 
 	dst[i] = '\0';
 
-	return dst;
+	OTELC_RETURN_EX(dst, const char *, "%p");
 }
 
 
@@ -453,7 +461,9 @@ int flt_otel_qsort_compar_double(const void *p1, const void *p2)
 	double a = *(const double *)p1;
 	double b = *(const double *)p2;
 
-	return (a < b) ? -1 : ((a > b) ? 1 : 0);
+	OTELC_FUNC("%p, %p", p1, p2);
+
+	OTELC_RETURN_INT((a < b) ? -1 : ((a > b) ? 1 : 0));
 }
 
 
@@ -485,8 +495,10 @@ bool flt_otel_strtod(const char *nptr, double *value, double limit_min, double l
 	char *endptr = NULL;
 	bool  retval = false;
 
+	OTELC_FUNC("\"%s\", %p, %.2f, %.2f, %p:%p", OTELC_STR_ARG(nptr), value, limit_min, limit_max, OTELC_DPTR_ARGS(err));
+
 	if (value == NULL)
-		return retval;
+		OTELC_RETURN_EX(retval, bool, "%hhu");
 
 	errno = 0;
 
@@ -498,7 +510,7 @@ bool flt_otel_strtod(const char *nptr, double *value, double limit_min, double l
 	else
 		retval = true;
 
-	return retval;
+	OTELC_RETURN_EX(retval, bool, "%hhu");
 }
 
 
@@ -530,8 +542,10 @@ bool flt_otel_strtoll(const char *nptr, int64_t *value, int64_t limit_min, int64
 	char *endptr = NULL;
 	bool  retval = false;
 
+	OTELC_FUNC("\"%s\", %p, %" PRId64 ", %" PRId64 ", %p:%p", OTELC_STR_ARG(nptr), value, limit_min, limit_max, OTELC_DPTR_ARGS(err));
+
 	if (value == NULL)
-		return retval;
+		OTELC_RETURN_EX(retval, bool, "%hhu");
 
 	errno = 0;
 
@@ -543,7 +557,7 @@ bool flt_otel_strtoll(const char *nptr, int64_t *value, int64_t limit_min, int64
 	else
 		retval = true;
 
-	return retval;
+	OTELC_RETURN_EX(retval, bool, "%hhu");
 }
 
 

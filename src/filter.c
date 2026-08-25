@@ -333,6 +333,8 @@ bool flt_otel_is_disabled(const struct filter *f FLT_OTEL_DBG_ARGS(, int event))
 #endif
 	bool                        retval;
 
+	OTELC_FUNC("%p" FLT_OTEL_DBG_ARGS(", %d"), f FLT_OTEL_DBG_ARGS(, event));
+
 	retval = FLT_OTEL_RT_CTX(f->ctx)->flag_disabled ? 1 : 0;
 
 #ifdef DEBUG_OTEL
@@ -344,7 +346,7 @@ bool flt_otel_is_disabled(const struct filter *f FLT_OTEL_DBG_ARGS(, int event))
 		OTELC_DBG(DEBUG, "filter '%s', type: %s%s", conf->id, flt_otel_type(f), msg);
 #endif
 
-	return retval;
+	OTELC_RETURN_EX(retval, bool, "%hhu");
 }
 
 
@@ -380,6 +382,8 @@ static int flt_otel_return_int(const struct filter *f, char **err, int retval)
 	char                             buffer[FLT_OTEL_LOG_MSG_SIZE];
 	const char                      *msg;
 
+	OTELC_FUNC("%p, %p:%p, %d", f, OTELC_DPTR_ARGS(err), retval);
+
 	/* Disable the filter on hard errors; ignore on soft errors. */
 	if ((retval == FLT_OTEL_RET_ERROR) || ((err != NULL) && (*err != NULL))) {
 		/* A message may quote a sample value, so it is escaped here. */
@@ -412,7 +416,7 @@ static int flt_otel_return_int(const struct filter *f, char **err, int retval)
 
 	FLT_OTEL_ERR_FREE(*err);
 
-	return retval;
+	OTELC_RETURN_INT(retval);
 }
 
 
@@ -438,7 +442,11 @@ static int flt_otel_return_int(const struct filter *f, char **err, int retval)
  */
 static void flt_otel_return_void(const struct filter *f, char **err)
 {
+	OTELC_FUNC("%p, %p:%p", f, OTELC_DPTR_ARGS(err));
+
 	(void)flt_otel_return_int(f, err, FLT_OTEL_RET_OK);
+
+	OTELC_RETURN();
 }
 
 
@@ -2063,13 +2071,18 @@ static int flt_otel_ops_channel_start_analyze(struct stream *s, struct filter *f
  */
 static int flt_otel_get_event(uint an_bit)
 {
-	int i;
+	int i, retval = FLT_OTEL_RET_ERROR;
+
+	OTELC_FUNC("0x%08x", an_bit);
 
 	for (i = 0; i < OTELC_TABLESIZE(flt_otel_event_data); i++)
-		if (flt_otel_event_data[i].an_bit == an_bit)
-			return i;
+		if (flt_otel_event_data[i].an_bit == an_bit) {
+			retval = i;
 
-	return FLT_OTEL_RET_ERROR;
+			break;
+		}
+
+	OTELC_RETURN_INT(retval);
 }
 
 
