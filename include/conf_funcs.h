@@ -40,7 +40,7 @@
 		if (head != NULL)                                                                                             \
 			list_for_each_entry(ptr, head, list)                                                                  \
 				if (strcmp(ptr->_id_, id) == 0) {                                                             \
-					FLT_OTEL_ERR("'%s' : already defined", id);                                           \
+					FLT_OTEL_ERR("'%s' : " FLT_OTEL_MSG_ALRDEF, id);                                      \
 		                                                                                                              \
 					OTELC_RETURN_PTR(retptr);                                                             \
 				}                                                                                             \

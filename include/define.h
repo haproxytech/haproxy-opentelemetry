@@ -62,6 +62,11 @@
 	char                       *p = b[__idx]; \
 	__idx = (__idx + 1) % (m)
 
+/* Messages that more than one error site reports. */
+#define FLT_OTEL_MSG_ALRDEF          "already defined"
+#define FLT_OTEL_MSG_IDLEEVENT       "can only be used with event 'on-idle-timeout'"
+#define FLT_OTEL_MSG_CTXEVENT        "cannot use on this event"
+
 /* Format an error message if none has been set yet. */
 #define FLT_OTEL_ERR(f, ...)                                                \
 	do {                                                                \
