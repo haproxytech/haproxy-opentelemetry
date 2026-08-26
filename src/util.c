@@ -1541,8 +1541,9 @@ int flt_otel_ctx_field_to_str(const struct otelc_span *span, const struct otelc_
 			if (flt_otel_inject_text_map(span, &writer) != FLT_OTEL_RET_ERROR) {
 				text_map = &(writer.text_map);
 
+				/* The propagator writes a lower case key. */
 				for (i = 0; i < text_map->count; i++)
-					if (strcasecmp(text_map->key[i], FLT_OTEL_BAGGAGE_HEADER) == 0) {
+					if (strcmp(text_map->key[i], FLT_OTEL_BAGGAGE_HEADER) == 0) {
 						(void)snprintf(value, size, "%s", text_map->value[i]);
 
 						break;

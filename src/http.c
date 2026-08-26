@@ -139,6 +139,9 @@ struct otelc_text_map *flt_otel_http_headers_get(struct channel *chn, const char
 			/*
 			 * The name must be longer than the prefix; a zero
 			 * length key is read as a NUL terminated string.
+			 * HTX holds the header name in lower case, the
+			 * configured prefix may carry upper case, so the
+			 * two are compared without regard to case.
 			 */
 			if (((prefix_len == 0) && (n.len > 0)) || ((n.len > prefix_len) && (strncasecmp(n.ptr, prefix, len) == 0))) {
 				if (retptr == NULL) {
@@ -298,7 +301,8 @@ int flt_otel_http_header_set(struct channel *chn, const char *prefix, const char
 		 * If the <name> parameter is not set, then remove all headers
 		 * that start with the contents of the <prefix> parameter.  The
 		 * match uses a copy so that the full header name stays intact
-		 * for the debug output.
+		 * for the debug output, and ignores case because HTX holds the
+		 * name in lower case while the configured prefix need not be.
 		 */
 		m = n;
 		if (!OTELC_STR_IS_VALID(name) && (m.len > ist_name.len))
