@@ -345,7 +345,7 @@ static int flt_otel_parse_cfg_sample_expr(const char *file, int line, char **arg
  *   flt_otel_parse_cfg_sample - sample definition parser
  *
  * SYNOPSIS
- *   static int flt_otel_parse_cfg_sample(const char *file, int line, char **args, int idx, int n, const struct otelc_value *extra, struct list *head, char **err)
+ *   static int flt_otel_parse_cfg_sample(const char *file, int line, char **args, int idx, int n, const char *key, const struct otelc_value *extra, struct list *head, char **err)
  *
  * ARGUMENTS
  *   file  - configuration file path
@@ -353,6 +353,7 @@ static int flt_otel_parse_cfg_sample_expr(const char *file, int line, char **arg
  *   args  - configuration line arguments array
  *   idx   - args[] position where the sample value starts
  *   n     - maximum number of sample expressions to parse (0 means unlimited)
+ *   key   - sample key, or NULL to take the argument before the value
  *   extra - optional extra data (event name or status code)
  *   head  - list head for parsed sample definitions
  *   err   - indirect pointer to error message string
@@ -387,15 +388,15 @@ static int flt_otel_parse_cfg_sample_expr(const char *file, int line, char **arg
  *   Returns ERR_NONE (== 0) in case of success, or a combination of ERR_* flags
  *   if an error is encountered.
  */
-static int flt_otel_parse_cfg_sample(const char *file, int line, char **args, int idx, int n, const struct otelc_value *extra, struct list *head, char **err)
+static int flt_otel_parse_cfg_sample(const char *file, int line, char **args, int idx, int n, const char *key, const struct otelc_value *extra, struct list *head, char **err)
 {
 	struct flt_otel_conf_sample *sample;
 	int                          retval = ERR_NONE;
 	int                          count = 0;
 
-	OTELC_FUNC("\"%s\", %d, %p, %d, %d, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, idx, n, extra, head, OTELC_DPTR_ARGS(err));
+	OTELC_FUNC("\"%s\", %d, %p, %d, %d, \"%s\", %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, idx, n, OTELC_STR_ARG(key), extra, head, OTELC_DPTR_ARGS(err));
 
-	sample = flt_otel_conf_sample_init_ex((const char **)args, idx, n, extra, line, head, err);
+	sample = flt_otel_conf_sample_init_ex((const char **)args, idx, n, key, extra, line, head, err);
 	if (sample == NULL)
 		FLT_OTEL_PARSE_ERR_NOMEM(err, args[0]);
 
@@ -531,7 +532,7 @@ static int flt_otel_parse_cfg_time(const char *file, int line, char **args, int 
 	if (!FLT_OTEL_ARG_ISVALID(*idx + offset)) {
 		FLT_OTEL_PARSE_ERR_FEWARGS(err, args[*idx], pdata);
 	} else {
-		retval = flt_otel_parse_cfg_sample(file, line, args, *idx + offset, 1, &extra, head, err);
+		retval = flt_otel_parse_cfg_sample(file, line, args, *idx + offset, 1, FLT_OTEL_PARSE_LOG_RECORD_TIME, &extra, head, err);
 		if (!(retval & ERR_CODE))
 			*idx += offset;
 	}
@@ -1336,7 +1337,7 @@ static int flt_otel_parse_cfg_sample_cond(const char *file, int line, char **arg
 		OTELC_RETURN_INT(retval);
 	}
 
-	retval = flt_otel_parse_cfg_sample(file, line, args, idx, n, extra, head, err);
+	retval = flt_otel_parse_cfg_sample(file, line, args, idx, n, NULL, extra, head, err);
 	if (!(retval & ERR_CODE) && (cond_pos != 0)) {
 		/* Attach the trailing condition to the just-parsed sample. */
 		sample = LIST_PREV(head, typeof(sample), list);
@@ -1586,7 +1587,7 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 				if (!FLT_OTEL_ARG_ISVALID(i) || !FLT_OTEL_ARG_ISVALID(i + 1))
 					FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
 				else {
-					retval = flt_otel_parse_cfg_sample(file, line, args, i + 1, 1, NULL, &(instr->attributes), err);
+					retval = flt_otel_parse_cfg_sample(file, line, args, i + 1, 1, NULL, NULL, &(instr->attributes), err);
 					if (!(retval & ERR_CODE))
 						i++;
 				}
@@ -1652,7 +1653,7 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 				else if (!LIST_ISEMPTY(&(instr->samples)))
 					FLT_OTEL_PARSE_ERR_ALRSET(err, args[i], pdata);
 				else {
-					retval = flt_otel_parse_cfg_sample(file, line, args, ++i, 1, NULL, &(instr->samples), err);
+					retval = flt_otel_parse_cfg_sample(file, line, args, ++i, 1, FLT_OTEL_PARSE_INSTRUMENT_VALUE, NULL, &(instr->samples), err);
 
 					if (!(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i + 1) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_AGGR) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_DESC) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_UNIT) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_VALUE) && !FLT_OTEL_PARSE_KEYWORD(i + 1, FLT_OTEL_PARSE_INSTRUMENT_BOUNDS) && !FLT_OTEL_ARG_ISCOND(i + 1))
 						FLT_OTEL_PARSE_ERR(err, "'%s' : only one sample expression allowed per instrument", args[0]);
@@ -1707,6 +1708,7 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args, const struct flt_otel_parse_data *pdata, char **err)
 {
 	struct flt_otel_conf_log_record *log;
+	const char                      *body_key = FLT_OTEL_CONF_HDR_SPECIAL FLT_OTEL_PARSE_KW_LOG_RECORD;
 	otelc_log_severity_t             severity;
 	int                              i, cond_pos = 0, retval = ERR_NONE;
 
@@ -1768,7 +1770,7 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
 			if (!FLT_OTEL_ARG_ISVALID(i + 1) || !FLT_OTEL_ARG_ISVALID(i + 2))
 				FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
 			else {
-				retval = flt_otel_parse_cfg_sample(file, line, args, i + 2, 1, NULL, &(log->attributes), err);
+				retval = flt_otel_parse_cfg_sample(file, line, args, i + 2, 1, NULL, NULL, &(log->attributes), err);
 				if (!(retval & ERR_CODE))
 					i += 2;
 			}
@@ -1785,7 +1787,7 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
 			if (cond_pos == i) {
 				FLT_OTEL_PARSE_ERR(err, "'%s' : no sample expression before '%s'", args[0], args[cond_pos]);
 			} else {
-				retval = flt_otel_parse_cfg_sample(file, line, args, i, (cond_pos == 0) ? 0 : (cond_pos - i), NULL, &(log->samples), err);
+				retval = flt_otel_parse_cfg_sample(file, line, args, i, (cond_pos == 0) ? 0 : (cond_pos - i), body_key, NULL, &(log->samples), err);
 				if (!(retval & ERR_CODE) && (cond_pos != 0))
 					retval = flt_otel_parse_attach_cond(file, line, args, cond_pos, &(log->cond), err);
 			}
@@ -1863,7 +1865,7 @@ static int flt_otel_parse_cfg_exception(const char *file, int line, char **args,
 			if (j == (i + 1))
 				FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
 			else
-				retval = flt_otel_parse_cfg_sample(file, line, args, i + 1, j - (i + 1), NULL, &(exc->message), err);
+				retval = flt_otel_parse_cfg_sample(file, line, args, i + 1, j - (i + 1), FLT_OTEL_PARSE_EXCEPTION_MESSAGE, NULL, &(exc->message), err);
 
 			i = j - 1;
 		}
@@ -1871,7 +1873,7 @@ static int flt_otel_parse_cfg_exception(const char *file, int line, char **args,
 			if (!FLT_OTEL_ARG_ISVALID(i + 1) || !FLT_OTEL_ARG_ISVALID(i + 2))
 				FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
 			else {
-				retval = flt_otel_parse_cfg_sample(file, line, args, i + 2, 1, NULL, &(exc->attributes), err);
+				retval = flt_otel_parse_cfg_sample(file, line, args, i + 2, 1, NULL, NULL, &(exc->attributes), err);
 				if (!(retval & ERR_CODE))
 					i += 2;
 			}
@@ -2257,7 +2259,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 					if (!FLT_OTEL_ARG_ISVALID(i + 1)) {
 						FLT_OTEL_PARSE_ERR_FEWARGS(&err, args[i], pdata);
 					} else {
-						retval = flt_otel_parse_cfg_sample(file, line, args, i + 1, 1, NULL, &(conf_link->attributes), &err);
+						retval = flt_otel_parse_cfg_sample(file, line, args, i + 1, 1, NULL, NULL, &(conf_link->attributes), &err);
 						if (!(retval & ERR_CODE))
 							i++;
 					}
