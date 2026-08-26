@@ -92,21 +92,12 @@ static int flt_otel_parse_keyword(char **ptr, char **args, int cur_arg, int pos,
 	OTELC_FUNC("%p:%p, %p, %d, %d, %p:%p, \"%s\"", OTELC_DPTR_ARGS(ptr), args, cur_arg, pos, OTELC_DPTR_ARGS(err), OTELC_STR_ARG(err_msg));
 
 	/* Reject duplicate keyword assignments. */
-	if (*ptr != NULL) {
-		if (cur_arg == pos)
-			FLT_OTEL_PARSE_ERR(err, FLT_OTEL_FMT_TYPE "%s already set", err_msg);
-		else
-			FLT_OTEL_PARSE_ERR(err, "'%s' : %s already set", args[cur_arg], err_msg);
-	}
-	else if (!FLT_OTEL_ARG_ISVALID(pos + 1)) {
-		if (cur_arg == pos)
-			FLT_OTEL_PARSE_ERR(err, FLT_OTEL_FMT_TYPE "no %s set", err_msg);
-		else
-			FLT_OTEL_PARSE_ERR(err, "'%s' : no %s set", args[cur_arg], err_msg);
-	}
-	else {
+	if (*ptr != NULL)
+		FLT_OTEL_PARSE_ERR(err, "'%s' : %s already set", args[cur_arg], err_msg);
+	else if (!FLT_OTEL_ARG_ISVALID(pos + 1))
+		FLT_OTEL_PARSE_ERR(err, "'%s' : no %s set", args[cur_arg], err_msg);
+	else
 		retval = flt_otel_parse_strdup(ptr, NULL, args[pos + 1], err, args[cur_arg]);
-	}
 
 	OTELC_RETURN_INT(retval);
 }
