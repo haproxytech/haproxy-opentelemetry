@@ -7,9 +7,10 @@
  * Macro that generates a flt_otel_conf_<type>_init() function.  The generated
  * function allocates and initializes a configuration structure of the given
  * type, checks for duplicate names in the list, and optionally runs a custom
- * initializer body.
+ * initializer body.  The name must stay below <_max_> characters; a type whose
+ * name is not an identifier passes FLT_OTEL_LEN_UNLIMITED and is not measured.
  */
-#define FLT_OTEL_CONF_FUNC_INIT(_type_, _id_, _func_)                                                                         \
+#define FLT_OTEL_CONF_FUNC_INIT(_type_, _id_, _max_, _func_)                                                                  \
 	struct flt_otel_conf_##_type_ *flt_otel_conf_##_type_##_init(const char *id, int line, struct list *head, char **err) \
 	{                                                                                                                     \
 		struct flt_otel_conf_##_type_ *retptr = NULL;                                                                 \
@@ -31,8 +32,8 @@
 		}                                                                                                             \
 		                                                                                                              \
 		_id_##_len = strlen(id);                                                                                      \
-		if (_id_##_len >= FLT_OTEL_ID_MAXLEN) {                                                                       \
-			FLT_OTEL_ERR("'%s' : name too long", id);                                                             \
+		if (_id_##_len >= (_max_)) {                                                                                  \
+			FLT_OTEL_ERR("'%s' : " FLT_OTEL_MSG_NAMELONG, id);                                                    \
 		                                                                                                              \
 			OTELC_RETURN_PTR(retptr);                                                                             \
 		}                                                                                                             \
