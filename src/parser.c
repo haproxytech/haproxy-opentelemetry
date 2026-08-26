@@ -2922,9 +2922,6 @@ static int flt_otel_parse(char **args, int *cur_arg, struct proxy *px, struct fl
 				retval = flt_otel_parse_strdup(&(conf->sec_name), NULL, args[pos + 1], err, args[*cur_arg]);
 				pos++;
 			}
-
-			if (!(retval & ERR_CODE))
-				retval = flt_otel_parse_cfg(conf, args[*cur_arg], err);
 		}
 		else {
 			FLT_OTEL_PARSE_ERR(err, "'%s' : unknown keyword '%s'", args[*cur_arg], args[pos]);
@@ -2940,6 +2937,14 @@ static int flt_otel_parse(char **args, int *cur_arg, struct proxy *px, struct fl
 
 	if (!(retval & ERR_CODE) && (conf->cfg_file == NULL))
 		FLT_OTEL_PARSE_ERR(err, "'%s' : no configuration file specified", args[*cur_arg]);
+
+	/*
+	 * The file is read only once the whole line has been, so the top-level
+	 * scope it selects is known whatever the order of the keywords and
+	 * whether the ID is written at all.
+	 */
+	if (!(retval & ERR_CODE))
+		retval = flt_otel_parse_cfg(conf, args[*cur_arg], err);
 
 	if (retval & ERR_CODE) {
 		flt_otel_conf_free(&conf);
