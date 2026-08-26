@@ -315,12 +315,13 @@ struct flt_otel_conf_sample *flt_otel_conf_sample_init_code(int code, const char
  *   flt_otel_conf_sample_init_ex - extended sample initialization
  *
  * SYNOPSIS
- *   struct flt_otel_conf_sample *flt_otel_conf_sample_init_ex(const char **args, int idx, int n, const struct otelc_value *extra, int line, struct list *head, char **err)
+ *   struct flt_otel_conf_sample *flt_otel_conf_sample_init_ex(const char **args, int idx, int n, const char *key, const struct otelc_value *extra, int line, struct list *head, char **err)
  *
  * ARGUMENTS
  *   args  - configuration line arguments array
  *   idx   - position where sample value starts
  *   n     - maximum number of arguments to concatenate (0 means all)
+ *   key   - sample key, or NULL to take the argument before the value
  *   extra - optional extra data (event name or status code)
  *   line  - configuration file line number
  *   head  - list to append to (or NULL)
@@ -328,19 +329,22 @@ struct flt_otel_conf_sample *flt_otel_conf_sample_init_code(int code, const char
  *
  * DESCRIPTION
  *   Creates and initializes a conf_sample structure with extended data.  Calls
- *   flt_otel_conf_sample_init() with <args[idx - 1]> as the sample key to
- *   create the base structure, copies <extra> data (event name string or status
- *   code integer), concatenates the remaining arguments into the sample value
- *   string, and counts the number of sample expressions.
+ *   flt_otel_conf_sample_init() with <key> as the sample key to create the base
+ *   structure, copies <extra> data (event name string or status code integer),
+ *   concatenates the remaining arguments into the sample value string, and
+ *   counts the number of sample expressions.  A keyword whose value follows a
+ *   key passes NULL and the key is read from <args[idx - 1]>; one whose value
+ *   stands on its own names the key itself, so that an argument of the line is
+ *   not taken for one.
  *
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-struct flt_otel_conf_sample *flt_otel_conf_sample_init_ex(const char **args, int idx, int n, const struct otelc_value *extra, int line, struct list *head, char **err)
+struct flt_otel_conf_sample *flt_otel_conf_sample_init_ex(const char **args, int idx, int n, const char *key, const struct otelc_value *extra, int line, struct list *head, char **err)
 {
 	struct flt_otel_conf_sample *retptr = NULL;
 
-	OTELC_FUNC("%p, %d, %d, %p, %d, %p, %p:%p", args, idx, n, extra, line, head, OTELC_DPTR_ARGS(err));
+	OTELC_FUNC("%p, %d, %d, \"%s\", %p, %d, %p, %p:%p", args, idx, n, OTELC_STR_ARG(key), extra, line, head, OTELC_DPTR_ARGS(err));
 
 	OTELC_DBG_VALUE(DEBUG, "extra ", extra);
 
@@ -351,8 +355,7 @@ struct flt_otel_conf_sample *flt_otel_conf_sample_init_ex(const char **args, int
 		OTELC_RETURN_PTR(retptr);
 	}
 
-	/* The sample key is located at the (idx - 1) location of the args[] field. */
-	retptr = flt_otel_conf_sample_init(args[idx - 1], line, head, err);
+	retptr = flt_otel_conf_sample_init((key != NULL) ? key : args[idx - 1], line, head, err);
 	if (retptr == NULL)
 		OTELC_RETURN_PTR(retptr);
 
