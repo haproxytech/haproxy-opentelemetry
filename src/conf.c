@@ -24,7 +24,7 @@
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-FLT_OTEL_CONF_FUNC_INIT(hdr, id, )
+FLT_OTEL_CONF_FUNC_INIT(hdr, id, FLT_OTEL_ID_MAXLEN, )
 
 
 /***
@@ -70,7 +70,7 @@ FLT_OTEL_CONF_FUNC_FREE(hdr, id,
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-FLT_OTEL_CONF_FUNC_INIT(str, str, )
+FLT_OTEL_CONF_FUNC_INIT(str, str, FLT_OTEL_ID_MAXLEN, )
 
 
 /***
@@ -117,7 +117,7 @@ FLT_OTEL_CONF_FUNC_FREE(str, str,
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-FLT_OTEL_CONF_FUNC_INIT(link, ref,
+FLT_OTEL_CONF_FUNC_INIT(link, ref, FLT_OTEL_ID_MAXLEN,
 	LIST_INIT(&(retptr->attributes));
 )
 
@@ -167,7 +167,7 @@ FLT_OTEL_CONF_FUNC_FREE(link, ref,
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-FLT_OTEL_CONF_FUNC_INIT(ph, id, )
+FLT_OTEL_CONF_FUNC_INIT(ph, id, FLT_OTEL_ID_MAXLEN, )
 
 
 /***
@@ -200,7 +200,7 @@ FLT_OTEL_CONF_FUNC_FREE(ph, id,
  *   struct flt_otel_conf_sample_expr *flt_otel_conf_sample_expr_init(const char *id, int line, struct list *head, char **err)
  *
  * ARGUMENTS
- *   id   - identifier string to duplicate
+ *   id   - sample expression text to duplicate
  *   line - configuration file line number
  *   head - list to append to (or NULL)
  *   err  - indirect pointer to error message string
@@ -208,12 +208,13 @@ FLT_OTEL_CONF_FUNC_FREE(ph, id,
  * DESCRIPTION
  *   Allocates and initializes a conf_sample_expr structure.  The <id> string is
  *   duplicated and stored as the expression value.  If <head> is non-NULL, the
- *   structure is appended to the list.
+ *   structure is appended to the list.  The text of an expression is not an
+ *   identifier and has no length limit, unlike the name of the other types.
  *
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-FLT_OTEL_CONF_FUNC_INIT(sample_expr, fmt_expr, )
+FLT_OTEL_CONF_FUNC_INIT(sample_expr, fmt_expr, FLT_OTEL_LEN_UNLIMITED, )
 
 
 /***
@@ -261,7 +262,7 @@ FLT_OTEL_CONF_FUNC_FREE(sample_expr, fmt_expr,
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-FLT_OTEL_CONF_FUNC_INIT(sample, key,
+FLT_OTEL_CONF_FUNC_INIT(sample, key, FLT_OTEL_ID_MAXLEN,
 	LIST_INIT(&(retptr->exprs));
 	lf_expr_init(&(retptr->lf_expr));
 	LIST_INIT(&(retptr->time));
@@ -448,7 +449,7 @@ FLT_OTEL_CONF_FUNC_FREE(sample, key,
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-FLT_OTEL_CONF_FUNC_INIT(context, id, )
+FLT_OTEL_CONF_FUNC_INIT(context, id, FLT_OTEL_ID_MAXLEN, )
 
 
 /***
@@ -495,7 +496,7 @@ FLT_OTEL_CONF_FUNC_FREE(context, id,
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-FLT_OTEL_CONF_FUNC_INIT(span, id,
+FLT_OTEL_CONF_FUNC_INIT(span, id, FLT_OTEL_ID_MAXLEN,
 	LIST_INIT(&(retptr->links));
 	LIST_INIT(&(retptr->attributes));
 	LIST_INIT(&(retptr->events));
@@ -559,7 +560,7 @@ FLT_OTEL_CONF_FUNC_FREE(span, id,
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-FLT_OTEL_CONF_FUNC_INIT(exception, id,
+FLT_OTEL_CONF_FUNC_INIT(exception, id, FLT_OTEL_ID_MAXLEN,
 	LIST_INIT(&(retptr->message));
 	LIST_INIT(&(retptr->attributes));
 )
@@ -615,7 +616,7 @@ FLT_OTEL_CONF_FUNC_FREE(exception, id,
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-FLT_OTEL_CONF_FUNC_INIT(instrument, id,
+FLT_OTEL_CONF_FUNC_INIT(instrument, id, FLT_OTEL_ID_MAXLEN,
 	retptr->idx       = OTELC_METRIC_INSTRUMENT_UNSET;
 	retptr->type      = OTELC_METRIC_INSTRUMENT_UNSET;
 	retptr->aggr_type = OTELC_METRIC_AGGREGATION_UNSET;
@@ -676,7 +677,7 @@ FLT_OTEL_CONF_FUNC_FREE(instrument, id,
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-FLT_OTEL_CONF_FUNC_INIT(log_record, id,
+FLT_OTEL_CONF_FUNC_INIT(log_record, id, FLT_OTEL_ID_MAXLEN,
 	LIST_INIT(&(retptr->time));
 	LIST_INIT(&(retptr->attributes));
 	LIST_INIT(&(retptr->samples));
@@ -733,7 +734,7 @@ FLT_OTEL_CONF_FUNC_FREE(log_record, id,
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-FLT_OTEL_CONF_FUNC_INIT(set_var_ctx, name, )
+FLT_OTEL_CONF_FUNC_INIT(set_var_ctx, name, FLT_OTEL_ID_MAXLEN, )
 
 
 /***
@@ -783,7 +784,7 @@ FLT_OTEL_CONF_FUNC_FREE(set_var_ctx, name,
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-FLT_OTEL_CONF_FUNC_INIT(unset_var, id,
+FLT_OTEL_CONF_FUNC_INIT(unset_var, id, FLT_OTEL_ID_MAXLEN,
 	LIST_INIT(&(retptr->vars));
 )
 
@@ -835,7 +836,7 @@ FLT_OTEL_CONF_FUNC_FREE(unset_var, id,
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-FLT_OTEL_CONF_FUNC_INIT(scope, id,
+FLT_OTEL_CONF_FUNC_INIT(scope, id, FLT_OTEL_ID_MAXLEN,
 	LIST_INIT(&(retptr->acls));
 	LIST_INIT(&(retptr->contexts));
 	LIST_INIT(&(retptr->spans));
@@ -910,7 +911,7 @@ FLT_OTEL_CONF_FUNC_FREE(scope, id,
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-FLT_OTEL_CONF_FUNC_INIT(group, id,
+FLT_OTEL_CONF_FUNC_INIT(group, id, FLT_OTEL_ID_MAXLEN,
 	LIST_INIT(&(retptr->ph_scopes));
 )
 
@@ -963,7 +964,7 @@ FLT_OTEL_CONF_FUNC_FREE(group, id,
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
-FLT_OTEL_CONF_FUNC_INIT(instr, id,
+FLT_OTEL_CONF_FUNC_INIT(instr, id, FLT_OTEL_ID_MAXLEN,
 	retptr->rate_limit = FLT_OTEL_FLOAT_U32(100.0);
 	init_new_proxy(&(retptr->log.proxy));
 	LIST_INIT(&(retptr->acls));
