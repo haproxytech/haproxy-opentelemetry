@@ -418,7 +418,7 @@ struct flt_otel_conf {
 
 
 /* Allocate and initialize a sample from parsed arguments. */
-struct flt_otel_conf_sample *flt_otel_conf_sample_init_ex(const char **args, int idx, int n, const struct otelc_value *extra, int line, struct list *head, char **err);
+struct flt_otel_conf_sample *flt_otel_conf_sample_init_ex(const char **args, int idx, int n, const char *key, const struct otelc_value *extra, int line, struct list *head, char **err);
 
 /* Allocate and initialize a description-less status sample (code only). */
 struct flt_otel_conf_sample *flt_otel_conf_sample_init_code(int code, const char *key, int line, struct list *head, char **err);
