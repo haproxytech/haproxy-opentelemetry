@@ -336,10 +336,12 @@ struct flt_otel_scope_context *flt_otel_scope_context_init(struct flt_otel_runti
 	/*
 	 * Retain the inbound baggage carrier, if present, so the set-var-ctx
 	 * directive can later read individual baggage entries; the span context
-	 * itself does not carry baggage.
+	 * itself does not carry baggage.  The key is lower case whichever
+	 * carrier filled it: HTX stores a header name that way and the
+	 * variable names are normalized to it.
 	 */
 	for (i = 0; i < text_map->count; i++)
-		if (strcasecmp(text_map->key[i], FLT_OTEL_BAGGAGE_HEADER) == 0) {
+		if (strcmp(text_map->key[i], FLT_OTEL_BAGGAGE_HEADER) == 0) {
 			retptr->baggage = OTELC_STRDUP(text_map->value[i]);
 
 			break;
