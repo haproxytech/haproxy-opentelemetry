@@ -314,13 +314,21 @@ static int flt_otel_parse_cfg_sample_expr(const char *file, int line, char **arg
 
 	OTELC_FUNC("\"%s\", %d, %p, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, idx, head, OTELC_DPTR_ARGS(err));
 
-	expr = flt_otel_conf_sample_expr_init(args[*idx], line, head, err);
+	/*
+	 * The expressions after a key make one value together, so the same one
+	 * may be written again; the structure is created unattached to bypass
+	 * the duplicate-name check and appended once it has parsed.
+	 */
+	expr = flt_otel_conf_sample_expr_init(args[*idx], line, NULL, err);
 	if (expr != NULL) {
 		expr->expr = sample_parse_expr(args, idx, file, line, err, &(flt_otel_current_config->proxy->conf.args), NULL);
-		if (expr->expr != NULL)
+		if (expr->expr != NULL) {
+			LIST_APPEND(head, &(expr->list));
+
 			OTELC_DBG(DEBUG, "sample expression '%s' added", expr->fmt_expr);
-		else
+		} else {
 			retval |= ERR_ABORT | ERR_ALERT;
+		}
 	} else {
 		retval |= ERR_ABORT | ERR_ALERT;
 	}
