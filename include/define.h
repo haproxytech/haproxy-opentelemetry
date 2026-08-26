@@ -64,6 +64,7 @@
 
 /* Messages that more than one error site reports. */
 #define FLT_OTEL_MSG_ALRDEF          "already defined"
+#define FLT_OTEL_MSG_NAMELONG        "name too long"
 #define FLT_OTEL_MSG_IDLEEVENT       "can only be used with event 'on-idle-timeout'"
 #define FLT_OTEL_MSG_CTXEVENT        "cannot use on this event"
 
