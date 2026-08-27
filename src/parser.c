@@ -1415,8 +1415,9 @@ static void flt_otel_parse_acl_restore(struct list *src, struct acl *first, int 
  *   and the borrowed entries are returned afterwards; an ACL the build itself
  *   creates stays on the scope's list.  An instrumentation that follows this
  *   scope in the file has no ACL list yet, so a name that only it defines is
- *   not found and the condition is rejected.  Used by every keyword that
- *   takes a trailing condition.
+ *   not found and the condition is rejected.  A condition with no ACL terms
+ *   (a bare 'if'/'unless') is rejected and the built object is freed.  Used
+ *   by every keyword that takes a trailing condition.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -1442,8 +1443,19 @@ static int flt_otel_parse_attach_cond(const char *file, int line, char **args, i
 	if (instr != NULL)
 		flt_otel_parse_acl_restore(&(instr->acls), instr_first, instr_cnt);
 
-	if (*cond == NULL)
+	if (*cond == NULL) {
 		retval |= ERR_ABORT | ERR_ALERT;
+	}
+	else if (LIST_ISEMPTY(&((*cond)->suites))) {
+		/*
+		 * An empty condition never matches for 'if' and always matches
+		 * for 'unless'.
+		 */
+		FLT_OTEL_PARSE_ERR(err, "'%s' : '%s' expects a condition", args[0], args[cond_pos]);
+
+		free_acl_cond(*cond);
+		*cond = NULL;
+	}
 
 	OTELC_RETURN_INT(retval);
 }

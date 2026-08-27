@@ -1029,7 +1029,10 @@ otel-event <name> [{ if | unless } <condition>]
 
   ACL-based conditions are executed in the context of a stream that processes
   the client and server connections.  To configure and use the ACL, see section
-  7 of the HAProxy Configuration Manual.
+  7 of the HAProxy Configuration Manual.  On this and every other keyword that
+  takes a condition, a bare 'if' or 'unless' with no ACL terms following it is
+  rejected.  They are likewise rejected as a span or context reference and as
+  the name of a span, an otel-scope, an otel-group or an extract context.
 
   Arguments :
     name      - the event name
