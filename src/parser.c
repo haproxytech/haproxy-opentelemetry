@@ -1300,48 +1300,84 @@ static int flt_otel_parse_cfg_scope_ctx(char **args, int cur_arg, char **err)
 
 /***
  * NAME
- *   flt_otel_parse_acl - ACL condition builder
+ *   flt_otel_parse_acl_borrow - move the entries of an ACL list to another
  *
  * SYNOPSIS
- *   static struct acl_cond *flt_otel_parse_acl(const char *file, int line, struct proxy *px, const char **args, char **err, struct list *head, ...)
+ *   static struct acl *flt_otel_parse_acl_borrow(struct list *dst, struct list *src, int *cnt)
  *
  * ARGUMENTS
- *   file - configuration file path
- *   line - configuration file line number
- *   px   - proxy instance for ACL resolution
- *   args - condition arguments (if/unless followed by ACL names)
- *   err  - indirect pointer to error message string
- *   head - first ACL list head to search
+ *   dst - list receiving the entries
+ *   src - list whose entries are moved
+ *   cnt - output pointer for the number of moved entries
  *
  * DESCRIPTION
- *   Builds an ACL condition by trying multiple ACL lists in order.  The
- *   variadic arguments provide a sequence of ACL list heads to search; the
- *   first successful build_acl_cond() result is returned.
+ *   Appends every entry of <src> to the tail of <dst>, keeping their order,
+ *   and leaves <src> empty.  The names already in <dst> stand in front and so
+ *   hide a moved entry of the same name.  The move is undone with
+ *   flt_otel_parse_acl_restore(), which takes the first moved entry and the
+ *   count reported here.
  *
  * RETURN VALUE
- *   Returns a pointer to the built ACL condition, or NULL if no condition could
- *   be built from any of the provided lists.
+ *   Returns a pointer to the first moved entry, or NULL when <src> is empty.
  */
-static struct acl_cond *flt_otel_parse_acl(const char *file, int line, struct proxy *px, const char **args, char **err, struct list *head, ...)
+static struct acl *flt_otel_parse_acl_borrow(struct list *dst, struct list *src, int *cnt)
 {
-	va_list          ap;
-	int              n = 0;
-	struct acl_cond *retptr = NULL;
+	struct acl *acl, *back, *retptr = NULL;
 
-	OTELC_FUNC("\"%s\", %d, %p, %p, %p:%p, %p, ...", OTELC_STR_ARG(file), line, px, args, OTELC_DPTR_ARGS(err), head);
+	OTELC_FUNC("%p, %p, %p", dst, src, cnt);
 
-	/* Try each ACL list in order until a condition is built. */
-	for (va_start(ap, head); (retptr == NULL) && (head != NULL); head = va_arg(ap, typeof(head)), n++) {
-		retptr = build_acl_cond(file, line, head, px, args, (n == 0) ? err : NULL);
-		if (retptr != NULL)
-			OTELC_DBG(DEBUG, "ACL build done, using list %p %d", head, n);
+	*cnt = 0;
+
+	list_for_each_entry_safe(acl, back, src, list) {
+		LIST_DELETE(&(acl->list));
+		LIST_APPEND(dst, &(acl->list));
+
+		if (retptr == NULL)
+			retptr = acl;
+
+		(*cnt)++;
 	}
-	va_end(ap);
-
-	if ((retptr != NULL) && (err != NULL))
-		ha_free(err);
 
 	OTELC_RETURN_PTR(retptr);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_parse_acl_restore - return borrowed ACL entries to their list
+ *
+ * SYNOPSIS
+ *   static void flt_otel_parse_acl_restore(struct list *src, struct acl *first, int cnt)
+ *
+ * ARGUMENTS
+ *   src   - the list the entries are returned to
+ *   first - the first borrowed entry, or NULL when none was borrowed
+ *   cnt   - the number of borrowed entries
+ *
+ * DESCRIPTION
+ *   Undoes flt_otel_parse_acl_borrow(): moves the <cnt> entries beginning at
+ *   <first> back to the tail of <src>, keeping their original order.  The
+ *   entries are still consecutive in the merged list, because the condition
+ *   parser only appends new ACLs at its tail.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+static void flt_otel_parse_acl_restore(struct list *src, struct acl *first, int cnt)
+{
+	struct acl *acl, *next;
+	int         i;
+
+	OTELC_FUNC("%p, %p, %d", src, first, cnt);
+
+	for (acl = first, i = 0; i < cnt; acl = next, i++) {
+		next = LIST_NEXT(&(acl->list), typeof(acl), list);
+
+		LIST_DELETE(&(acl->list));
+		LIST_APPEND(src, &(acl->list));
+	}
+
+	OTELC_RETURN();
 }
 
 
@@ -1362,8 +1398,17 @@ static struct acl_cond *flt_otel_parse_acl(const char *file, int line, struct pr
  *
  * DESCRIPTION
  *   Builds the ACL condition starting at <args[cond_pos]> and stores it in
- *   <*cond>, so the item runs only when the condition is met at runtime.
- *   Used for span item samples, the scope condition and the 'otel-stop' action.
+ *   <*cond>; at runtime the directive carrying it is applied only when the
+ *   condition holds.  Each named ACL of the condition resolves against the
+ *   scope's list, then the instrumentation's, then the proxy's, so one
+ *   condition may combine names from all three.  build_acl_cond() searches a
+ *   single list, so the three are merged for the build, the scope's entries
+ *   in front so a scope ACL hides an instrumentation ACL of the same name,
+ *   and the borrowed entries are returned afterwards; an ACL the build itself
+ *   creates stays on the scope's list.  An instrumentation that follows this
+ *   scope in the file has no ACL list yet, so a name that only it defines is
+ *   not found and the condition is rejected.  Used by every keyword that
+ *   takes a trailing condition.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -1371,17 +1416,26 @@ static struct acl_cond *flt_otel_parse_acl(const char *file, int line, struct pr
  */
 static int flt_otel_parse_attach_cond(const char *file, int line, char **args, int cond_pos, struct acl_cond **cond, char **err)
 {
-	int retval = ERR_NONE;
+	struct flt_otel_conf_instr *instr = flt_otel_current_config->instr;
+	struct proxy               *px = flt_otel_current_config->proxy;
+	struct list                *acls = &(flt_otel_current_scope->acls);
+	struct acl                 *instr_first = NULL, *px_first;
+	int                         instr_cnt = 0, px_cnt, retval = ERR_NONE;
 
 	OTELC_FUNC("\"%s\", %d, %p, %d, %p, %p:%p", OTELC_STR_ARG(file), line, args, cond_pos, cond, OTELC_DPTR_ARGS(err));
 
-	if (flt_otel_current_config->instr == NULL) {
-		FLT_OTEL_PARSE_ERR(err, "'%s' : instrumentation not defined", args[0]);
-	} else {
-		*cond = flt_otel_parse_acl(file, line, flt_otel_current_config->proxy, (const char **)args + cond_pos, err, &(flt_otel_current_scope->acls), &(flt_otel_current_config->instr->acls), &(flt_otel_current_config->proxy->acl), NULL);
-		if (*cond == NULL)
-			retval |= ERR_ABORT | ERR_ALERT;
-	}
+	if (instr != NULL)
+		instr_first = flt_otel_parse_acl_borrow(acls, &(instr->acls), &instr_cnt);
+	px_first = flt_otel_parse_acl_borrow(acls, &(px->acl), &px_cnt);
+
+	*cond = build_acl_cond(file, line, acls, px, (const char **)args + cond_pos, err);
+
+	flt_otel_parse_acl_restore(&(px->acl), px_first, px_cnt);
+	if (instr != NULL)
+		flt_otel_parse_acl_restore(&(instr->acls), instr_first, instr_cnt);
+
+	if (*cond == NULL)
+		retval |= ERR_ABORT | ERR_ALERT;
 
 	OTELC_RETURN_INT(retval);
 }

@@ -425,9 +425,14 @@ sections.
       Parses the context storage type argument ("use-headers" or "use-vars") for
       the inject keyword, recording it on the current span.
 
-  flt_otel_parse_acl
-      Builds an ACL condition by trying multiple ACL lists in order
-      (scope-local, instrumentation, proxy).
+  flt_otel_parse_acl_borrow
+      Moves every entry of an ACL list to the tail of another, keeping the
+      order, so the three ACL lists can be merged for one build_acl_cond()
+      call.
+
+  flt_otel_parse_acl_restore
+      Returns the borrowed ACL entries to their list in their original order,
+      undoing flt_otel_parse_acl_borrow() once the condition has been built.
 
   flt_otel_parse_trailing_cond
       Builds a mandatory trailing 'if'/'unless' condition; used by exception,
