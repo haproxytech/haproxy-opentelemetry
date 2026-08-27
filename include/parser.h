@@ -278,6 +278,15 @@ struct flt_otel_kw_map {
 #define FLT_OTEL_PARSE_ERR_ALRSET(e,a,p)      FLT_OTEL_PARSE_ERR_USE((e), "already set", (a), (p))
 #define FLT_OTEL_PARSE_ERR_INVARG(e,a,p)      FLT_OTEL_PARSE_ERR_USE((e), "invalid argument", (a), (p))
 
+/* Format the parse error for a trailing condition the keyword does not take. */
+#define FLT_OTEL_PARSE_ERR_COND(e,a,v)        FLT_OTEL_PARSE_ERR((e), "'%s' : '%s' condition is not supported", (a), (v))
+
+/* Format the parse error for a condition keyword in a reference position. */
+#define FLT_OTEL_PARSE_ERR_REFNAME(e,a,v)     FLT_OTEL_PARSE_ERR((e), "'%s' : '%s' cannot be used as a reference", (a), (v))
+
+/* Format the parse error for a condition keyword defining a name. */
+#define FLT_OTEL_PARSE_ERR_RESNAME(e,a,v)     FLT_OTEL_PARSE_ERR((e), "'%s' : '%s' cannot be used as a name", (a), (v))
+
 /* Format the parse error for a directive outside its configuration section. */
 #define FLT_OTEL_PARSE_ERR_NOSEC(e,s,a)       FLT_OTEL_PARSE_ERR((e), "'%s' : " s " section not opened in this scope", (a))
 
