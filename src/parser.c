@@ -202,17 +202,51 @@ static void flt_otel_parse_ctx_name_warn(const char *file, int line, const char 
 
 /***
  * NAME
+ *   flt_otel_find_cond_pos - locate a trailing if/unless condition
+ *
+ * SYNOPSIS
+ *   static int flt_otel_find_cond_pos(char **args, int idx)
+ *
+ * ARGUMENTS
+ *   args - configuration line arguments array
+ *   idx  - args[] position from which to start scanning
+ *
+ * DESCRIPTION
+ *   Scans <args> from <idx> onward for the first 'if' or 'unless' keyword that
+ *   introduces an optional trailing ACL condition.
+ *
+ * RETURN VALUE
+ *   Returns the args[] position of the condition keyword, or 0 when none is
+ *   found (position 0 holds the directive name and never a condition).
+ */
+static int flt_otel_find_cond_pos(char **args, int idx)
+{
+	int i, retval = 0;
+
+	OTELC_FUNC("%p, %d", args, idx);
+
+	for (i = idx; FLT_OTEL_ARG_ISVALID(i); i++)
+		if (FLT_OTEL_ARG_ISCOND(i)) {
+			retval = i;
+
+			break;
+		}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_parse_cfg_check - configuration keyword validation
  *
  * SYNOPSIS
- *   static int flt_otel_parse_cfg_check(const char *file, int line, char **args, const void *cur_obj, bool flag_need_instr, const struct flt_otel_parse_data *parse_data, size_t parse_data_size, const struct flt_otel_parse_data **pdata, char **err)
+ *   static int flt_otel_parse_cfg_check(const char *file, int line, char **args, const struct flt_otel_parse_data *parse_data, size_t parse_data_size, const struct flt_otel_parse_data **pdata, char **err)
  *
  * ARGUMENTS
  *   file            - configuration file path
  *   line            - configuration file line number
  *   args            - configuration line arguments array
- *   cur_obj         - the section's currently open object, or NULL
- *   flag_need_instr - whether the instrumentation must already be defined
  *   parse_data      - keyword definition table
  *   parse_data_size - number of entries in <parse_data>
  *   pdata           - output pointer to the matched keyword entry
@@ -225,13 +259,18 @@ static void flt_otel_parse_ctx_name_warn(const char *file, int line, const char 
  *   When <flag_need_instr> is set and the section object is open, it also
  *   requires that the instrumentation has already been defined.
  *
+ *   Every keyword that sets an argument maximum takes no trailing condition,
+ *   so an 'if'/'unless' among the surplus arguments is reported as the
+ *   condition it is rather than counted.  The scan starts past the first
+ *   argument, which is a name or a value on all of those keywords.
+ *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
  *   or a combination of ERR_* flags if an error is encountered.
  */
 static int flt_otel_parse_cfg_check(const char *file, int line, char **args, const void *cur_obj, bool flag_need_instr, const struct flt_otel_parse_data *parse_data, size_t parse_data_size, const struct flt_otel_parse_data **pdata, char **err)
 {
-	int i, argc = 0, retval = ERR_NONE;
+	int i, argc = 0, cond_pos, retval = ERR_NONE;
 
 	OTELC_FUNC("\"%s\", %d, %p, %p, %hhu, %p, %zu, %p:%p, %p:%p", OTELC_STR_ARG(file), line, args, cur_obj, flag_need_instr, parse_data, parse_data_size, OTELC_DPTR_ARGS(pdata), OTELC_DPTR_ARGS(err));
 
@@ -264,11 +303,17 @@ static int flt_otel_parse_cfg_check(const char *file, int line, char **args, con
 
 	/*
 	 * Checking that more arguments are specified in the configuration
-	 * line than the maximum allowed.
+	 * line than the maximum allowed.  A condition standing among them is
+	 * named as such, the keyword taking none.
 	 */
-	if (!(retval & ERR_CODE) && ((*pdata)->args_max > 0))
-		if (argc > (*pdata)->args_max)
+	if (!(retval & ERR_CODE) && ((*pdata)->args_max > 0) && (argc > (*pdata)->args_max)) {
+		cond_pos = flt_otel_find_cond_pos(args, 2);
+
+		if (cond_pos != 0)
+			FLT_OTEL_PARSE_ERR_COND(err, args[0], args[cond_pos]);
+		else
 			FLT_OTEL_PARSE_ERR_MANYARGS(err, args[0], *pdata);
+	}
 
 	/* Checking that the first argument has only allowed characters. */
 	if (!(retval & ERR_CODE) && ((*pdata)->check_name != FLT_OTEL_PARSE_INVALID_NONE)) {
@@ -579,6 +624,113 @@ static int flt_otel_parse_cfg_str(const char *file, int line, char **args, struc
 
 /***
  * NAME
+ *   flt_otel_parse_reject_cond - reject a trailing if/unless condition
+ *
+ * SYNOPSIS
+ *   static int flt_otel_parse_reject_cond(char **args, int idx, char **err)
+ *
+ * ARGUMENTS
+ *   args - configuration line arguments array
+ *   idx  - args[] position from which to start scanning
+ *   err  - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Rejects the trailing 'if'/'unless' condition on a keyword whose definition
+ *   does not allow one.  Such a keyword takes names or a plain value where the
+ *   condition would stand, so the keyword would silently swallow it; scanning
+ *   from <idx> onward reports it instead.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE (== 0) in case of success,
+ *   or a combination of ERR_* flags if an error is encountered.
+ */
+static int flt_otel_parse_reject_cond(char **args, int idx, char **err)
+{
+	int pos, retval = ERR_NONE;
+
+	OTELC_FUNC("%p, %d, %p:%p", args, idx, OTELC_DPTR_ARGS(err));
+
+	pos = flt_otel_find_cond_pos(args, idx);
+	if (pos != 0)
+		FLT_OTEL_PARSE_ERR_COND(err, args[0], args[pos]);
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_parse_reject_name - reject a condition keyword used as a name
+ *
+ * SYNOPSIS
+ *   static int flt_otel_parse_reject_name(char **args, int idx, char **err)
+ *
+ * ARGUMENTS
+ *   args - configuration line arguments array
+ *   idx  - args[] position holding the name being defined
+ *   err  - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Rejects 'if' or 'unless' at <idx>, where a keyword defines a name that
+ *   other lines refer to.  Every position that takes such a reference reads
+ *   those two words as the start of a condition, so a name spelled that way
+ *   could never be named again and is refused where it is defined.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE (== 0) in case of success,
+ *   or a combination of ERR_* flags if an error is encountered.
+ */
+static int flt_otel_parse_reject_name(char **args, int idx, char **err)
+{
+	int retval = ERR_NONE;
+
+	OTELC_FUNC("%p, %d, %p:%p", args, idx, OTELC_DPTR_ARGS(err));
+
+	if (FLT_OTEL_ARG_ISCOND(idx))
+		FLT_OTEL_PARSE_ERR_RESNAME(err, args[0], args[idx]);
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_parse_check_name_len - name length check
+ *
+ * SYNOPSIS
+ *   static int flt_otel_parse_check_name_len(const char *name, char **err)
+ *
+ * ARGUMENTS
+ *   name - the name to measure
+ *   err  - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Checks <name> against the length every name of the configuration keeps,
+ *   fewer than FLT_OTEL_ID_MAXLEN characters.  A name the configuration
+ *   structures hold is measured where it is created; this function measures
+ *   the ones that are only referenced, so that a reference too long to name
+ *   anything is reported on its own line rather than as an unresolved name
+ *   once the whole configuration is known.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE (== 0) in case of success,
+ *   or a combination of ERR_* flags if an error is encountered.
+ */
+static int flt_otel_parse_check_name_len(const char *name, char **err)
+{
+	int retval = ERR_NONE;
+
+	OTELC_FUNC("\"%s\", %p:%p", OTELC_STR_ARG(name), OTELC_DPTR_ARGS(err));
+
+	if (strlen(name) >= FLT_OTEL_ID_MAXLEN)
+		FLT_OTEL_PARSE_ERR(err, "'%s' : " FLT_OTEL_MSG_NAMELONG, name);
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_cfg_file_check - configuration file path validation
  *
  * SYNOPSIS
@@ -630,8 +782,9 @@ static int flt_otel_cfg_file_check(const char *path, char **err)
  *
  * DESCRIPTION
  *   Parses and validates a file path argument.  Checks that the argument is
- *   present, that no extra arguments follow, and that the path names a
- *   readable regular file.
+ *   present, that no trailing condition and no extra arguments follow, and that
+ *   the path names a readable regular file.  The argument that may follow the
+ *   path is a plain name, so a condition cannot apply to it.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -645,6 +798,8 @@ static int flt_otel_parse_cfg_file(char **ptr, const char *file, int line, char 
 
 	if (!FLT_OTEL_ARG_ISVALID(1))
 		FLT_OTEL_PARSE_ERR(err, "'%s' : no %s specified", flt_otel_current_instr->id, err_msg);
+	else if (flt_otel_parse_reject_cond(args, 1, err) & ERR_CODE)
+		retval |= ERR_ABORT | ERR_ALERT;
 	else if (alertif_too_many_args(2, file, line, args, &retval))
 		retval |= ERR_ABORT | ERR_ALERT;
 	else if (flt_otel_cfg_file_check(args[1], err) == FLT_OTEL_RET_ERROR)
@@ -799,9 +954,13 @@ static int flt_otel_parse_cfg_instr(const char *file, int line, char **args, int
 
 	/* Handle keyword-specific instrumentation configuration. */
 	if (pdata->keyword == FLT_OTEL_PARSE_INSTR_ID) {
-		if (flt_otel_current_config->instr != NULL) {
+		if (flt_otel_parse_reject_name(args, 1, &err) & ERR_CODE) {
+			retval |= ERR_ABORT | ERR_ALERT;
+		}
+		else if (flt_otel_current_config->instr != NULL) {
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : instrumentation can be defined only once", args[1]);
-		} else {
+		}
+		else {
 			flt_otel_current_instr = flt_otel_conf_instr_init(args[1], line, NULL, &err);
 			if (flt_otel_current_instr == NULL)
 				retval |= ERR_ABORT | ERR_ALERT;
@@ -825,11 +984,17 @@ static int flt_otel_parse_cfg_instr(const char *file, int line, char **args, int
 			retval = flt_otel_parse_strdup(&(flt_otel_current_instr->ctx_name), NULL, args[2], &err, args[0]);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_INSTR_GROUPS) {
+		/* The names are matched as written, so a condition cannot apply to them. */
+		retval = flt_otel_parse_reject_cond(args, 1, &err);
+
 		for (i = 1; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++)
 			if (flt_otel_conf_ph_init(args[i], line, &(flt_otel_current_instr->ph_groups), &err) == NULL)
 				retval |= ERR_ABORT | ERR_ALERT;
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_INSTR_SCOPES) {
+		/* The names are matched as written, so a condition cannot apply to them. */
+		retval = flt_otel_parse_reject_cond(args, 1, &err);
+
 		for (i = 1; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++)
 			if (flt_otel_conf_ph_init(args[i], line, &(flt_otel_current_instr->ph_scopes), &err) == NULL)
 				retval |= ERR_ABORT | ERR_ALERT;
@@ -990,11 +1155,19 @@ static int flt_otel_parse_cfg_group(const char *file, int line, char **args, int
 
 	/* Handle keyword-specific group configuration. */
 	if (pdata->keyword == FLT_OTEL_PARSE_GROUP_ID) {
-		flt_otel_current_group = flt_otel_conf_group_init(args[1], line, &(flt_otel_current_config->groups), &err);
-		if (flt_otel_current_group == NULL)
-			retval |= ERR_ABORT | ERR_ALERT;
+		/* The 'groups' keyword names the group, so a condition keyword cannot. */
+		retval = flt_otel_parse_reject_name(args, 1, &err);
+
+		if (!(retval & ERR_CODE)) {
+			flt_otel_current_group = flt_otel_conf_group_init(args[1], line, &(flt_otel_current_config->groups), &err);
+			if (flt_otel_current_group == NULL)
+				retval |= ERR_ABORT | ERR_ALERT;
+		}
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_GROUP_SCOPES) {
+		/* The names are matched as written, so a condition cannot apply to them. */
+		retval = flt_otel_parse_reject_cond(args, 1, &err);
+
 		for (i = 1; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++)
 			if (flt_otel_conf_ph_init(args[i], line, &(flt_otel_current_group->ph_scopes), &err) == NULL)
 				retval |= ERR_ABORT | ERR_ALERT;
@@ -1169,42 +1342,6 @@ static struct acl_cond *flt_otel_parse_acl(const char *file, int line, struct pr
 		ha_free(err);
 
 	OTELC_RETURN_PTR(retptr);
-}
-
-
-/***
- * NAME
- *   flt_otel_find_cond_pos - locate a trailing if/unless condition
- *
- * SYNOPSIS
- *   static int flt_otel_find_cond_pos(char **args, int idx)
- *
- * ARGUMENTS
- *   args - configuration line arguments array
- *   idx  - args[] position from which to start scanning
- *
- * DESCRIPTION
- *   Scans <args> from <idx> onward for the first 'if' or 'unless' keyword that
- *   introduces an optional trailing ACL condition.
- *
- * RETURN VALUE
- *   Returns the args[] position of the condition keyword, or 0 when none is
- *   found (position 0 holds the directive name and never a condition).
- */
-static int flt_otel_find_cond_pos(char **args, int idx)
-{
-	int i, retval = 0;
-
-	OTELC_FUNC("%p, %d", args, idx);
-
-	for (i = idx; FLT_OTEL_ARG_ISVALID(i); i++)
-		if (FLT_OTEL_ARG_ISCOND(i)) {
-			retval = i;
-
-			break;
-		}
-
-	OTELC_RETURN_INT(retval);
 }
 
 
@@ -1536,6 +1673,11 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 
 	OTELC_DBG(DEBUG, "instrument type: %d '%s'", kw->code, kw->keyword);
 
+	/* The instrument name follows the general name rule. */
+	retval = flt_otel_parse_reject_name(args, 2, err);
+	if (retval & ERR_CODE)
+		OTELC_RETURN_INT(retval);
+
 	/*
 	 * Create-form instruments may repeat a name -- typically with an
 	 * 'if'/'unless' condition selecting which measurement is recorded --
@@ -1745,6 +1887,8 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
 		else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_EVENT)) {
 			if (!FLT_OTEL_ARG_ISVALID(i + 1))
 				FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
+			else if (FLT_OTEL_ARG_ISCOND(i + 1))
+				FLT_OTEL_PARSE_ERR_RESNAME(err, args[i], args[i + 1]);
 			else if (log->event_name != NULL)
 				FLT_OTEL_PARSE_ERR_ALRSET(err, args[i], pdata);
 			else
@@ -1761,14 +1905,22 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
 		else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_SPAN)) {
 			if (!FLT_OTEL_ARG_ISVALID(i + 1))
 				FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
+			else if (FLT_OTEL_ARG_ISCOND(i + 1))
+				FLT_OTEL_PARSE_ERR_REFNAME(err, args[i], args[i + 1]);
 			else if (log->span != NULL)
 				FLT_OTEL_PARSE_ERR_ALRSET(err, args[i], pdata);
+			else if (flt_otel_parse_check_name_len(args[i + 1], err) & ERR_CODE)
+				retval |= ERR_ABORT | ERR_ALERT;
 			else
 				retval = flt_otel_parse_strdup(&(log->span), NULL, args[++i], err, args[0]);
 		}
 		else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_ATTR)) {
-			if (!FLT_OTEL_ARG_ISVALID(i + 1) || !FLT_OTEL_ARG_ISVALID(i + 2))
+			if (!FLT_OTEL_ARG_ISVALID(i + 1) || !FLT_OTEL_ARG_ISVALID(i + 2)) {
 				FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
+			}
+			else if (FLT_OTEL_ARG_ISCOND(i + 1)) {
+				FLT_OTEL_PARSE_ERR_RESNAME(err, args[i], args[i + 1]);
+			}
 			else {
 				retval = flt_otel_parse_cfg_sample(file, line, args, i + 2, 1, NULL, NULL, &(log->attributes), err);
 				if (!(retval & ERR_CODE))
@@ -1870,8 +2022,12 @@ static int flt_otel_parse_cfg_exception(const char *file, int line, char **args,
 			i = j - 1;
 		}
 		else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LOG_RECORD_ATTR)) {
-			if (!FLT_OTEL_ARG_ISVALID(i + 1) || !FLT_OTEL_ARG_ISVALID(i + 2))
+			if (!FLT_OTEL_ARG_ISVALID(i + 1) || !FLT_OTEL_ARG_ISVALID(i + 2)) {
 				FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
+			}
+			else if (FLT_OTEL_ARG_ISCOND(i + 1)) {
+				FLT_OTEL_PARSE_ERR_RESNAME(err, args[i], args[i + 1]);
+			}
 			else {
 				retval = flt_otel_parse_cfg_sample(file, line, args, i + 2, 1, NULL, NULL, &(exc->attributes), err);
 				if (!(retval & ERR_CODE))
@@ -1929,6 +2085,18 @@ static int flt_otel_parse_cfg_set_var_ctx(const char *file, int line, char **arg
 	OTELC_FUNC("\"%s\", %d, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, conf, OTELC_DPTR_ARGS(err));
 
 	/* Duplicate the referenced span or context name. */
+	if (FLT_OTEL_ARG_ISCOND(2)) {
+		FLT_OTEL_PARSE_ERR_REFNAME(err, args[0], args[2]);
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	if (flt_otel_parse_check_name_len(args[2], err) & ERR_CODE) {
+		retval |= ERR_ABORT | ERR_ALERT;
+
+		OTELC_RETURN_INT(retval);
+	}
+
 	conf->ref = OTELC_STRDUP(args[2]);
 	if (conf->ref == NULL) {
 		FLT_OTEL_PARSE_ERR_NOMEM(err, args[0]);
@@ -2114,6 +2282,18 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 	if (!(retval & ERR_CODE) && pdata->flag_check_id && (flt_otel_current_span == NULL))
 		FLT_OTEL_PARSE_ERR(&err, "'%s' : %s ID not set (use '%s%s')", args[0], parse_data[FLT_OTEL_PARSE_SCOPE_SPAN].name, parse_data[FLT_OTEL_PARSE_SCOPE_SPAN].name, parse_data[FLT_OTEL_PARSE_SCOPE_SPAN].usage);
 
+	/*
+	 * These keywords define a name or a key in their first argument,
+	 * which cannot be a condition word: the two words open a condition
+	 * wherever one may stand.
+	 */
+	if (!(retval & ERR_CODE) &&
+	    ((pdata->keyword == FLT_OTEL_PARSE_SCOPE_ID) || (pdata->keyword == FLT_OTEL_PARSE_SCOPE_SPAN) ||
+	     (pdata->keyword == FLT_OTEL_PARSE_SCOPE_EXTRACT) || (pdata->keyword == FLT_OTEL_PARSE_SCOPE_ATTRIBUTE) ||
+	     (pdata->keyword == FLT_OTEL_PARSE_SCOPE_EVENT) || (pdata->keyword == FLT_OTEL_PARSE_SCOPE_BAGGAGE) ||
+	     (pdata->keyword == FLT_OTEL_PARSE_SCOPE_INJECT) || (pdata->keyword == FLT_OTEL_PARSE_SCOPE_EXCEPTION)))
+		retval = flt_otel_parse_reject_name(args, 1, &err);
+
 	if (retval & ERR_CODE) {
 		FLT_OTEL_PARSE_IFERR_ALERT();
 
@@ -2159,8 +2339,12 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 				else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_SPAN_PARENT)) {
 					if (!FLT_OTEL_ARG_ISVALID(i + 1))
 						FLT_OTEL_PARSE_ERR_FEWARGS(&err, args[i], pdata);
+					else if (FLT_OTEL_ARG_ISCOND(i + 1))
+						FLT_OTEL_PARSE_ERR_REFNAME(&err, args[i], args[i + 1]);
 					else if (flt_otel_current_span->ref_id != NULL)
 						FLT_OTEL_PARSE_ERR_ALRSET(&err, args[i], pdata);
+					else if (flt_otel_parse_check_name_len(args[i + 1], &err) & ERR_CODE)
+						retval |= ERR_ABORT | ERR_ALERT;
 					else
 						retval |= flt_otel_parse_strdup(&(flt_otel_current_span->ref_id), &(flt_otel_current_span->ref_id_len), args[++i], &err, args[1]);
 				}
@@ -2197,6 +2381,13 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 							i++;
 						}
 					}
+				}
+				else if (FLT_OTEL_ARG_ISCOND(i)) {
+					/*
+					 * No argument of the keyword stands here, and the keyword
+					 * takes no condition.
+					 */
+					FLT_OTEL_PARSE_ERR_COND(&err, args[0], args[i]);
 				}
 				else {
 					FLT_OTEL_PARSE_ERR_INVARG(&err, args[i], pdata);
@@ -2293,6 +2484,10 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 				key_pos = idx + 1;
 		}
 
+		/* The attribute key follows the same name rule as the event name. */
+		if (!(retval & ERR_CODE))
+			retval = flt_otel_parse_reject_name(args, key_pos, &err);
+
 		if (!(retval & ERR_CODE))
 			retval = flt_otel_parse_cfg_sample_cond(file, line, args, key_pos + 1, &extra, &(flt_otel_current_span->events), &err);
 
@@ -2370,12 +2565,25 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_INJECT) {
 		/*
-		 * The context name is stored verbatim.  The autoname sentinel
+		 * The context name is stored as written.  The autoname sentinel
 		 * (FLT_OTEL_PARSE_CTX_AUTONAME) is resolved in the post-parse
 		 * phase, where the scope event is known regardless of whether
 		 * 'inject' precedes or follows the 'otel-event' directive.
+		 *
+		 * The storage type is a plain keyword, so a condition standing
+		 * in its place is reported instead of being read as one of them.
+		 *
+		 * The name is measured here, the span holding it directly: the
+		 * 'extract' line that reads the context back builds a structure
+		 * whose own name check would refuse a longer one.
 		 */
-		if (flt_otel_current_span->ctx_id != NULL)
+		retval = flt_otel_parse_reject_cond(args, 2, &err);
+
+		if (retval & ERR_CODE)
+			/* Do nothing. */;
+		else if (flt_otel_parse_check_name_len(args[1], &err) & ERR_CODE)
+			retval |= ERR_ABORT | ERR_ALERT;
+		else if (flt_otel_current_span->ctx_id != NULL)
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : only one context per span is allowed", args[1]);
 		else
 			retval = flt_otel_parse_strdup(&(flt_otel_current_span->ctx_id), &(flt_otel_current_span->ctx_id_len), args[1], &err, args[0]);
@@ -2410,39 +2618,50 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		uint8_t                       flags = FLT_OTEL_CTX_USE_HEADERS;
 
 		/*
+		 * The storage type is a plain keyword, so a condition standing
+		 * in its place is reported instead of being read as one of them.
+		 */
+		retval = flt_otel_parse_reject_cond(args, 2, &err);
+
+		/*
 		 * Here is checked the context storage type; which, if
 		 * not explicitly specified, is set to HTTP headers.
 		 */
-		conf_ctx = flt_otel_conf_context_init(args[1], line, &(flt_otel_current_scope->contexts), &err);
-		if (FLT_OTEL_ARG_ISVALID(2))
-			flags = flt_otel_parse_ctx_flag(args[2]);
+		if (!(retval & ERR_CODE)) {
+			conf_ctx = flt_otel_conf_context_init(args[1], line, &(flt_otel_current_scope->contexts), &err);
+			if (FLT_OTEL_ARG_ISVALID(2))
+				flags = flt_otel_parse_ctx_flag(args[2]);
 
-		if (conf_ctx == NULL)
-			retval |= ERR_ABORT | ERR_ALERT;
-		else if (flags == 0)
-			FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid context storage type", args[2]);
-		else
-			conf_ctx->flags = flags;
+			if (conf_ctx == NULL)
+				retval |= ERR_ABORT | ERR_ALERT;
+			else if (flags == 0)
+				FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid context storage type", args[2]);
+			else
+				conf_ctx->flags = flags;
 
-		/*
-		 * Reading the context from the headers needs a channel
-		 * to read, so a scope that already names an event
-		 * without one is refused here, on the line that
-		 * completes the pair.  An event named further down is
-		 * refused on its own line, while a scope that names
-		 * none runs from an 'otel-group' action, which carries
-		 * a channel of its own.
-		 */
-		if (!(retval & ERR_CODE) && (conf_ctx->flags & FLT_OTEL_CTX_USE_HEADERS) &&
-		    (flt_otel_current_scope->event != FLT_OTEL_EVENT__NONE) &&
-		    !flt_otel_event_data[flt_otel_current_scope->event].flag_http_extract)
-			FLT_OTEL_PARSE_ERR(&err, "%s '%s' : " FLT_OTEL_MSG_CTXEVENT, args[0], args[1]);
+			/*
+			 * Reading the context from the headers needs a channel
+			 * to read, so a scope that already names an event
+			 * without one is refused here, on the line that
+			 * completes the pair.  An event named further down is
+			 * refused on its own line, while a scope that names
+			 * none runs from an 'otel-group' action, which carries
+			 * a channel of its own.
+			 */
+			if (!(retval & ERR_CODE) && (conf_ctx->flags & FLT_OTEL_CTX_USE_HEADERS) &&
+			    (flt_otel_current_scope->event != FLT_OTEL_EVENT__NONE) &&
+			    !flt_otel_event_data[flt_otel_current_scope->event].flag_http_extract)
+				FLT_OTEL_PARSE_ERR(&err, "%s '%s' : " FLT_OTEL_MSG_CTXEVENT, args[0], args[1]);
 
-		if ((conf_ctx != NULL) && (conf_ctx->flags & FLT_OTEL_CTX_USE_VARS))
-			flt_otel_parse_ctx_name_warn(file, line, args[0], args[1]);
+			if ((conf_ctx != NULL) && (conf_ctx->flags & FLT_OTEL_CTX_USE_VARS))
+				flt_otel_parse_ctx_name_warn(file, line, args[0], args[1]);
+		}
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_FINISH) {
-		retval = flt_otel_parse_cfg_str(file, line, args, &(flt_otel_current_scope->spans_to_finish), &err);
+		/* The names are matched as written, so a condition cannot apply to them. */
+		retval = flt_otel_parse_reject_cond(args, 1, &err);
+		if (!(retval & ERR_CODE))
+			retval = flt_otel_parse_cfg_str(file, line, args, &(flt_otel_current_scope->spans_to_finish), &err);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_STOP) {
 		flt_otel_current_scope->flag_stop = 1;
@@ -2615,9 +2834,16 @@ static int flt_otel_post_parse_ctx_autoname(struct flt_otel_conf_span *conf_span
 	/*
 	 * The generated name keeps the FLT_OTEL_PARSE_CTX_IGNORE_NAME prefix
 	 * so the injected headers carry no HAProxy-specific name, leaving only
-	 * the bare W3C propagation headers.
+	 * the bare W3C propagation headers.  That character counts, so a span
+	 * name of the full length would resolve to one character too many.
 	 */
-	len      = strlen(name);
+	len = strlen(name);
+	if ((len + 1) >= FLT_OTEL_ID_MAXLEN) {
+		FLT_OTEL_POST_PARSE_ALERT("inject '%s' : " FLT_OTEL_MSG_NAMELONG, conf_span->cfg_line, name);
+
+		OTELC_RETURN_INT(retval);
+	}
+
 	resolved = OTELC_MALLOC(len + 2);
 	if (resolved == NULL) {
 		FLT_OTEL_POST_PARSE_ALERT("inject '%s' : out of memory", conf_span->cfg_line, name);
@@ -2868,7 +3094,9 @@ static int flt_otel_parse_cfg(struct flt_otel_conf *conf, const char *flt_name, 
  *   keyword.  Parses the filter ID and configuration file path from the HAProxy
  *   configuration line.  An optional section name may follow the configuration
  *   file path; it selects the named section of that file and defaults to the
- *   filter ID.  If no filter ID is specified, the default ID is used.
+ *   filter ID.  If no filter ID is specified, the default ID is used.  The
+ *   words 'if' and 'unless' are rejected as the filter ID and as the section
+ *   name, per the general name rule of the definition rules.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -2908,7 +3136,12 @@ static int flt_otel_parse(char **args, int *cur_arg, struct proxy *px, struct fl
 		OTELC_DBG(DEBUG, "args[%d:2]: { '%s' '%s' }", pos, args[pos], args[pos + 1]);
 
 		if (FLT_OTEL_PARSE_KEYWORD(pos, FLT_OTEL_OPT_FILTER_ID)) {
-			retval = flt_otel_parse_keyword(&(conf->id), args, *cur_arg, pos, err, "name");
+			/* The filter ID follows the general name rule. */
+			if (FLT_OTEL_ARG_ISCOND(pos + 1))
+				FLT_OTEL_PARSE_ERR_RESNAME(err, args[pos], args[pos + 1]);
+			else
+				retval = flt_otel_parse_keyword(&(conf->id), args, *cur_arg, pos, err, "name");
+
 			pos++;
 		}
 		else if (FLT_OTEL_PARSE_KEYWORD(pos, FLT_OTEL_OPT_CONFIG)) {
@@ -2918,10 +3151,15 @@ static int flt_otel_parse(char **args, int *cur_arg, struct proxy *px, struct fl
 			/*
 			 * A trailing token that is not a filter keyword names
 			 * the configuration file section to use instead of
-			 * the filter ID.
+			 * the filter ID.  No top-level scope may be called
+			 * 'if' or 'unless', so the words cannot refer to one.
 			 */
 			if (!(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(pos + 1) && !FLT_OTEL_PARSE_KEYWORD(pos + 1, FLT_OTEL_OPT_FILTER_ID) && !FLT_OTEL_PARSE_KEYWORD(pos + 1, FLT_OTEL_OPT_CONFIG)) {
-				retval = flt_otel_parse_strdup(&(conf->sec_name), NULL, args[pos + 1], err, args[*cur_arg]);
+				if (FLT_OTEL_ARG_ISCOND(pos + 1))
+					FLT_OTEL_PARSE_ERR_REFNAME(err, args[*cur_arg], args[pos + 1]);
+				else
+					retval = flt_otel_parse_strdup(&(conf->sec_name), NULL, args[pos + 1], err, args[*cur_arg]);
+
 				pos++;
 			}
 		}

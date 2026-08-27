@@ -73,9 +73,10 @@ OTel scope of the configuration file to use (see section 3.1) and defaults to
 the filter id.  Since filter ids must be unique, the section name is what lets
 several filters read the same OTel scope: each filter keeps its own id and names
 one shared scope instead of holding a private copy of it per filter id.
-Each of 'id' and 'config' stands once on the line, and at most one name
-follows the file; a repeated keyword or a further word is a configuration
-error.
+Neither the filter id nor the section name may be the word 'if' or 'unless':
+the two words are reserved for conditions.  Each of 'id' and 'config' stands
+once on the line, and at most one name follows the file; a repeated keyword
+or a further word is a configuration error.
 
 Note: the parser does not limit the number of OTel filters; it only requires
 each filter id to be unique.  Since the wrapper version 3.0.0, every filter
@@ -116,6 +117,18 @@ HTTP-only event on a non-HTTP proxy is reported as a warning at config load.
 The OTel configuration file uses a simple section-based format.  It contains
 a mandatory "otel-instrumentation" section, zero or more "otel-scope" sections,
 and zero or more "otel-group" sections.
+
+The words 'if' and 'unless' introduce conditions and are reserved: no name
+in the file, of whatever kind, may be written as either word.  An ACL may not
+be called 'or' either, whatever its case, that word joining the terms of a
+condition.  A name is limited in length too, to 127 characters, every key and
+variable name included, a variable counted with its scope prefix and the key
+inside a 'set-var-ctx' field left aside, which follows the W3C limits given
+with that keyword, and a longer one is refused with 'name too long'.  The limit
+reaches neither an ACL name, an event name, an exception type, the description
+of an 'instrument' nor the text of a sample expression, which the filter keeps
+as written, and neither the filter id, the context name on the 'config' line
+nor the name of the top-level scope is measured.
 
 Whatever a keyword allows across its lines, a clause of it stands once on a
 line: a second 'time' on a 'log-record', a second 'unit' on an 'instrument' or
@@ -187,7 +200,7 @@ Keywords (mandatory):
       rejects a broken file.  A context name that matches no signal entry falls
       back to the 'default' entry of each signal, with a warning at startup; a
       signal with no 'default' entry has nothing to fall back to, so 'haproxy
-      -c' rejects the name.
+      -c' rejects the name.  A trailing 'if'/'unless' condition is not accepted.
 
 Keywords (optional):
 
@@ -205,8 +218,11 @@ Keywords (optional):
 
   groups <name> ...
       Declare one or more "otel-group" sections used by this instrumentation.
-      Every defined section must stand here as well: one that no 'groups' line
-      names is a configuration error.  Can be repeated on multiple lines.
+      Every name must be a defined section and is unique in the instrumentation;
+      a repeat is a configuration error.  Every defined section must stand here
+      as well: one that no 'groups' line names is a configuration error too.
+      Can be repeated on multiple lines.  A trailing 'if'/'unless' condition is
+      not accepted.
 
   log global
   log <addr> [len <len>] [format <fmt>] <facility> [<level> [<minlevel>]]
@@ -256,7 +272,9 @@ Keywords (optional):
 
   scopes <name> ...
       Declare one or more "otel-scope" sections used by this instrumentation.
-      Can be repeated on multiple lines.
+      Every name must be a defined section and is unique in the instrumentation;
+      a repeat is a configuration error.  Can be repeated on multiple lines.  A
+      trailing 'if'/'unless' condition is not accepted.
 
 
 Example (from test/sa/otel.cfg):
@@ -528,7 +546,13 @@ Supported keywords:
         '*res*'  - finish all response-channel spans
 
       Multiple names can be given on one line; each is matched independently
-      against the open spans and contexts by exact name.
+      against the open spans and contexts by exact name.  The three special
+      names above stand for whatever the stream holds, so they are exempt from
+      the name check the other ones undergo.  A name may be given only once
+      in the scope, whether on one line or on several, and a repetition is a
+      configuration error; another otel-scope may finish the same span.  The
+      keyword does not accept a trailing 'if'/'unless' condition; one given
+      after the names is rejected.
 
       Examples:
         finish "Frontend TCP request"
@@ -956,9 +980,12 @@ Syntax:
 Keywords:
 
   scopes <name> ...
-      List the "otel-scope" sections that belong to this group.  Multiple names
-      can be given on one line.  Scopes that are used only in groups do not need
-      to define an 'otel-event'.
+      List the "otel-scope" sections that belong to this group.  Multiple
+      names can be given on one line and the keyword may be repeated.  Every
+      name must be a defined section and is unique in the group; a repeat is a
+      configuration error.  Scopes that are used only in groups do not need
+      to define an 'otel-event'.  A trailing 'if'/'unless' condition is not
+      accepted.
 
 Example (from test/sa/otel.cfg):
 

@@ -234,12 +234,14 @@ A span may specify:
 All configuration structures are allocated and freed using macro-generated
 functions from conf_funcs.h:
 
-  FLT_OTEL_CONF_FUNC_INIT(type, id_field, extra_init)
+  FLT_OTEL_CONF_FUNC_INIT(type, id_field, max_len, extra_init)
   FLT_OTEL_CONF_FUNC_FREE(type, id_field, extra_free)
 
 These macros produce flt_otel_conf_<type>_init() and _free() functions.
 The init function:
-  - Checks the identifier length against FLT_OTEL_ID_MAXLEN (64).
+  - Checks the identifier length against the limit of the type, which is
+    FLT_OTEL_ID_MAXLEN (128) for a name and FLT_OTEL_LEN_UNLIMITED for the
+    text of a sample expression.
   - Checks for duplicate identifiers in the target list.
   - Allocates the structure with OTELC_CALLOC.
   - Copies the identifier with OTELC_STRDUP.

@@ -24,7 +24,7 @@
 #define FLT_OTEL_LOG_RATE_MAX     3                  /* Lines per window before suppression. */
 #define FLT_OTEL_LOG_MSG_SIZE     512                /* Escaped runtime error text, truncated to fit. */
 
-#define FLT_OTEL_ID_MAXLEN        64            /* Maximum identifier length. */
+#define FLT_OTEL_ID_MAXLEN        128           /* Maximum identifier length; the variable carrier holds 127 bytes. */
 #define FLT_OTEL_LEN_UNLIMITED    SIZE_MAX      /* No length limit, used where the name is not an identifier. */
 #define FLT_OTEL_DEBUG_LEVEL   0b11101111111 /* Default debug bitmask. */
 

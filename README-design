@@ -75,17 +75,19 @@ Additional X-macro lists generate:
 Macros in conf_funcs.h generate init and free functions for all configuration
 structure types:
 
-  FLT_OTEL_CONF_FUNC_INIT(_type_, _id_, _func_)
+  FLT_OTEL_CONF_FUNC_INIT(_type_, _id_, _max_, _func_)
   FLT_OTEL_CONF_FUNC_FREE(_type_, _id_, _func_)
 
 The _type_ parameter names the structure (e.g. "span"), _id_ names the
-identifier field within the FLT_OTEL_CONF_HDR (e.g. "id", "key", "str"), and
-_func_ is a brace-enclosed code block executed after the boilerplate allocation
-(for init) or before the boilerplate teardown (for free).
+identifier field within the FLT_OTEL_CONF_HDR (e.g. "id", "key", "str"), _max_
+is the length the identifier must stay below, and _func_ is a brace-enclosed
+code block executed after the boilerplate allocation (for init) or before the
+boilerplate teardown (for free).
 
 The generated init function:
   1. Validates the identifier is non-NULL and non-empty.
-  2. Checks the length against FLT_OTEL_ID_MAXLEN (64).
+  2. Checks the length against _max_, FLT_OTEL_ID_MAXLEN (128) for a name and
+     FLT_OTEL_LEN_UNLIMITED for the text of a sample expression.
   3. Detects duplicates in the target list.
   4. Handles auto-generated IDs (FLT_OTEL_CONF_HDR_SPECIAL prefix).
   5. Allocates with OTELC_CALLOC, duplicates the ID with OTELC_STRDUP.

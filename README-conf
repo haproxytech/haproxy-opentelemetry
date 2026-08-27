@@ -361,7 +361,9 @@ following signature for each configuration type:
 The generated function performs these steps:
 
   1. Validates that <id> is non-NULL and non-empty.
-  2. Checks the identifier length against FLT_OTEL_ID_MAXLEN (64).
+  2. Checks the identifier length against the limit named in the macro,
+     FLT_OTEL_ID_MAXLEN (128) for a name and FLT_OTEL_LEN_UNLIMITED for the
+     text of a sample expression, which is not an identifier.
   3. If <head> is non-NULL, iterates the list to reject duplicate identifiers
      (strcmp match).
   4. Allocates the structure with OTELC_CALLOC (zeroed memory).

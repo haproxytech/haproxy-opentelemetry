@@ -269,6 +269,23 @@ An optional section name after the file path selects the top-level OTel scope
 to use; it defaults to the filter id, so several filters may share one scope.
 Each of 'id' and 'config' stands once on the line, and at most one name follows
 the file; a repeated keyword or a further word is a configuration error.
+Neither the filter id nor the section name may be the word 'if' or 'unless':
+the two words introduce conditions and are reserved, so no name in the OTel
+configuration, of whatever kind, may be written as either word.  An ACL may
+not be called 'or' either, whatever its case, that word joining the terms of a
+condition.  A name is limited in length too, to 127 characters, every key and
+variable name included, a variable counted with its scope prefix and the key
+inside a 'set-var-ctx' field left aside, which follows the W3C limits given with
+that keyword; an ACL name, an event name, an exception type, the description
+of an 'instrument' and the text of a sample expression carry no such limit,
+and neither the filter id, the context name on the 'config' line nor the name
+of the top-level scope is measured.  Two filters of one proxy cannot share a
+scope that injects a context: the resolved inject names must be unique across
+the OTel filters of a proxy.  Filters that never run on one stream may reuse
+the names freely, the injected variables included: the variables the filter
+generates carry the transaction scope, so they end with the stream.  A 'set-var'
+name carries the scope the writer chose, and one in the 'proc' scope outlives
+the stream.
 
 Whatever a keyword allows across its lines, a clause of it stands once on a
 line: a second 'time' on a 'log-record', a second 'unit' on an 'instrument' or
@@ -377,6 +394,7 @@ config <file> [context]
   a broken file.  A context name that matches no signal entry falls back to the
   'default' entry of each signal, with a warning at startup; a signal with no
   'default' entry has nothing to fall back to, so 'haproxy -c' rejects the name.
+  A trailing 'if'/'unless' condition is not accepted.
 
   The YAML configuration file supports the following top-level sections:
 
@@ -433,9 +451,12 @@ debug-level <value>
 
 groups <name> ...
   A list of "otel-group" groups used for the currently defined instrumentation
-  is declared.  Several groups can be specified in one line, and the keyword may
-  be repeated on multiple lines.  Every defined "otel-group" section must stand
-  here as well: one that no 'groups' line names is a configuration error.
+  is declared.  Several groups can be specified in one line, and the keyword
+  may be repeated on multiple lines.  Every name must be a defined "otel-group"
+  section and is unique in the instrumentation; a repeat is a configuration
+  error.  Every defined section must stand here as well: one that no 'groups'
+  line names is a configuration error too.  A trailing 'if'/'unless' condition
+  is not accepted.
 
   Arguments :
     name - the name of the OTel group
@@ -517,7 +538,9 @@ rate-limit <value>
 scopes <name> ...
   This keyword lists the "otel-scope" definitions used by the currently defined
   instrumentation.  Multiple scopes may be given on one line, and the keyword
-  may be repeated on multiple lines.
+  may be repeated on multiple lines.  Every name must be a defined "otel-scope"
+  section and is unique in the instrumentation; a repeat is a configuration
+  error.  A trailing 'if'/'unless' condition is not accepted.
 
   Arguments :
     name - the name of the OTel scope
@@ -704,7 +727,10 @@ finish <name> ...
   related to the request channel, '*res*' for all open spans related to the
   response channel and '*' for all open spans regardless of which channel they
   are related to.  Several spans and/or span contexts can be specified in one
-  line.
+  line.  A name may be given only once in the scope, whether on one line or on
+  several, and a repetition is a configuration error; another otel-scope may
+  finish the same span.  The keyword does not accept a trailing 'if'/'unless'
+  condition; one given after the names is rejected.
 
   Arguments :
     name - the name of the span or span context
@@ -1584,9 +1610,11 @@ otel-group <name>
 
 scopes <name> ...
   'otel-scope' sections that are part of the specified group are defined.  If
-  the mentioned 'otel-scope' sections are used only in some OTel group, they do
-  not have to have defined events.  Several 'otel-scope' sections can be
-  specified in one line.
+  the mentioned 'otel-scope' sections are used only in some OTel group, they
+  do not have to have defined events.  Several 'otel-scope' sections can be
+  specified in one line and the keyword may be repeated.  Every name must be
+  a defined section and is unique in the group; a repeat is a configuration
+  error.  A trailing 'if'/'unless' condition is not accepted.
 
   Arguments :
     name - the name of the 'otel-scope' section
