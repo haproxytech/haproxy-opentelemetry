@@ -433,6 +433,20 @@ sections.
       Builds a mandatory trailing 'if'/'unless' condition; used by exception,
       set-var-ctx, otel-stop and otel-event.
 
+  flt_otel_parse_reject_cond
+      Rejects the trailing 'if'/'unless' condition on a keyword whose definition
+      does not allow one and that would otherwise swallow it as a name or as a
+      value; used by config, groups, scopes and finish.
+
+  flt_otel_parse_reject_name
+      Rejects 'if' or 'unless' where a keyword defines a name that other lines
+      refer to.  Those two words open a condition wherever a reference stands,
+      so such a name could never be written again.
+
+  flt_otel_parse_check_name_len
+      Measures a referenced name against the length limit every name keeps, so
+      a reference too long to name anything is reported on its own line.
+
   flt_otel_parse_bounds
       Parses a space-separated string of numbers into a dynamically allocated
       array of doubles for histogram bucket boundaries.  Sorts the values
