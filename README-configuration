@@ -797,10 +797,17 @@ Supported keywords:
 
 
   acl <aclname> <criterion> [flags] [operator] <value> ...
-      Declare an ACL local to this scope.  The name may be used only in the
-      conditions of this scope, where it hides an otel-instrumentation ACL of
-      the same name.  Everything after the criterion is pattern text, so an
-      'if'/'unless' there is taken as a pattern value and not as a condition.
+      Declare an ACL local to this scope.  Each <aclname> may be declared only
+      once within the section; a duplicate name is a configuration error.  The
+      name may be used only in the conditions of this scope, where it hides an
+      otel-instrumentation ACL of the same name.  Each name of a condition is
+      looked up on its own, in the scope first, then in the otel-instrumentation
+      and then in the HAProxy configuration, so one condition may mix the three.
+      The ACL has to exist by the time the line is read: an otel-instrumentation
+      section below this scope, or a HAProxy 'acl' line below the 'filter' line,
+      comes too late and the name is refused.  Everything after the criterion is
+      pattern text, so an 'if'/'unless' there is taken as a pattern value and
+      not as a condition.
 
       Example:
         acl acl-test-src-ip src 127.0.0.1

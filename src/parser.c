@@ -872,9 +872,10 @@ static bool flt_otel_parse_check_scope(void)
  *
  * DESCRIPTION
  *   Parses the 'acl' keyword shared by the otel-instrumentation and otel-scope
- *   sections.  The reserved word 'or' is rejected as an ACL name; otherwise the
- *   declaration is handed to HAProxy's parse_acl() and the result is appended
- *   to <acls>.
+ *   sections.  The reserved words 'if', 'unless' and 'or' are rejected as an
+ *   ACL name, the last of them without regard to case, as the condition parser
+ *   reads it that way; otherwise the declaration is handed to HAProxy's
+ *   parse_acl() and the result is appended to <acls>.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -886,7 +887,10 @@ static int flt_otel_parse_cfg_acl(const char *file, int line, char **args, struc
 
 	OTELC_FUNC("\"%s\", %d, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, acls, OTELC_DPTR_ARGS(err));
 
-	if (FLT_OTEL_PARSE_KEYWORD(1, "or"))
+	if (flt_otel_parse_reject_name(args, 1, err) & ERR_CODE)
+		retval |= ERR_ABORT | ERR_ALERT;
+	/* The condition parser reads the word without regard to case. */
+	else if (strcasecmp(args[1], "or") == 0)
 		FLT_OTEL_PARSE_ERR(err, "'%s %s ...' : invalid ACL name", args[0], args[1]);
 	else if (parse_acl((const char **)args + 1, acls, err, &(flt_otel_current_config->proxy->conf.args), file, line) == NULL)
 		retval |= ERR_ABORT | ERR_ALERT;
@@ -1000,7 +1004,11 @@ static int flt_otel_parse_cfg_instr(const char *file, int line, char **args, int
 				retval |= ERR_ABORT | ERR_ALERT;
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_INSTR_ACL) {
-		retval = flt_otel_parse_cfg_acl(file, line, args, &(flt_otel_current_instr->acls), &err);
+		/* Per the definition rules, an instrumentation ACL name is unique. */
+		if (find_acl_by_name(args[1], &(flt_otel_current_instr->acls)) != NULL)
+			FLT_OTEL_PARSE_ERR_ALRDEF(&err, args[1]);
+		else
+			retval = flt_otel_parse_cfg_acl(file, line, args, &(flt_otel_current_instr->acls), &err);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_INSTR_RATE_LIMIT) {
 		double value;
@@ -2735,7 +2743,11 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		retval = flt_otel_parse_cfg_log_record(file, line, args, pdata, &err);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_ACL) {
-		retval = flt_otel_parse_cfg_acl(file, line, args, &(flt_otel_current_scope->acls), &err);
+		/* Per the definition rules, a scope ACL name is unique. */
+		if (find_acl_by_name(args[1], &(flt_otel_current_scope->acls)) != NULL)
+			FLT_OTEL_PARSE_ERR_ALRDEF(&err, args[1]);
+		else
+			retval = flt_otel_parse_cfg_acl(file, line, args, &(flt_otel_current_scope->acls), &err);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_IDLE_TIMEOUT) {
 		const char *res;

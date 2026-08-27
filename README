@@ -586,12 +586,18 @@ otel-scope <name>
 
 
 acl <aclname> <criterion> [flags] [operator] <value> ...
-  Declare or complete an access list.  Everything after the criterion is pattern
-  text, so an 'if'/'unless' written there is taken as a pattern value and not
-  as a condition.
+  Declare an access list.  Each <aclname> may be declared only once within the
+  section; a duplicate name is a configuration error.  Everything after the
+  criterion is pattern text, so an 'if'/'unless' there is taken as a pattern
+  value and not as a condition.
 
   The name may be used only in the conditions of this otel-scope, where it hides
-  an otel-instrumentation ACL of the same name.
+  an otel-instrumentation ACL of the same name.  Each name of a condition is
+  looked up on its own, in the scope first, then in the otel-instrumentation and
+  then in the HAProxy configuration, so one condition may mix the three.  The
+  ACL has to exist when the line is read: an otel-instrumentation section below
+  this scope, or a HAProxy 'acl' line below the 'filter' line, comes too late
+  and the name is refused.
 
   To configure and use the ACL, see section 7 of the HAProxy Configuration
   Manual.
