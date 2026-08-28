@@ -191,9 +191,17 @@ operate simultaneously in one HAProxy process, each with its own scope.
 3.2. "otel-instrumentation" section
 -------------------------------------
 
-Exactly one "otel-instrumentation" section must be defined per OTel scope.
-It configures the global behavior of the filter and declares which groups
-and scopes are active.
+Exactly one "otel-instrumentation" section must be defined per OTel scope; a
+second one is a configuration error whatever its name.  It configures the global
+behavior of the filter and declares which groups and scopes are active.
+
+Unless stated otherwise, each keyword of this section may be given only once
+and a repetition is a configuration error.  The 'groups', 'scopes' and 'acl'
+keywords may be repeated, every name that they declare being unique, and each
+'option' may likewise be set only once.  An 'option' line also takes the HAProxy
+keyword prefixes 'no' and 'default', which keep the meaning section 4.1 of the
+HAProxy Configuration Manual gives them; a prefixed line counts as the one use
+the option is allowed.
 
 Syntax:
 
@@ -223,7 +231,8 @@ Keywords (optional):
 
   debug-level <value>
       Set the debug level bitmask (e.g. 0x77f).  Only effective when compiled
-      with OTEL_DEBUG=1.
+      with OTEL_DEBUG=1.  The value is checked in every build, so the line
+      parses the same with and without the debug build.
 
   groups <name> ...
       Declare one or more "otel-group" sections used by this instrumentation.
@@ -234,7 +243,8 @@ Keywords (optional):
       not accepted.
 
   log global
-  log <addr> [len <len>] [format <fmt>] <facility> [<level> [<minlevel>]]
+  log <addr> [len <len>] [format <fmt>] [sample <ranges>:<size>]
+      [profile <prof>] <facility> [<level> [<minlevel>]]
   no log
       Enable per-instance logging and set its destination.  The filter reports
       runtime data-path problems here: hard-error episodes at level err and
@@ -242,15 +252,21 @@ Keywords (optional):
       and rate-limited per instance, so a fault recurring on every stream does
       not flood the log; the 'runtime err' counters in 'flt-otel status' hold
       the true tally.  Without a 'log' line the filter emits nothing at runtime.
+      HAProxy allows the 'no' and the 'default' prefix on this keyword; 'no
+      log' leaves the filter's own logging off, 'default log' works like a plain
+      line, and either one uses up the single line the section allows.
 
   option disabled / no option disabled
+  default option disabled
       Disable or enable the filter.  Default: enabled.
 
   option dontlog-normal / no option dontlog-normal
+  default option dontlog-normal
       Drop the below-error log lines (warnings and informational) while keeping
       the error-level messages.  Default: disabled (all levels are logged).
 
   option hard-errors / no option hard-errors
+  default option hard-errors
       Stop all filter processing in a stream after the first error.  Default:
       disabled (errors are non-fatal).
 
@@ -263,6 +279,7 @@ Keywords (optional):
       be resolved is not created, and none of its samples are evaluated.
 
   option noflush / no option noflush
+  default option noflush
       Drop the telemetry still buffered in the exporters when the filter is
       deinitialized, instead of flushing it.  The final flush waits for the
       exporters, so an endpoint that is unreachable at that moment delays a
@@ -271,6 +288,7 @@ Keywords (optional):
       is flushed on shutdown).
 
   option require-context / no option require-context
+  default option require-context
       Suppress all telemetry for a stream until a valid upstream trace context
       is extracted from it; a stream that never yields a valid one stays silent.
       Default: disabled (a context-less stream starts a new trace).

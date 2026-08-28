@@ -342,7 +342,16 @@ operate simultaneously in one HAProxy process, each with its own scope.
 4.2. "otel-instrumentation" section
 -------------------------------------
 
-Only one "otel-instrumentation" section must be defined for each OTel scope.
+Only one "otel-instrumentation" section must be defined for each OTel scope; a
+second one is a configuration error whatever its name.
+
+Unless stated otherwise, each keyword of this section may be given only once
+and a repetition is a configuration error.  The 'groups', 'scopes' and 'acl'
+keywords may be repeated, every name that they declare being unique, and each
+'option' may likewise be set only once.  An 'option' line also takes the HAProxy
+keyword prefixes 'no' and 'default', which keep the meaning section 4.1 of the
+HAProxy Configuration Manual gives them; a prefixed line counts as the one use
+the option is allowed.
 
 The mandatory 'config' keyword defines the YAML configuration file for the
 OpenTelemetry SDK.  This file specifies the telemetry pipeline: exporters,
@@ -368,19 +377,20 @@ otel-instrumentation <name>
       - debug-level
       - groups
       - [no] log
-      - [no] option disabled
-      - [no] option dontlog-normal
-      - [no] option hard-errors
-      - [no] option noflush
-      - [no] option require-context
+      - [no|default] option disabled
+      - [no|default] option dontlog-normal
+      - [no|default] option hard-errors
+      - [no|default] option noflush
+      - [no|default] option require-context
       - rate-limit
       - scopes
 
 
 acl <aclname> <criterion> [flags] [operator] <value> ...
-  Declare or complete an access list.  Everything after the criterion is pattern
-  text, so an 'if'/'unless' written there is taken as a pattern value and not
-  as a condition.
+  Declare an access list.  Each <aclname> may be declared only once within the
+  section; a duplicate name is a configuration error.  Everything after the
+  criterion is pattern text, so an 'if'/'unless' there is taken as a pattern
+  value and not as a condition.
 
   The name may be used in the conditions of every otel-scope, once the section
   has defined it; an otel-instrumentation placed below an otel-scope comes too
@@ -450,7 +460,8 @@ debug-level <value>
   message that uses that bit.  The default value is set via the
   FLT_OTEL_DEBUG_LEVEL macro in the include/config.h file.  Debug level value is
   used only if the OTel filter is compiled with the debug mode enabled,
-  otherwise it is ignored.
+  otherwise it is ignored.  The value itself is checked in every build, so a
+  configuration parses the same with and without the debug build.
 
   Arguments :
     value - bitmask value (hexadecimal notation, e.g. 0x77f)
@@ -470,9 +481,14 @@ groups <name> ...
 
 
 log global
-log <addr> [len <len>] [format <fmt>] <facility> [<level> [<minlevel>]]
+log <addr> [len <len>] [format <fmt>] [sample <ranges>:<size>]
+    [profile <prof>] <facility> [<level> [<minlevel>]]
 no log
   Enable per-instance logging of events and traffic.
+
+  HAProxy allows the 'no' and the 'default' prefix on this keyword; 'no log'
+  leaves the filter's own logging off, 'default log' works like a plain line,
+  and either one uses up the single line the section allows.
 
   To configure and use the logging system, see section 4.2 of the HAProxy
   Configuration Manual.
@@ -480,12 +496,14 @@ no log
 
 option disabled
 no option disabled
+default option disabled
   Keyword which turns the operation of the OTel filter on or off.  By default
   the filter is on.
 
 
 option dontlog-normal
 no option dontlog-normal
+default option dontlog-normal
   Drop the below-error log lines (warnings and informational) while keeping the
   error-level messages.  By default, this option is disabled and all levels are
   logged.  For this option to be considered, logging must be turned on.
@@ -495,6 +513,7 @@ no option dontlog-normal
 
 option hard-errors
 no option hard-errors
+default option hard-errors
   During the operation of the filter, some errors may occur, caused by incorrect
   configuration of the instrumentation or some error related to the operation of
   HAProxy.  By default, such an error will not interrupt the filter operation
@@ -505,6 +524,7 @@ no option hard-errors
 
 option noflush
 no option noflush
+default option noflush
   When the filter is deinitialized, the telemetry still buffered in the OTel
   library is flushed to the exporters, and that final flush waits for them,
   so an unreachable endpoint at that moment delays the shutdown or the reload
@@ -516,6 +536,7 @@ no option noflush
 
 option require-context
 no option require-context
+default option require-context
   By default, a stream that carries no incoming context starts a new trace,
   with its first span becoming the trace root.  With this option enabled, a
   stream produces no telemetry at all -- no trace, no metric and no log record

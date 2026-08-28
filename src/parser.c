@@ -1077,14 +1077,26 @@ static int flt_otel_parse_cfg_instr(const char *file, int line, char **args, int
 		}
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_INSTR_LOG) {
-		if (parse_logger(args, &(flt_otel_current_instr->log.proxy.loggers), kw_mod == KWM_NO, file, line, &err_log) == 0) {
+		/*
+		 * HAProxy parses the rest of the line and would read a condition
+		 * as one of its arguments.
+		 */
+		if (flt_otel_parse_reject_cond(args, 1, &err) & ERR_CODE) {
+			retval |= ERR_ABORT | ERR_ALERT;
+		}
+		else if (flt_otel_current_instr->kw_used & FLT_OTEL_INSTR_KW_LOG) {
+			FLT_OTEL_PARSE_ERR_ALRSET(&err, args[0], pdata);
+		}
+		else if (parse_logger(args, &(flt_otel_current_instr->log.proxy.loggers), kw_mod == KWM_NO, file, line, &err_log) == 0) {
 			FLT_OTEL_PARSE_ERR(&err, "'%s %s ...' : %s", args[0], args[1], err_log);
 			OTELC_SFREE_CLEAR(err_log);
 		}
 		else if (kw_mod == KWM_NO) {
+			flt_otel_current_instr->kw_used |= FLT_OTEL_INSTR_KW_LOG;
 			flt_otel_current_instr->log.type &= ~FLT_OTEL_LOGGING_ON;
 		}
 		else {
+			flt_otel_current_instr->kw_used |= FLT_OTEL_INSTR_KW_LOG;
 			flt_otel_current_instr->log.type |= FLT_OTEL_LOGGING_ON;
 		}
 	}
@@ -1119,7 +1131,11 @@ static int flt_otel_parse_cfg_instr(const char *file, int line, char **args, int
 	else if (pdata->keyword == FLT_OTEL_PARSE_INSTR_RATE_LIMIT) {
 		double value;
 
-		if (flt_otel_strtod(args[1], &value, 0.0, 100.0, &err)) {
+		if (flt_otel_current_instr->kw_used & FLT_OTEL_INSTR_KW_RATE_LIMIT) {
+			FLT_OTEL_PARSE_ERR_ALRSET(&err, args[0], pdata);
+		}
+		else if (flt_otel_strtod(args[1], &value, 0.0, 100.0, &err)) {
+			flt_otel_current_instr->kw_used |= FLT_OTEL_INSTR_KW_RATE_LIMIT;
 			flt_otel_current_instr->rate_limit = FLT_OTEL_FLOAT_U32(value);
 
 			if (fabs(100.0 - value) > FLT_OTEL_DBL_EPSILON)
@@ -1127,39 +1143,83 @@ static int flt_otel_parse_cfg_instr(const char *file, int line, char **args, int
 		}
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_INSTR_OPTION) {
-		if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_PARSE_OPTION_DISABLED)) {
-			flt_otel_current_instr->flag_disabled = (kw_mod == KWM_NO) ? 0 : 1;
-		}
-		else if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_PARSE_OPTION_HARDERR)) {
-			flt_otel_current_instr->flag_harderr = (kw_mod == KWM_NO) ? 0 : 1;
-		}
-		else if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_PARSE_OPTION_NOLOGNORM)) {
-			if (kw_mod == KWM_NO)
-				flt_otel_current_instr->log.type &= ~FLT_OTEL_LOGGING_NOLOGNORM;
-			else
-				flt_otel_current_instr->log.type |= FLT_OTEL_LOGGING_NOLOGNORM;
-		}
-		else if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_PARSE_OPTION_REQCTX)) {
-			flt_otel_current_instr->flag_reqctx = (kw_mod == KWM_NO) ? 0 : 1;
-		}
-		else if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_PARSE_OPTION_NOFLUSH)) {
-			flt_otel_current_instr->flag_noflush = (kw_mod == KWM_NO) ? 0 : 1;
-		}
-		else
+		uint kw_bit = 0;
+		bool flag_set = (kw_mod == KWM_STD);
+
+		/*
+		 * Identify the option; per the definition rules, each one may be
+		 * set only once.
+		 */
+		if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_PARSE_OPTION_DISABLED))
+			kw_bit = FLT_OTEL_INSTR_KW_OPT_DISABLED;
+		else if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_PARSE_OPTION_HARDERR))
+			kw_bit = FLT_OTEL_INSTR_KW_OPT_HARDERR;
+		else if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_PARSE_OPTION_NOLOGNORM))
+			kw_bit = FLT_OTEL_INSTR_KW_OPT_NOLOGNORM;
+		else if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_PARSE_OPTION_REQCTX))
+			kw_bit = FLT_OTEL_INSTR_KW_OPT_REQCTX;
+		else if (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_PARSE_OPTION_NOFLUSH))
+			kw_bit = FLT_OTEL_INSTR_KW_OPT_NOFLUSH;
+
+		if (kw_bit == 0) {
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid option '%s'", args[0], args[1]);
+		}
+		else if (flt_otel_current_instr->kw_used & kw_bit) {
+			FLT_OTEL_PARSE_ERR_ALRSET(&err, args[1], pdata);
+		}
+		else {
+			flt_otel_current_instr->kw_used |= kw_bit;
+
+			/*
+			 * Only a plain line turns the option on: 'no' turns it
+			 * off and 'default' restores that, the filter having no
+			 * inherited value to fall back to.
+			 */
+			if (kw_bit == FLT_OTEL_INSTR_KW_OPT_DISABLED) {
+				flt_otel_current_instr->flag_disabled = flag_set;
+			}
+			else if (kw_bit == FLT_OTEL_INSTR_KW_OPT_HARDERR) {
+				flt_otel_current_instr->flag_harderr = flag_set;
+			}
+			else if (kw_bit == FLT_OTEL_INSTR_KW_OPT_NOLOGNORM) {
+				if (flag_set)
+					flt_otel_current_instr->log.type |= FLT_OTEL_LOGGING_NOLOGNORM;
+				else
+					flt_otel_current_instr->log.type &= ~FLT_OTEL_LOGGING_NOLOGNORM;
+			}
+			else if (kw_bit == FLT_OTEL_INSTR_KW_OPT_REQCTX) {
+				flt_otel_current_instr->flag_reqctx = flag_set;
+			}
+			else {
+				flt_otel_current_instr->flag_noflush = flag_set;
+			}
+		}
 	}
-#ifdef DEBUG_OTEL
 	else if (pdata->keyword == FLT_OTEL_PARSE_INSTR_DEBUG_LEVEL) {
 		int64_t value;
 
-		if (flt_otel_strtoll(args[1], &value, 0, OTELC_DBG_LEVEL_MASK, &err))
+		/*
+		 * The value is a plain number, so a condition standing in its place
+		 * is reported instead of being read as one.  The value is checked
+		 * in every build, so one configuration parses the same with and
+		 * without the debug build; only the assignment is compiled out.
+		 */
+		if (flt_otel_parse_reject_cond(args, 1, &err) & ERR_CODE) {
+			retval |= ERR_ABORT | ERR_ALERT;
+		}
+		else if (flt_otel_current_instr->kw_used & FLT_OTEL_INSTR_KW_DEBUG_LEVEL) {
+			FLT_OTEL_PARSE_ERR_ALRSET(&err, args[0], pdata);
+		}
+		else if (flt_otel_strtoll(args[1], &value, 0, OTELC_DBG_LEVEL_MASK, &err)) {
+			flt_otel_current_instr->kw_used |= FLT_OTEL_INSTR_KW_DEBUG_LEVEL;
+
+#ifdef DEBUG_OTEL
 			otelc_dbg_level = value;
-	}
 #else
-	else {
-		FLT_OTEL_PARSE_WARNING("'%s' : keyword ignored", file, line, args[0]);
-	}
+			FLT_OTEL_PARSE_WARNING("'%s' : keyword ignored", file, line, args[0]);
 #endif
+		}
+	}
 
 	FLT_OTEL_PARSE_IFERR_ALERT();
 
