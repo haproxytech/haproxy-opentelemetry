@@ -1336,12 +1336,6 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 
 				FLT_OTEL_DBG_CONF_INSTRUMENT("  create ", conf_instr);
 
-				if (LIST_ISEMPTY(&(conf_instr->samples))) {
-					FLT_OTEL_ALERT("'%s' : create-form instrument '%s' has no value expression", conf->id, conf_instr->id);
-
-					retval++;
-				}
-
 				if ((conf_instr->aggr_type == OTELC_METRIC_AGGREGATION_UNSET) && (conf_instr->type == OTELC_METRIC_INSTRUMENT_HISTOGRAM_UINT64))
 					conf_instr->aggr_type = OTELC_METRIC_AGGREGATION_HISTOGRAM;
 

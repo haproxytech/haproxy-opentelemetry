@@ -335,7 +335,7 @@ sections.
 
   flt_otel_parse_invalid_char
       Validates characters in a name according to the specified type
-      (identifier, domain, context prefix, variable, metric instrument name).
+      (identifier, domain, context prefix, metric instrument name).
 
   flt_otel_parse_ctx_name_warn
       Warns when a variable-stored span context name has '-' or an uppercase
@@ -465,6 +465,11 @@ sections.
       Parses a space-separated string of numbers into a dynamically allocated
       array of doubles for histogram bucket boundaries.  Sorts the values
       internally.
+
+  flt_otel_parse_check_unit
+      Checks a metric unit against the rule of the OTel SDK, which takes fewer
+      than FLT_OTEL_UNIT_MAXLEN characters and only ASCII ones.  A unit the SDK
+      refuses costs the whole instrument, so the line is rejected at parse time.
 
   flt_otel_parse_cfg_instrument
       Parses the "instrument" keyword inside an otel-scope section.  Supports

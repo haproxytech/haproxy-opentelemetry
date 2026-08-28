@@ -679,7 +679,7 @@ baggage <key> <sample> ... [{ if | unless } <condition>]
   on one span, and every line whose condition holds is applied.
 
   Arguments :
-    key       - key part of a data pair
+    key       - key part of a data pair; letters, digits, '_', '.' and '-'
     sample    - sample expression (value part of a data pair), at least one
                 sample must be present
     condition - an optional ACL-based 'if' or 'unless' condition
@@ -865,9 +865,14 @@ instrument update <name> [attr <key> <sample> ...] [{ if | unless } <condition>]
   traces.
 
   To create a new instrument, give the instrument type, a name, and a sample
-  expression for the measurement value, preceded by the 'value' keyword.  An
-  optional description ('desc') and unit string ('unit') may also be given.  The
-  'aggr', 'desc', 'unit', 'value' and 'bounds' keywords may appear in any order.
+  expression for the measurement value, preceded by the 'value' keyword.  The
+  'value' takes one expression and refuses a second, since the measurement
+  it records is a number.  An optional description ('desc') and unit string
+  ('unit') may also be given.  The 'aggr', 'desc', 'unit', 'value' and 'bounds'
+  keywords may appear in any order.  A name begins with a letter and carries
+  letters, digits and the punctuation '_', '.', '-' and '/' alone, and a unit
+  is at most 63 ASCII characters: the metric SDK refuses anything else, and an
+  instrument it refuses records nothing at all.
 
   An aggregation type can be specified using the 'aggr' keyword followed by one
   of the supported aggregation types listed below.  When specified, a metrics
