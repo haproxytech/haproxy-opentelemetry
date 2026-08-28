@@ -157,7 +157,13 @@ used on events that support it).
 
 An optional trailing name on the filter line selects the [<name>] section of
 the file: flt_otel_parse_check_scope() compares it, or the filter id when it
-is absent, against HAProxy's cfg_scope while the file is parsed.
+is absent, against HAProxy's cfg_scope while the file is parsed.  That same
+function also rejects a keyword line that stands outside of any [<name>] scope.
+The uniqueness of the scope name, the other top-level rule of section 4.5, is
+checked before the file is parsed, by flt_otel_parse_check_scope_names() over
+the loaded content: a section parser is called for the lines of a scope but
+never for the declaration itself, so two scopes of the same name that follow
+each other cannot be told apart from a single one there.
 
 Before flt_otel_parse_cfg() returns, the instrumentation's YAML configuration
 is validated by the wrapper's otelc_cfg_validate(), which parses the document
