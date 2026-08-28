@@ -70,7 +70,7 @@
 #define FLT_OTEL_PARSE_INSTR_DEFINES                                                                                                                                               \
 	FLT_OTEL_PARSE_INSTR_DEF(         ID, 0, CHAR, 2, 2, FLT_OTEL_PARSE_SECTION_INSTR_ID, " <name>")                                                                           \
 	FLT_OTEL_PARSE_INSTR_DEF(        ACL, 0, CHAR, 3, 0, "acl",                           " <aclname> <criterion> [flags] [operator] <value> ...")                             \
-	FLT_OTEL_PARSE_INSTR_DEF(        LOG, 0, NONE, 1, 0, "log",                           " { global | <addr> [len <len>] [format <fmt>] <facility> [<level> [<minlevel>]] }") \
+	FLT_OTEL_PARSE_INSTR_DEF(        LOG, 0, NONE, 1, 0, "log",                           " { global | <addr> [len <len>] [format <fmt>] [sample <ranges>:<size>] [profile <prof>] <facility> [<level> [<minlevel>]] }") \
 	FLT_OTEL_PARSE_INSTR_DEF(     CONFIG, 0, NONE, 2, 3, "config",                        " <file> [context]")                                                                 \
 	FLT_OTEL_PARSE_INSTR_DEF(     GROUPS, 0, NONE, 2, 0, "groups",                        " <name> ...")                                                                       \
 	FLT_OTEL_PARSE_INSTR_DEF(     SCOPES, 0, NONE, 2, 0, "scopes",                        " <name> ...")                                                                       \
@@ -211,6 +211,18 @@ enum FLT_OTEL_LOGGING_enum {
 	FLT_OTEL_LOGGING_OFF       = 0,
 	FLT_OTEL_LOGGING_ON        = 1 << 0,
 	FLT_OTEL_LOGGING_NOLOGNORM = 1 << 1,
+};
+
+/* Once-only keyword tracking bits for the otel-instrumentation section. */
+enum FLT_OTEL_INSTR_KW_enum {
+	FLT_OTEL_INSTR_KW_LOG           = 1 << 0,
+	FLT_OTEL_INSTR_KW_RATE_LIMIT    = 1 << 1,
+	FLT_OTEL_INSTR_KW_DEBUG_LEVEL   = 1 << 2,
+	FLT_OTEL_INSTR_KW_OPT_DISABLED  = 1 << 3,
+	FLT_OTEL_INSTR_KW_OPT_NOLOGNORM = 1 << 4,
+	FLT_OTEL_INSTR_KW_OPT_HARDERR   = 1 << 5,
+	FLT_OTEL_INSTR_KW_OPT_REQCTX    = 1 << 6,
+	FLT_OTEL_INSTR_KW_OPT_NOFLUSH   = 1 << 7,
 };
 
 /* Per-instance edge-trigger latch bits for rate-limited runtime logs. */

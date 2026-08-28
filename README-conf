@@ -153,6 +153,7 @@ list -- it is the unique root, owned by the filter instance.
   flag_data_req          Request channel needs a data filter for http_end.
   flag_data_res          Response channel needs a data filter for http_end.
   flag_started           Atomic claim so the OTel SDK is started once.
+  kw_used                Once-only keywords already seen (FLT_OTEL_INSTR_KW_*).
   log                    Runtime-log emission state (struct flt_otel_log).
   n_harderr              Hard-error episodes (filter disabled), for the CLI.
   n_softerr              Soft-error occurrences (error swallowed), for the CLI.

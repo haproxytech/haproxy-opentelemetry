@@ -94,10 +94,10 @@
 #define FLT_OTEL_CONF_LOG_ARGS(p)     (p), (p)->type, &((p)->proxy), flt_otel_list_dump(&((p)->proxy.loggers)), &((p)->rate), (p)->rate.curr_ctr, (p)->latch, (p)->sup_pending, (p)->sup_total
 
 #define FLT_OTEL_DBG_CONF_INSTR(h,p)                                                                                                                                                      \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' '%s' %p %p %p %p %u %hhu %hhu %hhu %hhu %hhu %hhu %u " FLT_OTEL_CONF_LOG_FMT " %" PRIu64 " %" PRIu64 " 0x%08x %u %s %s %s }", \
-	                 (p), FLT_OTEL_CONF_HDR_ARGS(p, id), OTELC_STR_ARG((p)->config), OTELC_STR_ARG((p)->ctx_name), (p)->ctx, (p)->tracer, (p)->meter, (p)->logger,                    \
-	                 (p)->rate_limit, (p)->flag_harderr, (p)->flag_disabled, (p)->flag_reqctx, (p)->flag_noflush, (p)->flag_data_req, (p)->flag_data_res, (p)->flag_started,          \
-	                 FLT_OTEL_CONF_LOG_ARGS(&((p)->log)), (p)->n_harderr, (p)->n_softerr, (p)->analyzers, (p)->idle_timeout,                                                          \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' '%s' %p %p %p %p %u %hhu %hhu %hhu %hhu %hhu %hhu %u 0x%08x " FLT_OTEL_CONF_LOG_FMT " %" PRIu64 " %" PRIu64 " 0x%08x %u %s %s %s }", \
+	                 (p), FLT_OTEL_CONF_HDR_ARGS(p, id), OTELC_STR_ARG((p)->config), OTELC_STR_ARG((p)->ctx_name), (p)->ctx, (p)->tracer, (p)->meter, (p)->logger,                              \
+	                 (p)->rate_limit, (p)->flag_harderr, (p)->flag_disabled, (p)->flag_reqctx, (p)->flag_noflush, (p)->flag_data_req, (p)->flag_data_res, (p)->flag_started, (p)->kw_used,      \
+	                 FLT_OTEL_CONF_LOG_ARGS(&((p)->log)), (p)->n_harderr, (p)->n_softerr, (p)->analyzers, (p)->idle_timeout,                                                                    \
 	                 flt_otel_list_dump(&((p)->acls)), flt_otel_list_dump(&((p)->ph_groups)), flt_otel_list_dump(&((p)->ph_scopes)))
 
 #define FLT_OTEL_DBG_CONF_INSTRUMENT(h,p)                                                                                       \
@@ -378,6 +378,7 @@ struct flt_otel_conf_instr {
 	bool                 flag_data_req; /* Request channel needs a data filter for http_end. */
 	bool                 flag_data_res; /* Response channel needs a data filter for http_end. */
 	uint                 flag_started;  /* Atomic claim so the OTel SDK is started once. */
+	uint                 kw_used;       /* Once-only keywords already seen (FLT_OTEL_INSTR_KW_*). */
 	struct flt_otel_log  log;           /* Runtime-log emission and flood-control state. */
 	uint64_t             n_harderr;     /* Hard-error episodes (filter disabled), for the CLI. */
 	uint64_t             n_softerr;     /* Soft-error occurrences (error swallowed), for the CLI. */
