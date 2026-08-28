@@ -59,11 +59,8 @@
 #define OTELC_STR_IS_VALID(s)      (((s) != NULL) && (*(s) != '\0'))
 
 
-/* Debug tracing; the macro shapes must match the real header exactly. */
-#if defined(DEBUG) || defined(DEBUG_OTEL)
-
 /* The full list is load-bearing: OTELC_DBG_LEVEL_MASK derives from its length
- * and bounds the 'debug-level' keyword. */
+ * and bounds the 'debug-level' keyword in every build. */
 #define OTELC_DBG_LEVEL_DEFINES     \
 	OTELC_DBG_LEVEL_DEF(LOG)     \
 	OTELC_DBG_LEVEL_DEF(FUNC)    \
@@ -85,6 +82,8 @@ enum OTELC_DBG_LEVEL_enum {
 };
 #undef OTELC_DBG_LEVEL_DEF
 
+/* Debug tracing; the macro shapes must match the real header exactly. */
+#if defined(DEBUG) || defined(DEBUG_OTEL)
 #  define OTELC_DBG_IFDEF(a,b)     a
 #  define OTELC_DBG_INDENT_STEP    2
 #  define OTELC_DBG_INDENT         otelc_dbg_indent, "                                        > "
