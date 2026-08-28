@@ -256,8 +256,6 @@ static int flt_otel_find_cond_pos(char **args, int idx)
  *   Common validation for configuration keywords.  Looks up <args[0]> in the
  *   <parse_data> table, checks the argument count bounds, and validates the
  *   first argument's characters according to the keyword's check_name type.
- *   When <flag_need_instr> is set and the section object is open, it also
- *   requires that the instrumentation has already been defined.
  *
  *   Every keyword that sets an argument maximum takes no trailing condition,
  *   so an 'if'/'unless' among the surplus arguments is reported as the
@@ -268,11 +266,11 @@ static int flt_otel_find_cond_pos(char **args, int idx)
  *   Returns ERR_NONE (== 0) in case of success,
  *   or a combination of ERR_* flags if an error is encountered.
  */
-static int flt_otel_parse_cfg_check(const char *file, int line, char **args, const void *cur_obj, bool flag_need_instr, const struct flt_otel_parse_data *parse_data, size_t parse_data_size, const struct flt_otel_parse_data **pdata, char **err)
+static int flt_otel_parse_cfg_check(const char *file, int line, char **args, const struct flt_otel_parse_data *parse_data, size_t parse_data_size, const struct flt_otel_parse_data **pdata, char **err)
 {
 	int i, argc = 0, cond_pos, retval = ERR_NONE;
 
-	OTELC_FUNC("\"%s\", %d, %p, %p, %hhu, %p, %zu, %p:%p, %p:%p", OTELC_STR_ARG(file), line, args, cur_obj, flag_need_instr, parse_data, parse_data_size, OTELC_DPTR_ARGS(pdata), OTELC_DPTR_ARGS(err));
+	OTELC_FUNC("\"%s\", %d, %p, %p, %zu, %p:%p, %p:%p", OTELC_STR_ARG(file), line, args, parse_data, parse_data_size, OTELC_DPTR_ARGS(pdata), OTELC_DPTR_ARGS(err));
 
 	FLT_OTEL_ARGS_DUMP();
 
@@ -287,11 +285,6 @@ static int flt_otel_parse_cfg_check(const char *file, int line, char **args, con
 		FLT_OTEL_PARSE_ERR(err, "'%s' : unknown keyword", args[0]);
 	else
 		argc = flt_otel_args_count((const char **)args);
-
-	if ((retval & ERR_CODE) || (cur_obj == NULL))
-		/* Do nothing. */;
-	else if (flag_need_instr && (flt_otel_current_config->instr == NULL))
-		FLT_OTEL_PARSE_ERR(err, "'%s' : instrumentation not defined", args[0]);
 
 	/*
 	 * Checking that fewer arguments are specified in the configuration
@@ -937,7 +930,7 @@ static int flt_otel_parse_cfg_instr(const char *file, int line, char **args, int
 		OTELC_RETURN_INT(retval);
 
 	/* Validate and identify the instrumentation keyword. */
-	retval = flt_otel_parse_cfg_check(file, line, args, flt_otel_current_instr, false, parse_data, OTELC_TABLESIZE(parse_data), &pdata, &err);
+	retval = flt_otel_parse_cfg_check(file, line, args, parse_data, OTELC_TABLESIZE(parse_data), &pdata, &err);
 	if (retval & ERR_CODE) {
 		FLT_OTEL_PARSE_IFERR_ALERT();
 
@@ -1142,7 +1135,7 @@ static int flt_otel_parse_cfg_group(const char *file, int line, char **args, int
 		OTELC_RETURN_INT(retval);
 
 	/* Validate and identify the group keyword. */
-	retval = flt_otel_parse_cfg_check(file, line, args, flt_otel_current_group, true, parse_data, OTELC_TABLESIZE(parse_data), &pdata, &err);
+	retval = flt_otel_parse_cfg_check(file, line, args, parse_data, OTELC_TABLESIZE(parse_data), &pdata, &err);
 	if (retval & ERR_CODE) {
 		FLT_OTEL_PARSE_IFERR_ALERT();
 
@@ -2338,7 +2331,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		OTELC_RETURN_INT(retval);
 
 	/* Validate and identify the scope keyword. */
-	retval = flt_otel_parse_cfg_check(file, line, args, flt_otel_current_span, true, parse_data, OTELC_TABLESIZE(parse_data), &pdata, &err);
+	retval = flt_otel_parse_cfg_check(file, line, args, parse_data, OTELC_TABLESIZE(parse_data), &pdata, &err);
 
 	/*
 	 * In a scoped configuration file the section header can fall in a
