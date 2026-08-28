@@ -312,7 +312,14 @@ that is used to configure the operation of the OTel filter and define the used
 groups and scopes.
 
 OTel scope starts with the id of the filter specified in square brackets and
-ends with the end of the file or when a new OTel scope is defined.
+ends with the end of the file or when a new OTel scope is defined.  An OTel
+scope name is unique: opening a second scope with an already used name is a
+configuration error.  The whole configuration lives inside OTel scopes, so the
+file begins with a scope line; a section or keyword outside of any OTel scope
+is a configuration error.  The filter reads only the scope its line selects and
+checks the rules below in that one; of the others it reads the name alone, so an
+unread scope may hold anything from its first section header on until a filter
+line selects it; a line above every header is an error HAProxy itself reports.
 
 For example, this defines two OTel scopes in the same configuration file:
   [my-first-otel-filter]
@@ -1605,9 +1612,12 @@ to start.  A group section those lines leave out is an error on its own.
 
 
 otel-group <name>
-  Creates a new OTel group definition named <name>.  A 'groups' line of the
-  otel-instrumentation section must name the group; one those lines leave out
-  is a configuration error.
+  Creates a new OTel group definition named <name>.  The name is unique within
+  the top-level OTel scope, so a second group of that name is a configuration
+  error, while another top-level scope may reuse it.  The section must hold at
+  least one 'scopes' line; a group with none is an error.  A 'groups' line of
+  the otel-instrumentation section must name the group; one those lines leave
+  out is an error as well.
 
   Arguments :
     name - the name of the OTel group

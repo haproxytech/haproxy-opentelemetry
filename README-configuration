@@ -146,6 +146,15 @@ enclosed in square brackets.  A filter uses the scope whose name matches the
 section name given after the configuration file on its 'filter opentelemetry'
 line, or, when no section name is given there, its own filter id.
 
+An OTel scope name is unique: opening a scope whose name was already used is a
+configuration error.  The whole configuration lives inside OTel scopes, so the
+file begins with a scope line; a section or keyword outside of any OTel scope
+is a configuration error.  The filter reads only the scope its line selects and
+checks the rules of this document in that one; of the others it reads the name
+alone, so an unread scope may hold anything from its first section header on
+until a filter line selects it; a line above every header is an error HAProxy
+itself reports.
+
   [<name>]
       otel-instrumentation <name>
           ...
@@ -976,9 +985,12 @@ Supported keywords:
 ---------------------------
 
 An "otel-group" section defines a named collection of scopes that can be
-triggered from HAProxy TCP/HTTP rules rather than from filter events.  A 'groups'
-line of the otel-instrumentation section must name the group; one those lines
-leave out is a configuration error.
+triggered from HAProxy TCP/HTTP rules rather than from filter events.  The group
+name is unique within the top-level OTel scope, so a second group of that name
+is a configuration error, while another top-level scope may reuse it.  The
+section must hold at least one 'scopes' line; a group with none is an error.  A
+'groups' line of the otel-instrumentation section must name the group; one those
+lines leave out is an error as well.
 
 Syntax:
 
@@ -1615,8 +1627,9 @@ are triggered:
 
 --- test/empty/otel.cfg -------------------------------------------------
 
-  otel-instrumentation otel-test-instrumentation
-      config empty/otel.yml
+  [otel-test-empty]
+      otel-instrumentation otel-test-instrumentation
+          config empty/otel.yml default
 
 ---------------------------------------------------------------------
 
