@@ -387,6 +387,15 @@ sections.
       Parses and validates a file path argument; checks that the file exists and
       is readable and that no trailing condition follows it.
 
+  flt_otel_parse_scope_name
+      Recognizes a '[<name>]' OTel scope declaration in the raw content of the
+      configuration file, reporting the name as a pointer and a length.
+
+  flt_otel_parse_check_scope_names
+      Rejects a top-level OTel scope name that opens for a second time, matching
+      every declaration of the loaded file against the ones before it, and a
+      scope called 'if' or 'unless', which the general name rule forbids.
+
   flt_otel_parse_check_scope
       Checks whether the current config line is within the correct OTel scope
       (cfg_scope filtering); rejects a line outside of any scope.

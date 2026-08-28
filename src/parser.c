@@ -806,46 +806,156 @@ static int flt_otel_parse_cfg_file(char **ptr, const char *file, int line, char 
 
 /***
  * NAME
+ *   flt_otel_parse_scope_name - OTel scope declaration recognition
+ *
+ * SYNOPSIS
+ *   static const char *flt_otel_parse_scope_name(const char *line, const char *end, size_t *len)
+ *
+ * ARGUMENTS
+ *   line - first character of the configuration file line
+ *   end  - first character past the end of that line
+ *   len  - pointer to store the length of the scope name
+ *
+ * DESCRIPTION
+ *   Recognizes a top-level OTel scope declaration, a '[<name>]' line, in the
+ *   raw content of the configuration file.  Leading whitespace is skipped the
+ *   way HAProxy skips it, so the same lines open a scope here and there, and
+ *   the name between the brackets is located.  The content is not modified and
+ *   the name is not terminated, so it is reported as a pointer into <line>
+ *   together with its length in <*len>.  A malformed declaration is left to
+ *   HAProxy's own scope parser, which rejects it while the file is parsed.
+ *
+ * RETURN VALUE
+ *   Returns a pointer to the scope name, or NULL when the line does not open
+ *   a scope.
+ */
+static const char *flt_otel_parse_scope_name(const char *line, const char *end, size_t *len)
+{
+	const char *ptr, *close, *retptr = NULL;
+
+	OTELC_FUNC("%p, %p, %p", line, end, len);
+
+	for (ptr = line; (ptr < end) && isspace((uint8_t)*ptr); ptr++);
+
+	if ((ptr < end) && (*ptr == '[')) {
+		for (close = ++ptr; (close < end) && (*close != ']'); close++);
+
+		if ((close < end) && (close > ptr)) {
+			*len   = close - ptr;
+			retptr = ptr;
+		}
+	}
+
+	OTELC_RETURN_EX(retptr, const char *, "%p");
+}
+
+
+/***
+ * NAME
+ *   flt_otel_parse_check_scope_names - OTel scope name uniqueness check
+ *
+ * SYNOPSIS
+ *   static int flt_otel_parse_check_scope_names(const char *content, size_t size)
+ *
+ * ARGUMENTS
+ *   content - the loaded content of the configuration file
+ *   size    - number of bytes in <content>
+ *
+ * DESCRIPTION
+ *   Rejects a top-level OTel scope name that opens for a second time, as the
+ *   definition rules require the name to be unique, and a scope called 'if'
+ *   or 'unless', which the general name rule forbids.  Each '[<name>]' line of
+ *   <content> is looked up among the ones before it, which also covers a scope
+ *   holding no line at all.  The check cannot be done while the file is parsed
+ *   because a section parser is called only for the lines of a scope, never for
+ *   the declaration itself, so two scopes of the same name that follow each
+ *   other are indistinguishable from a single one there.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE (== 0) in case of success,
+ *   or a combination of ERR_* flags if an error is encountered.
+ */
+static int flt_otel_parse_check_scope_names(const char *content, size_t size)
+{
+	const char *end = content + size, *line, *next, *name, *scan, *snext, *sname;
+	size_t      name_len = 0, sname_len = 0;
+	int         line_num, retval = ERR_NONE;
+
+	OTELC_FUNC("%p, %zu", content, size);
+
+	for (line = content, line_num = 1; !(retval & ERR_CODE) && (line < end); line = next, line_num++) {
+		next = memchr(line, '\n', end - line);
+		next = (next == NULL) ? end : (next + 1);
+
+		name = flt_otel_parse_scope_name(line, next, &name_len);
+		if (name == NULL)
+			continue;
+
+		/* A top-level scope follows the general name rule. */
+		if (((name_len == strlen(FLT_OTEL_CONDITION_IF)) && (memcmp(name, FLT_OTEL_CONDITION_IF, name_len) == 0)) ||
+		    ((name_len == strlen(FLT_OTEL_CONDITION_UNLESS)) && (memcmp(name, FLT_OTEL_CONDITION_UNLESS, name_len) == 0)))
+			FLT_OTEL_POST_PARSE_ALERT("'[%.*s]' : '%.*s' cannot be used as a name", line_num, (int)name_len, name, (int)name_len, name);
+
+		for (scan = content; !(retval & ERR_CODE) && (scan < line); scan = snext) {
+			snext = memchr(scan, '\n', line - scan);
+			snext = (snext == NULL) ? line : (snext + 1);
+
+			sname = flt_otel_parse_scope_name(scan, snext, &sname_len);
+			if ((sname != NULL) && (sname_len == name_len) && (memcmp(sname, name, name_len) == 0))
+				FLT_OTEL_POST_PARSE_ALERT("'[%.*s]' : OTel scope already defined", line_num, (int)name_len, name);
+		}
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_parse_check_scope - configuration scope filter
  *
  * SYNOPSIS
- *   static bool flt_otel_parse_check_scope(void)
+ *   static bool flt_otel_parse_check_scope(char **args, char **err)
  *
  * ARGUMENTS
- *   This function takes no arguments.
+ *   args - configuration line arguments array
+ *   err  - indirect pointer to error message string
  *
  * DESCRIPTION
- *   Checks whether the current configuration parsing is within the correct
- *   HAProxy cfg_scope section.  The section name set on the filter line is
- *   matched first; when it is not set, the filter ID is used.  When cfg_scope
- *   is set and does not match that name, the configuration line is skipped.
- *   An explicit section name also requires a scoped file: the lines outside
- *   of any [section] are skipped, so a file without sections then leaves the
- *   filter without instrumentation, which is reported after parsing.
+ *   Checks whether the current configuration line is within the correct OTel
+ *   scope.  A line outside of any [scope] is an error; a duplicated scope name
+ *   is rejected before the file is parsed, by
+ *   flt_otel_parse_check_scope_names().  The scope name set on the filter line
+ *   is matched next; when it is not set, the filter ID is used.  A line in a
+ *   scope that does not match that name is skipped.
  *
  * RETURN VALUE
- *   Returns TRUE in case the configuration is not in the currently
- *   defined scope, FALSE otherwise.
+ *   Returns TRUE in case the line must not be parsed -- either skipped or,
+ *   when <*err> is set, rejected -- FALSE otherwise.
  */
-static bool flt_otel_parse_check_scope(void)
+static bool flt_otel_parse_check_scope(char **args, char **err)
 {
 	const char *name = (flt_otel_current_config->sec_name != NULL) ? flt_otel_current_config->sec_name : flt_otel_current_config->id;
 	bool        retval = 0;
 
-	if ((flt_otel_current_config->sec_name != NULL) && (cfg_scope == NULL)) {
+	OTELC_FUNC("%p, %p:%p", args, OTELC_DPTR_ARGS(err));
+
+	if (cfg_scope == NULL) {
 		/*
-		 * An explicit section name selects a [section] of the file,
-		 * so the lines outside of any section are skipped.
+		 * Per the definition rules, everything outside of an OTel scope is
+		 * an error.
 		 */
+		FLT_OTEL_ERR("'%s' : no OTel scope opened", args[0]);
+
 		retval = 1;
 	}
-	else if ((cfg_scope != NULL) && (name != NULL) && (strcmp(name, cfg_scope) != 0)) {
+	else if ((name != NULL) && (strcmp(name, cfg_scope) != 0)) {
 		OTELC_DBG(INFO, "cfg_scope: '%s', name: '%s'", cfg_scope, name);
 
 		retval = 1;
 	}
 
-	return retval;
+	OTELC_RETURN_EX(retval, bool, "%hhu");
 }
 
 
@@ -926,8 +1036,11 @@ static int flt_otel_parse_cfg_instr(const char *file, int line, char **args, int
 
 	OTELC_FUNC("\"%s\", %d, %p, 0x%08x", OTELC_STR_ARG(file), line, args, kw_mod);
 
-	if (flt_otel_parse_check_scope())
+	if (flt_otel_parse_check_scope(args, &err)) {
+		FLT_OTEL_PARSE_IFERR_ALERT();
+
 		OTELC_RETURN_INT(retval);
+	}
 
 	/* Validate and identify the instrumentation keyword. */
 	retval = flt_otel_parse_cfg_check(file, line, args, parse_data, OTELC_TABLESIZE(parse_data), &pdata, &err);
@@ -1131,8 +1244,11 @@ static int flt_otel_parse_cfg_group(const char *file, int line, char **args, int
 
 	OTELC_FUNC("\"%s\", %d, %p, 0x%08x", OTELC_STR_ARG(file), line, args, kw_mod);
 
-	if (flt_otel_parse_check_scope())
+	if (flt_otel_parse_check_scope(args, &err)) {
+		FLT_OTEL_PARSE_IFERR_ALERT();
+
 		OTELC_RETURN_INT(retval);
+	}
 
 	/* Validate and identify the group keyword. */
 	retval = flt_otel_parse_cfg_check(file, line, args, parse_data, OTELC_TABLESIZE(parse_data), &pdata, &err);
@@ -2327,8 +2443,11 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 
 	OTELC_FUNC("\"%s\", %d, %p, 0x%08x", OTELC_STR_ARG(file), line, args, kw_mod);
 
-	if (flt_otel_parse_check_scope())
+	if (flt_otel_parse_check_scope(args, &err)) {
+		FLT_OTEL_PARSE_IFERR_ALERT();
+
 		OTELC_RETURN_INT(retval);
+	}
 
 	/* Validate and identify the scope keyword. */
 	retval = flt_otel_parse_cfg_check(file, line, args, parse_data, OTELC_TABLESIZE(parse_data), &pdata, &err);
@@ -3022,13 +3141,14 @@ static int flt_otel_post_parse_cfg_scope(void)
  * DESCRIPTION
  *   Parses the OTel filter configuration file.  Backs up the current HAProxy
  *   section parsers, registers temporary otel-instrumentation, otel-group, and
- *   otel-scope section parsers, loads and parses the file, then restores the
- *   original sections.  When a section name is set on the filter line, only
- *   the matching top-level section of the file is parsed; a name that matches
- *   nothing fails with an error.  The section state is cleared before
- *   returning: an error stops the parse ahead of the callback that ends a
- *   section, and the next filter line must not find the objects of this file
- *   there.
+ *   otel-scope section parsers, loads the file, checks that its scope names are
+ *   unique, parses it, then restores the original sections.  Only the matching
+ *   top-level section of the file is parsed, named on the filter line or by the
+ *   filter ID when the line carries no name.  An otel-instrumentation section
+ *   has to be found there, so a name that matches nothing fails as well.  The
+ *   section state is cleared before returning: an error stops the parse ahead
+ *   of the callback that ends a section, and the next filter line must not find
+ *   the objects of this file there.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -3083,8 +3203,11 @@ static int flt_otel_parse_cfg(struct flt_otel_conf *conf, const char *flt_name, 
 		(void)memset(&cfg_file, 0, sizeof(cfg_file));
 		cfg_file.filename = conf->cfg_file;
 		cfg_file.size     = load_cfg_in_mem(cfg_file.filename, &(cfg_file.content));
-		if (cfg_file.size >= 0)
-			retval = parse_cfg(&cfg_file);
+		if (cfg_file.size >= 0) {
+			retval = flt_otel_parse_check_scope_names(cfg_file.content, (size_t)(cfg_file.size));
+			if (!(retval & ERR_CODE))
+				retval = parse_cfg(&cfg_file);
+		}
 		ha_free(&(cfg_file.content));
 
 		/* Stash OTEL args for deferred resolution. */
@@ -3115,9 +3238,14 @@ static int flt_otel_parse_cfg(struct flt_otel_conf *conf, const char *flt_name, 
 	cfg_unregister_sections();
 	cfg_restore_sections(&backup_sections);
 
-	/* A section name that matched nothing leaves the filter without instrumentation. */
-	if (!(retval & ERR_CODE) && (conf->sec_name != NULL) && (conf->instr == NULL))
-		FLT_OTEL_PARSE_ERR(err, "'%s' : no instrumentation found in section '%s'", conf->cfg_file, conf->sec_name);
+	/*
+	 * The selected top-level scope must hold an instrumentation section,
+	 * and a section name that matched nothing leaves the filter without one
+	 * too.  The name is the one from the filter line, or the filter ID when
+	 * the line carries none.
+	 */
+	if (!(retval & ERR_CODE) && (conf->instr == NULL))
+		FLT_OTEL_PARSE_ERR(err, "'%s' : no instrumentation found in section '%s'", conf->cfg_file, (conf->sec_name != NULL) ? conf->sec_name : conf->id);
 
 	/*
 	 * Validate the OpenTelemetry YAML configuration now: the library is
