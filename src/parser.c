@@ -117,8 +117,8 @@ static int flt_otel_parse_keyword(char **ptr, char **args, int cur_arg, int pos,
  * DESCRIPTION
  *   Validates characters in a <name> string according to the specified <type>.
  *   Uses HAProxy's invalid_char() for identifiers, invalid_domainchar() for
- *   domains, invalid_prefix_char() for context prefixes, and a custom
- *   alphanumeric check for variables.
+ *   domains, invalid_prefix_char() for context prefixes and baggage keys, and
+ *   a custom check for metric instrument names.
  *
  * RETURN VALUE
  *   Returns a pointer to the first invalid character in <name>,
@@ -143,15 +143,18 @@ static const char *flt_otel_parse_invalid_char(const char *name, int type)
 	else if (type == FLT_OTEL_PARSE_INVALID_CTX) {
 		retptr = invalid_prefix_char(name);
 	}
-	else if (type == FLT_OTEL_PARSE_INVALID_VAR) {
+	else if (type == FLT_OTEL_PARSE_INVALID_METRIC) {
 		retptr = name;
 
 		/*
-		 * Allowed characters are letters, numbers and '_', the first
-		 * character in the string must be a letter or '_'.
+		 * The OTel SDK takes a name that begins with a letter and
+		 * holds only letters, numbers, '_', '.', '-' and '/'; one it
+		 * refuses costs the whole instrument at runtime.
 		 */
-		if ((*retptr == '_') || isalpha((uint8_t)*retptr))
-			for (++retptr; (*retptr == '_') || isalnum((uint8_t)*retptr); retptr++);
+		if (isalpha((uint8_t)*retptr))
+			for (++retptr; *retptr != '\0'; retptr++)
+				if ((isalnum((uint8_t)*retptr) == 0) && (strchr(FLT_OTEL_PARSE_METRIC_CHARS, *retptr) == NULL))
+					break;
 
 		if (*retptr == '\0')
 			retptr = NULL;
@@ -1869,6 +1872,50 @@ static const struct flt_otel_kw_map *flt_otel_kw_lookup(const struct flt_otel_kw
 
 /***
  * NAME
+ *   flt_otel_parse_check_unit - metric unit check
+ *
+ * SYNOPSIS
+ *   static int flt_otel_parse_check_unit(const char *unit, const char *keyword, char **err)
+ *
+ * ARGUMENTS
+ *   unit    - the unit string of a metric instrument
+ *   keyword - the clause that carries the unit, named in the error message
+ *   err     - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Checks <unit> against the rule of the OTel SDK, which takes fewer than
+ *   FLT_OTEL_UNIT_MAXLEN characters and only ASCII ones.  A unit the SDK
+ *   refuses costs the whole instrument: the meter hands back one that records
+ *   nothing, so the line is rejected here, where the alert names the file and
+ *   the line.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE (== 0) in case of success,
+ *   or a combination of ERR_* flags if an error is encountered.
+ */
+static int flt_otel_parse_check_unit(const char *unit, const char *keyword, char **err)
+{
+	const char *ptr;
+	int         retval = ERR_NONE;
+
+	OTELC_FUNC("\"%s\", \"%s\", %p:%p", OTELC_STR_ARG(unit), OTELC_STR_ARG(keyword), OTELC_DPTR_ARGS(err));
+
+	if (strlen(unit) >= FLT_OTEL_UNIT_MAXLEN)
+		FLT_OTEL_PARSE_ERR(err, "'%s' : value longer than %d characters", keyword, FLT_OTEL_UNIT_MAXLEN - 1);
+	else
+		for (ptr = unit; *ptr != '\0'; ptr++)
+			if ((uint8_t)*ptr > 0x7f) {
+				FLT_OTEL_PARSE_ERR(err, "'%s' : value holds a character that is not ASCII", keyword);
+
+				break;
+			}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_parse_cfg_instrument - instrument keyword parser
  *
  * SYNOPSIS
@@ -1889,8 +1936,11 @@ static const struct flt_otel_kw_map *flt_otel_kw_lookup(const struct flt_otel_kw
  *   the 'aggr' keyword), optional description, optional unit, a single sample
  *   expression for the value, and optional histogram bucket boundaries
  *   (preceded by the 'bounds' keyword).  The 'bounds' keyword is only valid for
- *   histogram instrument types.  Either form may also end with an optional
- *   'if'/'unless' ACL condition on the recorded measurement at runtime.
+ *   histogram instrument types, and a create line without a value expression is
+ *   rejected.  Either form may also end with an optional 'if'/'unless' ACL
+ *   condition controlling the recorded measurement at runtime.  The name and
+ *   unit follow the rules of the OTel SDK, checked here so that a line the
+ *   meter would refuse does not reach it.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -1902,6 +1952,7 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 	FLT_OTEL_KW_MAP(kw, instr_type, FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEFINES);
 #undef FLT_OTEL_PARSE_SCOPE_INSTRUMENT_DEF
 	struct flt_otel_conf_instrument *instr, *instr_last = NULL;
+	const char                      *invalid_char;
 	int                              i, retval = ERR_NONE;
 
 	OTELC_FUNC("\"%s\", %d, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, pdata, OTELC_DPTR_ARGS(err));
@@ -1920,6 +1971,14 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 	retval = flt_otel_parse_reject_name(args, 2, err);
 	if (retval & ERR_CODE)
 		OTELC_RETURN_INT(retval);
+
+	/* The name of an instrument also follows the rule of the OTel SDK. */
+	invalid_char = flt_otel_parse_invalid_char(args[2], FLT_OTEL_PARSE_INVALID_METRIC);
+	if (invalid_char != NULL) {
+		FLT_OTEL_PARSE_ERR(err, "%s '%s' : invalid character '%c'", args[0], args[2], *invalid_char);
+
+		OTELC_RETURN_INT(retval);
+	}
 
 	/*
 	 * Create-form instruments may repeat a name -- typically with an
@@ -2027,10 +2086,12 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 			else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_INSTRUMENT_UNIT)) {
 				if (!FLT_OTEL_ARG_ISVALID(i + 1))
 					FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
-				else if (instr->unit == NULL)
-					retval = flt_otel_parse_strdup(&(instr->unit), NULL, args[++i], err, args[0]);
-				else
+				else if (instr->unit != NULL)
 					FLT_OTEL_PARSE_ERR_ALRSET(err, args[i], pdata);
+				else if (flt_otel_parse_check_unit(args[i + 1], args[i], err) & ERR_CODE)
+					retval |= ERR_ABORT | ERR_ALERT;
+				else
+					retval = flt_otel_parse_strdup(&(instr->unit), NULL, args[++i], err, args[0]);
 			}
 			else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_INSTRUMENT_VALUE)) {
 				if (!FLT_OTEL_ARG_ISVALID(i + 1))
@@ -2058,6 +2119,9 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
 				FLT_OTEL_PARSE_ERR_INVARG(err, args[i], pdata);
 			}
 		}
+
+		if (!(retval & ERR_CODE) && LIST_ISEMPTY(&(instr->samples)))
+			FLT_OTEL_PARSE_ERR(err, "'%s' : missing value expression (use '%s%s')", args[0], pdata->name, pdata->usage);
 	}
 
 	OTELC_RETURN_INT(retval);

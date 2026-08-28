@@ -48,6 +48,9 @@
 #define FLT_OTEL_PARSE_OPTION_REQCTX          "require-context"
 #define FLT_OTEL_PARSE_OPTION_NOFLUSH         "noflush"
 
+/* Punctuation a metric instrument name may carry beside letters and numbers. */
+#define FLT_OTEL_PARSE_METRIC_CHARS           "_.-/"
+
 /* Scope keywords that are also spelled outside the parser tables. */
 #define FLT_OTEL_PARSE_KW_LINK                "link"
 #define FLT_OTEL_PARSE_KW_ATTRIBUTE           "attribute"
@@ -157,7 +160,7 @@
 	FLT_OTEL_PARSE_SCOPE_DEF(        LINK, 1, NONE, 2, 0,   FLT_OTEL_PARSE_KW_LINK,        " { <ref> ... | <ref> attr <key> <sample> ... }")                                                                          \
 	FLT_OTEL_PARSE_SCOPE_DEF(   ATTRIBUTE, 1, NONE, 3, 0,   FLT_OTEL_PARSE_KW_ATTRIBUTE,   " <key> <sample> ..." FLT_OTEL_PARSE_USAGE_COND)                                                                           \
 	FLT_OTEL_PARSE_SCOPE_DEF(       EVENT, 1, NONE, 4, 0,   FLT_OTEL_PARSE_KW_EVENT,       " <name> [time [<unit>] <sample>] <key> <sample> ..." FLT_OTEL_PARSE_USAGE_COND)                                           \
-	FLT_OTEL_PARSE_SCOPE_DEF(     BAGGAGE, 1,  VAR, 3, 0,   FLT_OTEL_PARSE_KW_BAGGAGE,     " <key> <sample> ..." FLT_OTEL_PARSE_USAGE_COND)                                                                           \
+	FLT_OTEL_PARSE_SCOPE_DEF(     BAGGAGE, 1,  CTX, 3, 0,   FLT_OTEL_PARSE_KW_BAGGAGE,     " <key> <sample> ..." FLT_OTEL_PARSE_USAGE_COND)                                                                           \
 	FLT_OTEL_PARSE_SCOPE_DEF(      INJECT, 1,  CTX, 2, 4,   "inject",                      FLT_OTEL_PARSE_SCOPE_INJECT_HELP)                                                                                          \
 	FLT_OTEL_PARSE_SCOPE_DEF(     EXTRACT, 0,  CTX, 2, 3,   "extract",                     FLT_OTEL_PARSE_SCOPE_EXTRACT_HELP)                                                                                         \
 	FLT_OTEL_PARSE_SCOPE_DEF(      STATUS, 1, NONE, 2, 0,   FLT_OTEL_PARSE_KW_STATUS,      " <code> [<sample> ...]" FLT_OTEL_PARSE_USAGE_COND)                                                                        \
@@ -179,7 +182,7 @@ enum FLT_OTEL_PARSE_INVCHAR_enum {
 	FLT_OTEL_PARSE_INVALID_CHAR,
 	FLT_OTEL_PARSE_INVALID_DOM,
 	FLT_OTEL_PARSE_INVALID_CTX,
-	FLT_OTEL_PARSE_INVALID_VAR,
+	FLT_OTEL_PARSE_INVALID_METRIC,
 };
 
 enum FLT_OTEL_PARSE_INSTR_enum {
