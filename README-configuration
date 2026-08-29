@@ -472,8 +472,9 @@ Supported keywords:
       the 'exception.type' attribute.
 
       The optional 'message' keyword introduces sample expressions whose values
-      are concatenated into 'exception.message'.  Repeatable 'attr <key>
-      <sample>' clauses add further attributes to the event.  HAProxy has no
+      are concatenated into 'exception.message'.  The repeatable 'attr <key>
+      <sample>' clause adds further attributes to the event.  A second 'message'
+      clause is a configuration error, and so is a repeated key.  HAProxy has no
       call stack, so 'exception.stacktrace' is never emitted.  An attribute key
       takes a single sample expression.
 
