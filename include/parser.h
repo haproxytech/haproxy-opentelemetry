@@ -297,6 +297,9 @@ struct flt_otel_kw_map {
 /* Format the parse error for a name or a key that is already taken. */
 #define FLT_OTEL_PARSE_ERR_ALRDEF(e,v)        FLT_OTEL_PARSE_ERR((e), "'%s' : " FLT_OTEL_MSG_ALRDEF, (v))
 
+/* Format the parse error for a key that its unconditional line has closed. */
+#define FLT_OTEL_PARSE_ERR_ALRUNCOND(e,v)     FLT_OTEL_PARSE_ERR((e), "'%s' : " FLT_OTEL_MSG_ALRUNCOND, (v))
+
 /* Format the parse error for a trailing condition the keyword does not take. */
 #define FLT_OTEL_PARSE_ERR_COND(e,a,v)        FLT_OTEL_PARSE_ERR((e), "'%s' : '%s' condition is not supported", (a), (v))
 
