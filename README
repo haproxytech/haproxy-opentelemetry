@@ -1425,21 +1425,37 @@ idle-timeout <time>
 span <name> [parent <ref>] [link <ref>] [root] [kind <kind>]
   Creating a new span (or referencing an already opened one).  If a new span is
   created, it can have a parent reference to another span or context, an inline
-  link to another span, or be marked as a root span.  If no reference is
-  specified, the new span will become a root span.  We need to pay attention to
-  the fact that in one trace there can be only one root span.  If a non-existent
-  span is specified as a reference, a new span will not be created.
+  link to another span, or carry the 'root' mark.  Without a parent reference
+  the span starts a trace of its own whether it carries the mark or not, so
+  the two are the same kind of span.  Only one span name may carry the mark: a
+  second name marked 'root' is a configuration error, while the same name marked
+  in another otel-scope is the usual alternative creation, and the parent of
+  a marked span may be an extracted context but never another span.  Leaving
+  every span unmarked is not an error, only a warning at load, and only the
+  spans of the scopes that run count towards it.  A 'parent' the stream does
+  not hold is a runtime error and the span is not created; an inline 'link'
+  that does not resolve is left out.  A span may not be called '*', '*req*'
+  or '*res*', the wildcard names the 'finish' keyword keeps for whatever the
+  stream holds.
 
-  The parent reference is set using the 'parent' keyword followed by the name of
-  an existing span or extracted context.  An inline link is set using the 'link'
-  keyword followed by a span or context name.  The 'root' keyword explicitly
-  marks the span as a root span.  The 'kind' keyword sets the OTel span kind,
-  one of internal, server (the default), client, producer or consumer.
+  The parent reference is set using the 'parent' keyword followed by the name
+  of an existing span or extracted context.  A span cannot be its own parent,
+  since the reference is looked up before the span exists.  An inline link is
+  set using the 'link' keyword followed by a span or context name.  The span is
+  marked as the root span using the 'root' keyword.  The 'kind' keyword sets the
+  OTel span kind, one of internal, server (the default), client, producer or
+  consumer.
 
   Each 'span' opens a sub-context within the scope: the 'attribute', 'event',
   'baggage', 'status', 'link' and 'inject' keywords that follow it apply to that
   span -- the 'currently active span' -- until the next 'span' or the end of the
-  scope.
+  scope.  A later bare 'span <name>' naming an already created span makes it the
+  active one again, so further operations can be attached to it; repeating the
+  definition with arguments in the same scope is an error.  Another otel-scope
+  may carry a defining line of the same name, which the parser accepts because
+  it cannot know which scope runs first: at run time exactly one line creates
+  the span, and a defining line of another scope that finds it already created
+  is an error, not a line without effect.
 
   For example:
     span "HAProxy session" root
@@ -1447,10 +1463,9 @@ span <name> [parent <ref>] [link <ref>] [root] [kind <kind>]
     span "HTTP request" parent "TCP request" link "HAProxy session"
     span "Client session" parent "otel_ctx_1"
 
-  An inline link is meant to be given once per 'span' declaration: the parser
-  warns from the second one onward, and the argument limit of the 'span' line
-  caps how many can fit.  For multiple links, use the standalone 'link' keyword
-  described above.
+  A 'span' declaration takes one inline link; a second one on the line is a
+  configuration error, like a repeated 'parent', 'root' or 'kind'.  For multiple
+  links, use the standalone 'link' keyword described above.
 
   Arguments :
     name   - the name of the span being created or referenced
@@ -1458,7 +1473,7 @@ span <name> [parent <ref>] [link <ref>] [root] [kind <kind>]
     parent - 'parent <ref>' references an existing span or extracted
              context as the span's parent
     link   - 'link <ref>' adds an inline link to another span or context
-    root   - explicitly marks the span as a root span
+    root   - marks the span as the root span; no effect at run time
     kind   - 'kind <kind>' sets the span kind: internal, server (the
              default), client, producer or consumer
 
@@ -2076,10 +2091,9 @@ configuration.  The above mentioned span context is used in the 'inject' and
 'extract' keywords.
 
 An inline span link (using the 'link' keyword within a 'span' declaration) is
-meant to be given once per span declaration: the parser warns from the second
-inline link onward, and the fixed argument count of the 'span' line (maximum 9
-arguments) caps how many can fit.  For multiple links, use the standalone 'link'
-keyword instead.
+given once per span declaration: a second inline link on the same line is a
+configuration error.  For multiple links, use the standalone 'link' keyword
+instead.
 
 Let's look a little at the example test/fe-be (configurations are in the
 test/fe and test/be directories, 'fe' is here the abbreviation for frontend and

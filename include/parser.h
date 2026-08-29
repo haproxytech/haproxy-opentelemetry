@@ -58,6 +58,7 @@
 #define FLT_OTEL_PARSE_KW_BAGGAGE             "baggage"
 #define FLT_OTEL_PARSE_KW_STATUS              "status"
 #define FLT_OTEL_PARSE_KW_EXCEPTION           "exception"
+#define FLT_OTEL_PARSE_KW_FINISH              "finish"
 #define FLT_OTEL_PARSE_KW_STOP                "otel-stop"
 #define FLT_OTEL_PARSE_KW_INSTRUMENT          "instrument"
 #define FLT_OTEL_PARSE_KW_LOG_RECORD          "log-record"
@@ -165,7 +166,7 @@
 	FLT_OTEL_PARSE_SCOPE_DEF(     EXTRACT, 0,  CTX, 2, 3,   "extract",                     FLT_OTEL_PARSE_SCOPE_EXTRACT_HELP)                                                                                         \
 	FLT_OTEL_PARSE_SCOPE_DEF(      STATUS, 1, NONE, 2, 0,   FLT_OTEL_PARSE_KW_STATUS,      " <code> [<sample> ...]" FLT_OTEL_PARSE_USAGE_COND)                                                                        \
 	FLT_OTEL_PARSE_SCOPE_DEF(   EXCEPTION, 1, NONE, 2, 0,   FLT_OTEL_PARSE_KW_EXCEPTION,   " <type> [message <sample> ...] [attr <key> <sample> ...]" FLT_OTEL_PARSE_USAGE_COND)                                      \
-	FLT_OTEL_PARSE_SCOPE_DEF(      FINISH, 0, NONE, 2, 0,   "finish",                      " <name> ...")                                                                                                             \
+	FLT_OTEL_PARSE_SCOPE_DEF(      FINISH, 0, NONE, 2, 0,   FLT_OTEL_PARSE_KW_FINISH,      " <name> ...")                                                                                                             \
 	FLT_OTEL_PARSE_SCOPE_DEF(        STOP, 0, NONE, 1, 0, FLT_OTEL_PARSE_KW_STOP,          FLT_OTEL_PARSE_USAGE_COND)                                                                                                 \
 	FLT_OTEL_PARSE_SCOPE_DEF(  INSTRUMENT, 0, NONE, 3, 0, FLT_OTEL_PARSE_KW_INSTRUMENT,    " { update <name> [<attr> ...] | <type> <name> [<aggr>] [<desc>] [<unit>] <value> [<bounds>] }" FLT_OTEL_PARSE_USAGE_COND) \
 	FLT_OTEL_PARSE_SCOPE_DEF(  LOG_RECORD, 0, NONE, 3, 0, FLT_OTEL_PARSE_KW_LOG_RECORD,    " <severity> [<id> <event>] [<time>] [<span>] [<attr>] <sample> ..." FLT_OTEL_PARSE_USAGE_COND)                            \

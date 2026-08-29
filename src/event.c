@@ -1094,7 +1094,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 
 		flt_otel_scope_data_init(&data);
 
-		span = flt_otel_scope_span_init(f->ctx, conf_span->id, conf_span->id_len, conf_span->ref_id, conf_span->ref_id_len, dir, err);
+		span = flt_otel_scope_span_init(f->ctx, conf_span->id, conf_span->id_len, conf_span->ref_id, conf_span->ref_id_len, dir, conf_span->flag_define, err);
 		if (span == NULL) {
 			retval = FLT_OTEL_RET_ERROR;
 

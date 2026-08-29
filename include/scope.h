@@ -147,7 +147,7 @@ struct flt_otel_runtime_context *flt_otel_runtime_context_init(struct stream *s,
 void                             flt_otel_runtime_context_free(struct filter *f);
 
 /* Allocate and initialize a scope span in the runtime context. */
-struct flt_otel_scope_span      *flt_otel_scope_span_init(struct flt_otel_runtime_context *rt_ctx, const char *id, size_t id_len, const char *ref_id, size_t ref_id_len, uint dir, char **err);
+struct flt_otel_scope_span      *flt_otel_scope_span_init(struct flt_otel_runtime_context *rt_ctx, const char *id, size_t id_len, const char *ref_id, size_t ref_id_len, uint dir, bool flag_define, char **err);
 
 /* Free a scope span and remove it from the runtime context. */
 void                             flt_otel_scope_span_free(struct flt_otel_scope_span **ptr);

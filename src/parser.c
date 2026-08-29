@@ -2562,8 +2562,8 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 #undef FLT_OTEL_PARSE_SCOPE_DEF
 	const struct flt_otel_parse_data        *pdata = NULL;
 	char                                    *err = NULL;
-	int                                      i, link_count = 0, retval = ERR_NONE;
-	bool                                     flag_kind = false;
+	int                                      i, retval = ERR_NONE;
+	bool                                     flag_kind = false, flag_link = false;
 
 	OTELC_FUNC("\"%s\", %d, %p, 0x%08x", OTELC_STR_ARG(file), line, args, kw_mod);
 
@@ -2604,6 +2604,16 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 	     (pdata->keyword == FLT_OTEL_PARSE_SCOPE_INJECT) || (pdata->keyword == FLT_OTEL_PARSE_SCOPE_EXCEPTION)))
 		retval = flt_otel_parse_reject_name(args, 1, &err);
 
+	/*
+	 * A 'finish' wildcard names whatever the stream holds, so a span
+	 * called that way could never be finished by its own name.
+	 */
+	if (!(retval & ERR_CODE) && (pdata->keyword == FLT_OTEL_PARSE_SCOPE_SPAN) &&
+	    (FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_SCOPE_SPAN_FINISH_ALL) ||
+	     FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_SCOPE_SPAN_FINISH_REQ) ||
+	     FLT_OTEL_PARSE_KEYWORD(1, FLT_OTEL_SCOPE_SPAN_FINISH_RES)))
+		FLT_OTEL_PARSE_ERR(&err, "'%s' : '%s' is a '" FLT_OTEL_PARSE_KW_FINISH "' wildcard and cannot be used as a name", args[0], args[1]);
+
 	if (retval & ERR_CODE) {
 		FLT_OTEL_PARSE_IFERR_ALERT();
 
@@ -2618,6 +2628,8 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			retval |= ERR_ABORT | ERR_ALERT;
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_SPAN) {
+		struct flt_otel_conf_span *span_act = NULL, *span_ptr;
+
 		/*
 		 * Checking if this is the beginning of the definition of
 		 * a new span.
@@ -2628,17 +2640,57 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			flt_otel_current_span = NULL;
 		}
 
+		/*
+		 * A line naming a span already created in this scope only
+		 * activates it again for the operations that follow.  Such
+		 * a line takes no arguments; one that defines them again is
+		 * a redefinition, which is not allowed.  Another scope may
+		 * define the same name, so the check is scope-local: at
+		 * runtime whichever scope runs first creates the span, and
+		 * a later defining line of another scope is refused there.
+		 * A condition standing where an argument would is named as
+		 * such, the keyword taking none, rather than counted as a
+		 * repeated definition.
+		 */
+		list_for_each_entry(span_ptr, &(flt_otel_current_scope->spans), list)
+			if (strcmp(span_ptr->id, args[1]) == 0) {
+				if (FLT_OTEL_ARG_ISCOND(2))
+					FLT_OTEL_PARSE_ERR_COND(&err, args[0], args[2]);
+				else if (FLT_OTEL_ARG_ISVALID(2))
+					FLT_OTEL_PARSE_ERR_ALRDEF(&err, args[1]);
+				else
+					span_act = span_ptr;
+
+				break;
+			}
+
 		/* Initialization of a new span. */
-		flt_otel_current_span = flt_otel_conf_span_init(args[1], line, &(flt_otel_current_scope->spans), &err);
+		if (!(retval & ERR_CODE) && (span_act == NULL))
+			flt_otel_current_span = flt_otel_conf_span_init(args[1], line, &(flt_otel_current_scope->spans), &err);
 
 		/*
 		 * In case the span has a defined reference (parent), the
 		 * correctness of the arguments is checked here.
 		 */
-		if (flt_otel_current_span == NULL) {
+		if (retval & ERR_CODE) {
+			/* The redefinition error was already reported above. */
+		}
+		else if (span_act != NULL) {
+			flt_otel_current_span = span_act;
+
+			OTELC_DBG(DEBUG, "span '%s' (active)", span_act->id);
+		}
+		else if (flt_otel_current_span == NULL) {
 			retval |= ERR_ABORT | ERR_ALERT;
 		}
 		else if (FLT_OTEL_ARG_ISVALID(2)) {
+			/*
+			 * The line defines the span, so it may create it only
+			 * once at runtime; a defining line of another scope
+			 * that reaches it already created is an error there.
+			 */
+			flt_otel_current_span->flag_define = 1;
+
 			for (i = 2; (i < pdata->args_max) && FLT_OTEL_ARG_ISVALID(i); i++) {
 				if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_SPAN_ROOT)) {
 					if (flt_otel_current_span->flag_root)
@@ -2653,21 +2705,26 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 						FLT_OTEL_PARSE_ERR_REFNAME(&err, args[i], args[i + 1]);
 					else if (flt_otel_current_span->ref_id != NULL)
 						FLT_OTEL_PARSE_ERR_ALRSET(&err, args[i], pdata);
+					/* The reference is looked up before the span exists. */
+					else if (strcmp(args[i + 1], args[1]) == 0)
+						FLT_OTEL_PARSE_ERR(&err, "'%s' : '%s' cannot be its own '%s'", args[0], args[1], args[i]);
 					else if (flt_otel_parse_check_name_len(args[i + 1], &err) & ERR_CODE)
 						retval |= ERR_ABORT | ERR_ALERT;
 					else
 						retval |= flt_otel_parse_strdup(&(flt_otel_current_span->ref_id), &(flt_otel_current_span->ref_id_len), args[++i], &err, args[1]);
 				}
 				else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_SPAN_LINK)) {
-					if (++link_count == 2)
-						FLT_OTEL_PARSE_WARNING("'%s' : only one inline 'link' fits the span argument limit; use the standalone 'link' keyword for more", file, line, pdata->name);
-
-					if (FLT_OTEL_ARG_ISVALID(i + 1)) {
-						if (flt_otel_conf_link_init(args[++i], line, &(flt_otel_current_span->links), &err) == NULL)
-							retval |= ERR_ABORT | ERR_ALERT;
-					} else {
+					/* The clause stands once, like every other one of the line. */
+					if (!FLT_OTEL_ARG_ISVALID(i + 1))
 						FLT_OTEL_PARSE_ERR_FEWARGS(&err, args[i], pdata);
-					}
+					else if (FLT_OTEL_ARG_ISCOND(i + 1))
+						FLT_OTEL_PARSE_ERR_REFNAME(&err, args[i], args[i + 1]);
+					else if (flag_link)
+						FLT_OTEL_PARSE_ERR_ALRSET(&err, args[i], pdata);
+					else if (flt_otel_conf_link_init(args[++i], line, &(flt_otel_current_span->links), &err) == NULL)
+						retval |= ERR_ABORT | ERR_ALERT;
+					else
+						flag_link = true;
 				}
 				else if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_SPAN_KIND)) {
 #define FLT_OTEL_PARSE_SPAN_KIND_DEF(a,b)   { OTELC_SPAN_KIND_##a, b },

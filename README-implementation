@@ -229,7 +229,8 @@ A span may specify:
   - A parent reference (another span or extracted context).
   - One or more links to other spans/contexts.  Inline link syntax allows one
     link on the span line; the standalone "link" keyword allows multiple.
-  - The "root" flag marking it as the trace root.
+  - The "root" mark, which declares the root span and changes nothing at run
+    time.
   - Attributes, events, baggages and status evaluated from HAProxy sample
     expressions at runtime.
   - An inject directive to propagate the span context via HTTP headers and/or
