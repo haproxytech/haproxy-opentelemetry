@@ -971,6 +971,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 	struct flt_otel_conf_context   *conf_ctx;
 	struct flt_otel_conf_span      *conf_span;
 	struct flt_otel_conf_str       *span_to_finish;
+	struct flt_otel_conf_stop      *conf_stop;
 	struct flt_otel_conf_unset_var *unset_var;
 	struct timespec                 ts_now_steady, ts_now_system;
 	int                             retval = FLT_OTEL_RET_OK;
@@ -1250,13 +1251,19 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 			retval = FLT_OTEL_RET_ERROR;
 
 	/*
-	 * Evaluate the 'otel-stop' directive.  A bare directive always fires;
-	 * a conditional one fires only when its if/unless condition holds.  It
-	 * is evaluated here, after the scope's own spans and records have run,
-	 * so that a stopping scope still emits its final telemetry.
+	 * Evaluate the 'otel-stop' directives.  A bare line always fires; a
+	 * conditional one fires only when its if/unless condition holds, and
+	 * the stop takes effect as soon as any line fires.  The evaluation
+	 * runs here, after the scope's own spans and records, so that a
+	 * stopping scope still emits its final telemetry.
 	 */
 	if (conf_scope->flag_stop)
-		flag_stop = (flt_otel_cond_pass(conf_scope->stop_cond, s, dir) != 0);
+		list_for_each_entry(conf_stop, &(conf_scope->stops), list)
+			if (flt_otel_cond_pass(conf_stop->cond, s, dir) != 0) {
+				flag_stop = 1;
+
+				break;
+			}
 
 	/* A firing 'otel-stop' finishes every remaining span and context. */
 	if (flag_stop)

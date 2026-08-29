@@ -76,9 +76,10 @@
 	                 flt_otel_list_dump(&((p)->attributes)), (p)->cond)
 
 #define FLT_OTEL_DBG_CONF_SCOPE(h,p)                                                                                  \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%hhu %hhu %d %u %s %p %p %s %s %s %s %s %s %s %s }", (p), \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%hhu %hhu %d %u %s %p %s %s %s %s %s %s %s %s %s }", (p), \
 	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->flag_used, (p)->flag_stop, (p)->event,                   \
-	                 (p)->idle_timeout, flt_otel_list_dump(&((p)->acls)), (p)->cond, (p)->stop_cond,              \
+	                 (p)->idle_timeout, flt_otel_list_dump(&((p)->acls)), (p)->cond,                              \
+	                 flt_otel_list_dump(&((p)->stops)),                                                           \
 	                 flt_otel_list_dump(&((p)->contexts)), flt_otel_list_dump(&((p)->spans)),                     \
 	                 flt_otel_list_dump(&((p)->spans_to_finish)), flt_otel_list_dump(&((p)->instruments)),        \
 	                 flt_otel_list_dump(&((p)->log_records)), flt_otel_list_dump(&((p)->set_vars)),               \
@@ -120,6 +121,9 @@
 #define FLT_OTEL_DBG_CONF_UNSET_VAR(h,p)                                   \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%s %p }", (p), \
 	                 FLT_OTEL_CONF_HDR_ARGS(p, id), flt_otel_list_dump(&((p)->vars)), (p)->cond)
+
+#define FLT_OTEL_DBG_CONF_STOP(h,p) \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%p }", (p), FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->cond)
 
 #define FLT_OTEL_DBG_CONF(h,p)                                                            \
 	OTELC_DBG(DEBUG, h "%p:{ %p '%s' '%s' '%s' %p %s %s %s }", (p),                   \
@@ -318,6 +322,16 @@ struct flt_otel_conf_unset_var {
 	struct acl_cond *cond; /* Optional if/unless condition controlling the removal. */
 };
 
+/*
+ * A single otel-stop directive within a scope.  The keyword may be repeated,
+ * one line per condition; the bare form without a condition may appear once.
+ *   flt_otel_conf_scope->stops
+ */
+struct flt_otel_conf_stop {
+	FLT_OTEL_CONF_HDR(id); /* Required by macro; member <id> is not used directly. */
+	struct acl_cond *cond; /* Optional if/unless condition guarding the stop. */
+};
+
 /* Configuration for a single event scope. */
 struct flt_otel_conf_scope {
 	FLT_OTEL_CONF_HDR(id);            /* The scope name. */
@@ -327,7 +341,7 @@ struct flt_otel_conf_scope {
 	uint             idle_timeout;    /* Idle timeout interval in milliseconds (0 = off). */
 	struct list      acls;            /* ACLs declared on this scope. */
 	struct acl_cond *cond;            /* ACL condition to meet. */
-	struct acl_cond *stop_cond;       /* ACL condition for the stop, or NULL if unconditional. */
+	struct list      stops;           /* The list of otel-stop directives. */
 	struct list      contexts;        /* Declared contexts. */
 	struct list      spans;           /* Declared spans. */
 	struct list      spans_to_finish; /* The list of spans scheduled for finishing. */

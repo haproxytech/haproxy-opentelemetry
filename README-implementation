@@ -278,6 +278,7 @@ The full init/free chain for all structures:
         flt_otel_conf_exception  generated
           flt_otel_conf_sample     generated (message, attributes)
       flt_otel_conf_str        generated (for spans_to_finish)
+      flt_otel_conf_stop       generated (for the otel-stop lines)
       flt_otel_conf_instrument generated
       flt_otel_conf_log_record generated
         flt_otel_conf_sample     generated + _init_ex()

@@ -987,7 +987,11 @@ Supported keywords:
       scope still emits the spans, log records and metrics it defines first.
 
       Without a condition the stop always fires.  An optional 'if' or 'unless'
-      condition (same syntax as 'otel-event') makes the stop conditional.
+      condition (same syntax as 'otel-event') makes the stop conditional.  The
+      keyword may be repeated, one line per condition, and the stop fires when
+      the condition of any line holds.  The bare form without a condition sets
+      the stop definitively, so it must be the last line: any 'otel-stop' that
+      follows it is a configuration error, since it could not change anything.
 
       Examples:
         otel-stop

@@ -1385,7 +1385,11 @@ otel-stop [{ if | unless } <condition>]
 
   Without a condition the directive always fires.  An optional 'if' or 'unless'
   condition, using the same syntax as the 'otel-event' keyword, makes the stop
-  conditional; the filter is left active when the condition is not met.
+  conditional; the filter is left active when the condition is not met.  The
+  keyword may be repeated, one line per condition, and the stop fires when the
+  condition of any line holds.  The bare form without a condition sets the stop
+  definitively, so it must be the last line: any 'otel-stop' that follows it is
+  a configuration error, since it could not change anything any more.
 
   Arguments :
     condition - an optional ACL-based 'if' or 'unless' condition
