@@ -136,16 +136,17 @@ void flt_otel_runtime_context_free(struct filter *f)
  *   flt_otel_scope_span_init - scope span lookup or creation
  *
  * SYNOPSIS
- *   struct flt_otel_scope_span *flt_otel_scope_span_init(struct flt_otel_runtime_context *rt_ctx, const char *id, size_t id_len, const char *ref_id, size_t ref_id_len, uint dir, char **err)
+ *   struct flt_otel_scope_span *flt_otel_scope_span_init(struct flt_otel_runtime_context *rt_ctx, const char *id, size_t id_len, const char *ref_id, size_t ref_id_len, uint dir, bool flag_define, char **err)
  *
  * ARGUMENTS
  *   rt_ctx     - the runtime context owning the span list
  *   id         - the span operation name
  *   id_len     - length of the <id> string
- *   ref_id     - the parent span or context name, or NULL
- *   ref_id_len - length of the <ref_id> string
- *   dir        - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
- *   err        - indirect pointer to error message string
+ *   ref_id      - the parent span or context name, or NULL
+ *   ref_id_len  - length of the <ref_id> string
+ *   dir         - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
+ *   flag_define - whether the configured line carries creation arguments
+ *   err         - indirect pointer to error message string
  *
  * DESCRIPTION
  *   Finds an existing scope span by <id> in the runtime context or creates a
@@ -153,17 +154,25 @@ void flt_otel_runtime_context_free(struct filter *f)
  *   the span list first, then the extracted context list.  An unresolved
  *   reference is an error and no span is created.
  *
+ *   A defining line, marked by <flag_define>, may stand in more than one
+ *   otel-scope, but only one line may create the span.  When a defining line
+ *   finds the span created by another line, the creation arguments it carries
+ *   cannot be applied, so this is reported as an error rather than silently
+ *   reusing the existing span; a repeated run of the creating line itself just
+ *   finds its own span.  A bare line carries no arguments and only
+ *   re-activates it.
+ *
  * RETURN VALUE
  *   Returns the existing or new scope span, or NULL on failure.
  */
-struct flt_otel_scope_span *flt_otel_scope_span_init(struct flt_otel_runtime_context *rt_ctx, const char *id, size_t id_len, const char *ref_id, size_t ref_id_len, uint dir, char **err)
+struct flt_otel_scope_span *flt_otel_scope_span_init(struct flt_otel_runtime_context *rt_ctx, const char *id, size_t id_len, const char *ref_id, size_t ref_id_len, uint dir, bool flag_define, char **err)
 {
 	struct otelc_span             *ref_span = NULL;
 	struct otelc_span_context     *ref_ctx = NULL;
 	struct flt_otel_scope_span    *span, *retptr = NULL;
 	struct flt_otel_scope_context *ctx;
 
-	OTELC_FUNC("%p, \"%s\", %zu, \"%s\", %zu, %u, %p:%p", rt_ctx, OTELC_STR_ARG(id), id_len, OTELC_STR_ARG(ref_id), ref_id_len, dir, OTELC_DPTR_ARGS(err));
+	OTELC_FUNC("%p, \"%s\", %zu, \"%s\", %zu, %u, %hhu, %p:%p", rt_ctx, OTELC_STR_ARG(id), id_len, OTELC_STR_ARG(ref_id), ref_id_len, dir, flag_define, OTELC_DPTR_ARGS(err));
 
 	if ((rt_ctx == NULL) || (id == NULL))
 		OTELC_RETURN_PTR(retptr);
@@ -171,6 +180,20 @@ struct flt_otel_scope_span *flt_otel_scope_span_init(struct flt_otel_runtime_con
 	/* Return the existing span if one matches this ID. */
 	list_for_each_entry(span, &(rt_ctx->spans), list)
 		if (FLT_OTEL_CONF_STR_CMP(span->id, id)) {
+			/*
+			 * Only one line may create the span: a defining line
+			 * of another otel-scope reaching it already created
+			 * cannot create it again, so it is not accepted
+			 * silently.  The stored id pointer identifies the
+			 * creating line, so a repeated run of that line only
+			 * finds its own span.
+			 */
+			if (flag_define && (span->id != id)) {
+				FLT_OTEL_ERR("span '%s' is already created, a defining line cannot create it again", id);
+
+				OTELC_RETURN_PTR(retptr);
+			}
+
 			OTELC_DBG(DEBUG, "found span '%s' %p", span->id, span);
 
 			OTELC_RETURN_PTR(span);
