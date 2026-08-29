@@ -2316,10 +2316,19 @@ static int flt_otel_parse_cfg_exception(const char *file, int line, char **args,
 				break;
 			}
 
-			/* The message samples run until the next clause or condition. */
-			for (j = i + 1; FLT_OTEL_ARG_ISVALID(j); j++)
+			/*
+			 * The message samples run until the next clause or
+			 * condition.  A second 'message' ends them too, so the
+			 * check above reports it instead of the sample parser
+			 * failing on the word.
+			 */
+			for (j = i + 1; FLT_OTEL_ARG_ISVALID(j); j++) {
 				if (FLT_OTEL_PARSE_KEYWORD(j, FLT_OTEL_PARSE_LOG_RECORD_ATTR) || FLT_OTEL_ARG_ISCOND(j))
 					break;
+
+				if (FLT_OTEL_PARSE_KEYWORD(j, FLT_OTEL_PARSE_EXCEPTION_MESSAGE))
+					break;
+			}
 
 			if (j == (i + 1))
 				FLT_OTEL_PARSE_ERR_FEWARGS(err, args[i], pdata);
@@ -2849,6 +2858,10 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 
 			if (!(retval & ERR_CODE))
 				key_pos = idx + 1;
+
+			/* A second clause would be read as the key. */
+			if (!(retval & ERR_CODE) && FLT_OTEL_PARSE_KEYWORD(key_pos, FLT_OTEL_PARSE_LOG_RECORD_TIME))
+				FLT_OTEL_PARSE_ERR_ALRSET(&err, args[key_pos], pdata);
 		}
 
 		/* The attribute key follows the same name rule as the event name. */
