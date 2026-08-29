@@ -102,9 +102,9 @@ The generated free function:
 
 conf.c instantiates these macros for every configuration type: hdr, str, ph,
 sample_expr, sample, link, context, span, exception, scope, instrument,
-log_record, set_var_ctx, unset_var, group, instr.  The more complex types (span,
-scope, instr) carry non-trivial _func_ bodies that initialize sub-lists or set
-default values.
+log_record, set_var_ctx, unset_var, stop, group, instr.  The more complex types
+(span, scope, instr) carry non-trivial _func_ bodies that initialize sub-lists
+or set default values.
 
 
 2  Type-Safe Generic Macros
@@ -510,10 +510,11 @@ in the same otel-group no longer run.
 
 The directive is evaluated after the scope's own spans, log records and metric
 instruments, so a stopping scope still emits its telemetry before tracing ends.
-A bare 'otel-stop' always fires; an optional if/unless condition, kept in the
-stop_cond field separately from the scope's own condition, makes it conditional.
-This is the per-stream counterpart to the global "flt-otel disable" of section
-6.3.
+The keyword may be written on several lines, one per condition, held in the
+scope's stops list of struct flt_otel_conf_stop and kept apart from the scope's
+own condition; the lines are tried in configuration order and the stop takes
+effect as soon as one of them fires.  A bare line always fires.  This is the
+per-stream counterpart to the global "flt-otel disable" of section 6.3.
 
 
 7  Memory Management Strategy

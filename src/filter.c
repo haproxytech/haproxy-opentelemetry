@@ -805,6 +805,7 @@ int flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt_
 	const struct flt_otel_conf_exception   *conf_exception;
 	const struct flt_otel_conf_set_var_ctx *conf_set_var_ctx;
 	const struct flt_otel_conf_unset_var   *conf_unset_var;
+	const struct flt_otel_conf_stop        *conf_stop;
 	int                                     retval = 0;
 
 	OTELC_FUNC("%p, %p, %p, 0x%08x, \"%s\"", conf, conf_scope, p, where, OTELC_STR_ARG(trigger));
@@ -813,7 +814,9 @@ int flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt_
 		OTELC_RETURN_INT(retval);
 
 	retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_scope->cond, FLT_OTEL_PARSE_KW_ON_EVENT, trigger);
-	retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_scope->stop_cond, FLT_OTEL_PARSE_KW_STOP, trigger);
+
+	list_for_each_entry(conf_stop, &(conf_scope->stops), list)
+		retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_stop->cond, FLT_OTEL_PARSE_KW_STOP, trigger);
 
 	list_for_each_entry(conf_span, &(conf_scope->spans), list) {
 		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->attributes), FLT_OTEL_PARSE_KW_ATTRIBUTE, trigger);

@@ -819,6 +819,54 @@ FLT_OTEL_CONF_FUNC_FREE(unset_var, id,
 
 /***
  * NAME
+ *   flt_otel_conf_stop_init - conf_stop structure allocation
+ *
+ * SYNOPSIS
+ *   struct flt_otel_conf_stop *flt_otel_conf_stop_init(const char *id, int line, struct list *head, char **err)
+ *
+ * ARGUMENTS
+ *   id   - identifier string to duplicate
+ *   line - configuration file line number
+ *   head - list to append to (or NULL)
+ *   err  - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Allocates and initializes a conf_stop structure.  The <id> string is
+ *   duplicated and stored as the directive name.  If <head> is non-NULL, the
+ *   structure is appended to the list.
+ *
+ * RETURN VALUE
+ *   Returns a pointer to the initialized structure, or NULL on failure.
+ */
+FLT_OTEL_CONF_FUNC_INIT(stop, id, FLT_OTEL_ID_MAXLEN, )
+
+
+/***
+ * NAME
+ *   flt_otel_conf_stop_free - conf_stop structure deallocation
+ *
+ * SYNOPSIS
+ *   void flt_otel_conf_stop_free(struct flt_otel_conf_stop **ptr)
+ *
+ * ARGUMENTS
+ *   ptr - a pointer to the address of a structure
+ *
+ * DESCRIPTION
+ *   Deallocates memory used by the flt_otel_conf_stop structure and its
+ *   contents, then removes it from the list of structures of that type.
+ *
+ * RETURN VALUE
+ *   This function does not return a value.
+ */
+FLT_OTEL_CONF_FUNC_FREE(stop, id,
+	FLT_OTEL_DBG_CONF_STOP("- conf_stop free ", *ptr);
+
+	free_acl_cond((*ptr)->cond);
+)
+
+
+/***
+ * NAME
  *   flt_otel_conf_scope_init - conf_scope structure allocation
  *
  * SYNOPSIS
@@ -831,16 +879,16 @@ FLT_OTEL_CONF_FUNC_FREE(unset_var, id,
  *   err  - indirect pointer to error message string
  *
  * DESCRIPTION
- *   Allocates and initializes a conf_scope structure with empty lists for ACLs,
- *   contexts, spans, and spans_to_finish.  The <id> string is
- *   duplicated and stored as the scope name.  If <head> is non-NULL, the
- *   structure is appended to the list.
+ *   Allocates and initializes a conf_scope structure with all its member
+ *   lists empty.  The <id> string is duplicated and stored as the scope name.
+ *   If <head> is non-NULL, the structure is appended to the list.
  *
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
 FLT_OTEL_CONF_FUNC_INIT(scope, id, FLT_OTEL_ID_MAXLEN,
 	LIST_INIT(&(retptr->acls));
+	LIST_INIT(&(retptr->stops));
 	LIST_INIT(&(retptr->contexts));
 	LIST_INIT(&(retptr->spans));
 	LIST_INIT(&(retptr->spans_to_finish));
@@ -881,7 +929,7 @@ FLT_OTEL_CONF_FUNC_FREE(scope, id,
 		OTELC_SFREE(acl);
 	}
 	free_acl_cond((*ptr)->cond);
-	free_acl_cond((*ptr)->stop_cond);
+	FLT_OTEL_LIST_DESTROY(stop, &((*ptr)->stops));
 	FLT_OTEL_LIST_DESTROY(context, &((*ptr)->contexts));
 	FLT_OTEL_LIST_DESTROY(span, &((*ptr)->spans));
 	FLT_OTEL_LIST_DESTROY(str, &((*ptr)->spans_to_finish));

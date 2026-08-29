@@ -3044,15 +3044,32 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			retval = flt_otel_parse_cfg_str(file, line, args, &(flt_otel_current_scope->spans_to_finish), &err);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_STOP) {
-		flt_otel_current_scope->flag_stop = 1;
+		struct flt_otel_conf_stop *conf_stop;
+		bool                       flag_bare = false;
 
 		/*
-		 * A bare 'otel-stop' is unconditional.  An optional if/unless
-		 * condition is built the same way as for the 'otel-event'
-		 * keyword.
+		 * The keyword may be repeated, one line per condition, and
+		 * every line is remembered; at runtime the stop fires when
+		 * any line's condition holds.  A bare unconditional line
+		 * determines the stop definitively, so it must be the last
+		 * one: no later line could change the outcome any more.
 		 */
-		if (FLT_OTEL_ARG_ISVALID(1))
-			retval = flt_otel_parse_trailing_cond(file, line, args, 1, &(flt_otel_current_scope->stop_cond), &err);
+		list_for_each_entry(conf_stop, &(flt_otel_current_scope->stops), list)
+			if (conf_stop->cond == NULL)
+				flag_bare = true;
+
+		if (flag_bare) {
+			FLT_OTEL_PARSE_ERR_ALRUNCOND(&err, args[0]);
+		} else {
+			conf_stop = flt_otel_conf_stop_init(FLT_OTEL_CONF_HDR_SPECIAL FLT_OTEL_PARSE_KW_STOP, line, &(flt_otel_current_scope->stops), &err);
+			if (conf_stop == NULL)
+				retval |= ERR_ABORT | ERR_ALERT;
+			else if (FLT_OTEL_ARG_ISVALID(1))
+				retval = flt_otel_parse_trailing_cond(file, line, args, 1, &(conf_stop->cond), &err);
+
+			if (!(retval & ERR_CODE))
+				flt_otel_current_scope->flag_stop = 1;
+		}
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_INSTRUMENT) {
 		retval = flt_otel_parse_cfg_instrument(file, line, args, pdata, &err);
