@@ -1521,10 +1521,12 @@ exception <type> [message <sample> ...] [attr <key> <sample> ...] [{ if | unless
   'exception' that follows the semantic conventions.  HAProxy has no call stack,
   so 'exception.stacktrace' is never set.
 
-  The first argument is the exception type, a literal string stored as the
-  'exception.type' attribute.  The optional 'message' keyword introduces sample
-  expressions whose values are concatenated into 'exception.message'.  The
-  repeatable 'attr <key> <sample>' clause adds further attributes to the event.
+  The first argument is the exception type, a literal string that is stored as
+  the 'exception.type' attribute.  The optional 'message' keyword introduces
+  sample expressions whose values are concatenated into 'exception.message'.
+  The repeatable 'attr <key> <sample>' clause adds further attributes to the
+  event.  A second 'message' clause is a configuration error, as is a repeated
+  key.
 
   Recording an exception does not change the span status, so pair it with a
   'status error' line when the exception marks the span as failed.  An optional
