@@ -346,24 +346,41 @@ Supported keywords:
   span <name> [parent <ref>] [link <ref>] [root] [kind <kind>]
       Create a new span or reference an already opened one.
 
-      - 'root' marks this span as the trace root: when the scope holding it is
-        skipped by its condition, the whole session is disabled and the stream
-        produces no further telemetry.
+      - 'root' declares the span as the root span; the mark changes nothing
+        at run time and nothing about the trace itself: a marked span and an
+        unmarked one are the same kind of span.  Only one span name may carry
+        the mark, a second name marked 'root' is a configuration error; the
+        same name may carry it again in another otel-scope as an alternative
+        creation.  Leaving every span unmarked is not an error, only a warning
+        at load, and only the spans of the scopes that run count towards it.
+        The 'parent' of a marked span may name an extracted context, the remote
+        parent of the trace, never a span.
       - 'parent <ref>' sets the parent to an existing span or extracted context
         name.  A reference that resolves to no span or extracted context -- for
         instance a 'parent' on a context whose extraction found nothing -- is
-        an error, and the span is not created.
-      - 'link <ref>' adds an inline link to another span or context.  It is
-        meant to be given once: the parser warns from the second inline link
-        onward, and the span argument limit caps how many can fit.  Use the
-        standalone 'link' keyword to add more.
+        an error, and the span is not created.  A span cannot be its own parent,
+        since the reference is looked up before the span exists.
+      - 'link <ref>' adds an inline link to another span or context.  Only one
+        may stand on the line, a second one is a configuration error, like a
+        repeated 'parent', 'root' or 'kind'.  Use the standalone 'link' keyword
+        to add more.
       - 'kind <kind>' sets the span kind to one of the following: 'internal',
         'server' (default), 'client', 'producer' or 'consumer'.
-      - If no reference is given, the span becomes a root span.
+      - Without a 'parent' the span has no local parent and starts a trace of
+        its own, whether or not it carries the 'root' mark above.
 
       A span declaration opens a "sub-context" within the scope: the keywords
       'link', 'attribute', 'event', 'baggage', 'status' and 'inject' that follow
       apply to that span until the next 'span' keyword or the end of the scope.
+      A later bare 'span <name>' naming an already created span makes it the
+      active one again, so further operations can be attached to it; repeating
+      the definition with arguments in the same scope is an error.  Another
+      otel-scope may carry a defining line of the same name, which the parser
+      accepts because it cannot know which scope runs first: at run time exactly
+      one line creates the span, and a defining line of another scope that finds
+      it already created is an error, not a line without effect.  A span may not
+      be called '*', '*req*' or '*res*', the wildcard names 'finish' keeps for
+      whatever the stream holds.
 
       Examples:
         span "HAProxy session" root

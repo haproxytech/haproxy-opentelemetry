@@ -60,12 +60,13 @@
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%s }", (p), \
 	                 FLT_OTEL_CONF_HDR_ARGS(p, ref), flt_otel_list_dump(&((p)->attributes)))
 
-#define FLT_OTEL_DBG_CONF_SPAN(h,p)                                                                                  \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %zu '%s' %zu %hhu 0x%02hhx %d %s %s %s %s %s %s }", \
-	                 (p), FLT_OTEL_CONF_HDR_ARGS(p, id), OTELC_STR_ARG((p)->ref_id), (p)->ref_id_len,            \
-	                 OTELC_STR_ARG((p)->ctx_id), (p)->ctx_id_len, (p)->flag_root, (p)->ctx_flags, (p)->kind,     \
-	                 flt_otel_list_dump(&((p)->links)), flt_otel_list_dump(&((p)->attributes)),                  \
-	                 flt_otel_list_dump(&((p)->events)), flt_otel_list_dump(&((p)->baggages)),                   \
+#define FLT_OTEL_DBG_CONF_SPAN(h,p)                                                                                       \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %zu '%s' %zu %hhu %hhu 0x%02hhx %d %s %s %s %s %s %s }", \
+	                 (p), FLT_OTEL_CONF_HDR_ARGS(p, id), OTELC_STR_ARG((p)->ref_id), (p)->ref_id_len,                 \
+	                 OTELC_STR_ARG((p)->ctx_id), (p)->ctx_id_len, (p)->flag_root, (p)->flag_define,                   \
+	                 (p)->ctx_flags, (p)->kind,                                                                       \
+	                 flt_otel_list_dump(&((p)->links)), flt_otel_list_dump(&((p)->attributes)),                       \
+	                 flt_otel_list_dump(&((p)->events)), flt_otel_list_dump(&((p)->baggages)),                        \
 	                 flt_otel_list_dump(&((p)->statuses)), flt_otel_list_dump(&((p)->exceptions)))
 
 #define FLT_OTEL_DBG_CONF_EXCEPTION(h,p)                                           \
@@ -206,6 +207,7 @@ struct flt_otel_conf_span {
 	FLT_OTEL_CONF_STR(ctx_id); /* The span context name, if used. */
 	uint8_t     ctx_flags;     /* The type of storage used for the span context. */
 	bool        flag_root;     /* Whether this is a root span. */
+	bool        flag_define;   /* Whether the line carried creation arguments. */
 	otelc_span_kind_t kind;    /* The span kind (default SERVER). */
 	struct list links;         /* The set of linked span or context names. */
 	struct list attributes;    /* The set of key:value attributes. */
