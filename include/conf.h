@@ -56,9 +56,9 @@
 #define FLT_OTEL_DBG_CONF_CONTEXT(h,p) \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "0x%02hhx }", (p), FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->flags)
 
-#define FLT_OTEL_DBG_CONF_LINK(h,p)                                     \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%s }", (p), \
-	                 FLT_OTEL_CONF_HDR_ARGS(p, ref), flt_otel_list_dump(&((p)->attributes)))
+#define FLT_OTEL_DBG_CONF_LINK(h,p)                                        \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%s %p }", (p), \
+	                 FLT_OTEL_CONF_HDR_ARGS(p, ref), flt_otel_list_dump(&((p)->attributes)), (p)->cond)
 
 #define FLT_OTEL_DBG_CONF_SPAN(h,p)                                                                                       \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "'%s' %zu '%s' %zu %hhu %hhu 0x%02hhx %d %s %s %s %s %s %s }", \
@@ -197,8 +197,9 @@ struct flt_otel_conf_context {
 
 /* flt_otel_conf_span->links */
 struct flt_otel_conf_link {
-	FLT_OTEL_CONF_HDR(ref); /* The list containing link reference names. */
-	struct list attributes; /* The set of link key:value attributes. */
+	FLT_OTEL_CONF_HDR(ref);      /* The list containing link reference names. */
+	struct list      attributes; /* The set of link key:value attributes. */
+	struct acl_cond *cond;       /* Optional if/unless condition guarding this link. */
 };
 
 /*

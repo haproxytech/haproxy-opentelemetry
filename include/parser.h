@@ -158,7 +158,7 @@
 #define FLT_OTEL_PARSE_SCOPE_DEFINES                                                                                                                                                                                      \
 	FLT_OTEL_PARSE_SCOPE_DEF(          ID, 0, CHAR, 2, 2, FLT_OTEL_PARSE_SECTION_SCOPE_ID, " <name>")                                                                                                                 \
 	FLT_OTEL_PARSE_SCOPE_DEF(        SPAN, 0, NONE, 2, 9, "span",                          " <name> [parent <ref>] [link <ref>] [root] [kind <kind>]")                                                                \
-	FLT_OTEL_PARSE_SCOPE_DEF(        LINK, 1, NONE, 2, 0,   FLT_OTEL_PARSE_KW_LINK,        " { <ref> ... | <ref> attr <key> <sample> ... }")                                                                          \
+	FLT_OTEL_PARSE_SCOPE_DEF(        LINK, 1, NONE, 2, 0,   FLT_OTEL_PARSE_KW_LINK,        " { <ref> ... | <ref> attr <key> <sample> ... }" FLT_OTEL_PARSE_USAGE_COND)                                                \
 	FLT_OTEL_PARSE_SCOPE_DEF(   ATTRIBUTE, 1, NONE, 3, 0,   FLT_OTEL_PARSE_KW_ATTRIBUTE,   " <key> <sample> ..." FLT_OTEL_PARSE_USAGE_COND)                                                                           \
 	FLT_OTEL_PARSE_SCOPE_DEF(       EVENT, 1, NONE, 4, 0,   FLT_OTEL_PARSE_KW_EVENT,       " <name> [time [<unit>] <sample>] <key> <sample> ..." FLT_OTEL_PARSE_USAGE_COND)                                           \
 	FLT_OTEL_PARSE_SCOPE_DEF(     BAGGAGE, 1,  CTX, 3, 0,   FLT_OTEL_PARSE_KW_BAGGAGE,     " <key> <sample> ..." FLT_OTEL_PARSE_USAGE_COND)                                                                           \
