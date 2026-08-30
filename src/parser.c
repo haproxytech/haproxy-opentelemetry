@@ -2802,37 +2802,98 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		}
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_LINK) {
-		if (!FLT_OTEL_PARSE_KEYWORD(2, FLT_OTEL_PARSE_LINK_ATTR)) {
-			/* One or more bare link names, without attributes. */
-			for (i = 1; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++)
-				if (flt_otel_conf_link_init(args[i], line, &(flt_otel_current_span->links), &err) == NULL)
-					retval |= ERR_ABORT | ERR_ALERT;
+		struct flt_otel_conf_link *conf_link;
+		struct list                link_list = LIST_HEAD_INIT(link_list);
+		int                        cond_pos, attr_pos = 0;
+
+		/* Locate an optional trailing if/unless condition. */
+		cond_pos = flt_otel_find_cond_pos(args, 1);
+
+		/*
+		 * Locate the 'attr' keyword, which opens the attribute form only
+		 * right after a single reference.
+		 */
+		for (i = 2; (attr_pos == 0) && FLT_OTEL_ARG_ISVALID(i) && ((cond_pos == 0) || (i < cond_pos)); i++)
+			if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LINK_ATTR))
+				attr_pos = i;
+
+		/*
+		 * A span may name the same link target on several lines, e.g.
+		 * once per condition or with different attributes, so each
+		 * line is parsed on a private list to bypass the duplicate-name
+		 * check before being appended to the span in configuration
+		 * order.  Within one line a repeated target is still rejected.
+		 */
+		if (cond_pos == 1) {
+			FLT_OTEL_PARSE_ERR(&err, "'%s' : no link reference before '%s'", args[0], args[1]);
 		}
-		else if (!FLT_OTEL_ARG_ISVALID(3)) {
+		else if (attr_pos > 2) {
+			/*
+			 * Attributes belong to one link, so the keyword cannot
+			 * follow a list of references.
+			 */
+			FLT_OTEL_PARSE_ERR_INVARG(&err, args[attr_pos], pdata);
+		}
+		else if (attr_pos == 0) {
+			/*
+			 * One or more bare link names, without attributes.  The
+			 * condition is built for every link on the line, so each
+			 * of them is guarded by it independently at runtime.
+			 */
+			for (i = 1; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i) && ((cond_pos == 0) || (i < cond_pos)); i++) {
+				conf_link = flt_otel_conf_link_init(args[i], line, &link_list, &err);
+				if (conf_link == NULL)
+					retval |= ERR_ABORT | ERR_ALERT;
+				else if (cond_pos != 0)
+					retval = flt_otel_parse_attach_cond(file, line, args, cond_pos, &(conf_link->cond), &err);
+			}
+		}
+		else if (!FLT_OTEL_ARG_ISVALID(3) || (cond_pos == 3)) {
 			FLT_OTEL_PARSE_ERR_FEWARGS(&err, args[2], pdata);
 		}
 		else {
-			struct flt_otel_conf_link *conf_link;
-
 			/*
 			 * A single link to args[1] followed by 'attr <key>
 			 * <sample>' attribute pairs.
 			 */
-			conf_link = flt_otel_conf_link_init(args[1], line, &(flt_otel_current_span->links), &err);
+			conf_link = flt_otel_conf_link_init(args[1], line, &link_list, &err);
 			if (conf_link == NULL) {
 				retval |= ERR_ABORT | ERR_ALERT;
 			} else {
-				for (i = 3; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i); i++) {
-					if (!FLT_OTEL_ARG_ISVALID(i + 1)) {
-						FLT_OTEL_PARSE_ERR_FEWARGS(&err, args[i], pdata);
+				for (i = 3; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i) && ((cond_pos == 0) || (i < cond_pos)); i++) {
+					/*
+					 * The keyword may stand again before each pair; without
+					 * this it would be read as the next key.
+					 */
+					if (FLT_OTEL_PARSE_KEYWORD(i, FLT_OTEL_PARSE_LINK_ATTR))
+						i++;
+
+					if (!FLT_OTEL_ARG_ISVALID(i) || !FLT_OTEL_ARG_ISVALID(i + 1) || (i == cond_pos) || ((i + 1) == cond_pos)) {
+						FLT_OTEL_PARSE_ERR_FEWARGS(&err, args[2], pdata);
 					} else {
 						retval = flt_otel_parse_cfg_sample(file, line, args, i + 1, 1, NULL, NULL, &(conf_link->attributes), &err);
 						if (!(retval & ERR_CODE))
 							i++;
 					}
 				}
+
+				if (!(retval & ERR_CODE) && (cond_pos != 0))
+					retval = flt_otel_parse_attach_cond(file, line, args, cond_pos, &(conf_link->cond), &err);
 			}
 		}
+
+		/* Move the parsed links onto the span, preserving order. */
+		if (!(retval & ERR_CODE))
+			while (!LIST_ISEMPTY(&link_list)) {
+				conf_link = LIST_NEXT(&link_list, typeof(conf_link), list);
+
+				LIST_DELETE(&(conf_link->list));
+				LIST_APPEND(&(flt_otel_current_span->links), &(conf_link->list));
+			}
+
+		/* On error, release parsed links that were not attached. */
+		if (retval & ERR_CODE)
+			FLT_OTEL_LIST_DESTROY(link, &link_list);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_ATTRIBUTE) {
 		retval = flt_otel_parse_cfg_sample_cond(file, line, args, 2, NULL, &(flt_otel_current_span->attributes), &err);

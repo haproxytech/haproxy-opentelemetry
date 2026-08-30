@@ -205,7 +205,7 @@ executes all referenced scopes when the rule fires.
       idle-timeout <time>
       extract <name-prefix> [use-vars | use-headers]
       span <name> [parent <ref>] [link <ref>] [root] [kind <kind>]
-        link { <ref> ... | <ref> attr <key> <sample> ... }
+        link { <ref> ... | <ref> attr <key> <sample> ... } [{ if | unless } <condition>]
         attribute <key> <sample> ... [{ if | unless } <condition>]
         event <name> [time [<unit>] <sample>] <key> <sample> ... [{ if | unless } <condition>]
         baggage <key> <sample> ... [{ if | unless } <condition>]
@@ -957,25 +957,30 @@ Two syntaxes are supported:
     span <name> [parent <ref>] link <ref> [root]
 
   Standalone (multiple links, or one link with attributes):
-    link { <ref> [<ref> ...] | <ref> attr <key> <sample> ... }
+    link { <ref> [<ref> ...] | <ref> attr <key> <sample> ... } [{ if | unless } <condition>]
 
 The flt_otel_conf_link structure stores each link target name and, for the
-single-link form, a list of attribute samples.  Duplicate link names within
-the same span are rejected by the init macro's duplicate check.
+single-link form, a list of attribute samples.  Each line is parsed on its own
+private list to bypass the duplicate-name check, so the same target may be named
+on several lines, while a repeated target within one line is still rejected.
 The links list is initialized in flt_otel_conf_span_init() and destroyed in
-flt_otel_conf_span_free().
+flt_otel_conf_span_free().  The optional 'if'/'unless' condition is stored on
+each conf_link; on a multi-name line the parser builds it into every created
+link, so each of them is guarded independently.
 
 8.2  Runtime Resolution
 
 At scope execution time (event.c, flt_otel_scope_run), for each configured link:
-  1. The name is searched in rt_ctx->spans (active scope_span entries).
+  1. The optional 'if'/'unless' condition is evaluated; when it does not pass,
+     the link is skipped before any name resolution.
+  2. The name is searched in rt_ctx->spans (active scope_span entries).
      If found, the OTel span pointer is captured.
-  2. If not found in spans, the name is searched in rt_ctx->contexts (extracted
+  3. If not found in spans, the name is searched in rt_ctx->contexts (extracted
      scope_context entries).  If found, the OTel span_context pointer is
      captured.
-  3. If neither is found, the link is skipped (a debug build traces the
+  4. If neither is found, the link is skipped (a debug build traces the
      miss; a release build stays silent).
-  4. A flt_otel_scope_data_link node is allocated and appended to the scope
+  5. A flt_otel_scope_data_link node is allocated and appended to the scope
      data's links list.
 
 In flt_otel_scope_run_span(), all resolved links are applied via

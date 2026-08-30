@@ -143,6 +143,7 @@ FLT_OTEL_CONF_FUNC_FREE(link, ref,
 	FLT_OTEL_DBG_CONF_LINK("- conf_link free ", *ptr);
 
 	FLT_OTEL_LIST_DESTROY(sample, &((*ptr)->attributes));
+	free_acl_cond((*ptr)->cond);
 )
 
 

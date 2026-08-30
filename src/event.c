@@ -1119,6 +1119,9 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 				struct flt_otel_scope_context   *sc_ctx;
 				struct flt_otel_conf_sample     *conf_attr;
 
+				if (flt_otel_cond_pass(conf_link->cond, s, dir) == 0)
+					continue;
+
 				/* Try to find a matching span first. */
 				list_for_each_entry(sc_span, &(rt_ctx->spans), list)
 					if (FLT_OTEL_CONF_STR_CMP(sc_span->id, conf_link->ref)) {

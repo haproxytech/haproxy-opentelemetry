@@ -1023,7 +1023,7 @@ log-record <severity> [id <integer> event <name>] [time [<unit>] <sample>] [span
     condition - an optional ACL-based 'if' or 'unless' condition
 
 
-link { <ref> ... | <ref> attr <key> <sample> ... }
+link { <ref> ... | <ref> attr <key> <sample> ... } [{ if | unless } <condition>]
   This keyword adds span links to the currently active span.  A span link
   represents a causal relationship to another span without establishing a
   parent-child hierarchy.  Links are useful for connecting spans across
@@ -1036,21 +1036,36 @@ link { <ref> ... | <ref> attr <key> <sample> ... }
 
   In the second form, a single link reference is followed by the 'attr' keyword
   and one or more <key> <sample> attribute pairs, which attach attributes to
-  that one link.  Each pair gives a key and a single sample expression as the
-  value; see the 'attribute' keyword description for the data type conversion
-  table.
+  that one link.  Each pair gives a key and a single sample expression as its
+  value, and the keyword may stand again before each pair; see the 'attribute'
+  keyword description for the data type conversion table.
 
-  Because the 'attr' keyword directly after the first name selects the attribute
-  form, a link target in that position cannot itself be the literal word 'attr'.
+  The attributes belong to that one link, so an 'attr' written after a list of
+  references is rejected.  Because the keyword opens the form and separates the
+  pairs, neither a link target after the first one nor an attribute key can be
+  the literal word 'attr'.
+
+  An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
+  guards the link; it is added only when the condition holds at request time.
+  On a line naming several references, the condition applies to each of them.
+  A link target cannot be the literal word 'if' or 'unless'; that word always
+  starts the condition.
+
+  The keyword may be repeated freely, with or without a condition: every line
+  whose condition holds adds its links, so naming the same target on several
+  lines adds one link per line.  A target repeated within a single line is a
+  configuration error.
 
   For example:
     link "Span A" "Span B"
     link "inbound" attr "link.detail" str("follows-from")
+    link "Span A" "Span B" unless { path_beg /health }
 
   Arguments :
-    ref    - the name of a span or span context to link to
-    key    - attribute key attached to a single link
-    sample - sample expression giving the attribute value
+    ref       - the name of a span or span context to link to
+    key       - attribute key attached to a single link
+    sample    - sample expression giving the attribute value
+    condition - an optional ACL-based 'if' or 'unless' condition
 
 
 otel-event <name> [{ if | unless } <condition>]
