@@ -184,6 +184,19 @@ Event dispatching, metrics recording and scope/span execution engine.
       Evaluates an optional if/unless ACL condition against the stream,
       honouring the 'unless' polarity; a NULL condition always passes.
 
+  flt_otel_cond_taken
+      Implements the first-match rule for a sample key that is written on more
+      than one line: it scans the lines preceding the given one and reports
+      whether an earlier line of the same key has already taken it, in which
+      case the given line is skipped by the caller.  Event lines are compared
+      within one event name only, that name being carried in the extra data.
+
+  flt_otel_unset_var_taken
+      Implements the first-match rule for a variable name that is written on
+      more than one unset-var line: it scans the lines preceding the given one
+      and reports whether an earlier line whose condition holds already names
+      the variable, in which case the name is skipped by the caller.
+
   flt_otel_scope_run_instrument_record
       Records a measurement for a synchronous metric instrument.  Evaluates
       update-form attributes via flt_otel_sample_eval() and
@@ -357,6 +370,13 @@ sections.
   flt_otel_parse_cfg_sample_cond
       Parses a sample definition optionally followed by an 'if'/'unless' ACL
       condition, building the condition onto the parsed sample.
+
+  flt_otel_parse_check_sample_open
+      Enforces the placement of the condition-less line of a repeated sample
+      key: that line is the default and has to come last, so once the list it
+      is appended to holds one, a further line with the same key is rejected.
+      Event lines are compared within one event name only, so a key repeats
+      freely across the names; the name is carried in the sample's extra data.
 
   flt_otel_find_cond_pos
       Locates the first 'if' or 'unless' keyword that introduces an optional
