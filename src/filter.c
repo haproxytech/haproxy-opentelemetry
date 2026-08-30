@@ -785,9 +785,10 @@ static int flt_otel_check_sample_list(const struct flt_otel_conf *conf, const st
  *
  * DESCRIPTION
  *   Walks every sample-bearing directive and every 'if'/'unless' condition of
- *   <conf_scope> -- span attributes, events, baggage, status and link
- *   attributes, instrument values and attributes, log-record body, attributes
- *   and time, set-var, and the scope, instrument, log-record, set-var-ctx and
+ *   <conf_scope> -- span attributes, events, baggage, status, link and
+ *   exception attributes, the exception message, instrument values and
+ *   attributes, log-record body, attributes and time, set-var, and the scope,
+ *   otel-stop, link, exception, instrument, log-record, set-var-ctx and
  *   unset-var conditions -- and warns about any fetch or condition that cannot
  *   be evaluated at <where>.  A <where> of zero (an event with no fetch
  *   location) is a no-op.  Shared by the event-bound and group action checks.
@@ -823,8 +824,10 @@ int flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt_
 		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->events), FLT_OTEL_PARSE_KW_EVENT, trigger);
 		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->baggages), FLT_OTEL_PARSE_KW_BAGGAGE, trigger);
 		retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_span->statuses), FLT_OTEL_PARSE_KW_STATUS, trigger);
-		list_for_each_entry(conf_link, &(conf_span->links), list)
+		list_for_each_entry(conf_link, &(conf_span->links), list) {
 			retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_link->attributes), FLT_OTEL_PARSE_KW_LINK " attribute", trigger);
+			retval |= flt_otel_check_cond_loc(conf, conf_scope, p, where, conf_link->cond, FLT_OTEL_PARSE_KW_LINK, trigger);
+		}
 		list_for_each_entry(conf_exception, &(conf_span->exceptions), list) {
 			retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_exception->message), FLT_OTEL_PARSE_KW_EXCEPTION " message", trigger);
 			retval |= flt_otel_check_sample_list(conf, conf_scope, p, where, &(conf_exception->attributes), FLT_OTEL_PARSE_KW_EXCEPTION " attribute", trigger);

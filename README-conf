@@ -347,7 +347,8 @@ names with an optional condition, so one condition covers the whole removal.
                       HDR field is named "str" instead of "id"); used for
                       spans_to_finish and the unset-var name lists.
   flt_otel_conf_link  Span or context link (HDR field named "ref") with an
-                      optional attributes sample list for key:value data.
+                      optional attributes sample list for key:value data and an
+                      optional if/unless condition.
   flt_otel_conf_stop  A single otel-stop directive with its optional if/unless
                       condition.
   flt_otel_conf_ph    Placeholder; carries a ptr field resolved at check time.
