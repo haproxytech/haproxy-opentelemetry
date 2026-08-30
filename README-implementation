@@ -839,7 +839,9 @@ side.
        threshold, evaluates sample expressions into a body string, resolves
        the optional span reference, and emits the record via the logger.
     8. Runs "unset-var" directives, removing the named HAProxy variables via
-       flt_otel_var_unset_byname() (each held to its optional condition).
+       flt_otel_var_unset_byname() (each guarded by its optional condition); a
+       variable that an earlier passing line already names is skipped per the
+       first-match rule, checked via flt_otel_unset_var_taken().
     9. Marks spans listed in "finish" directives; a fired "otel-stop" marks
        every open span and context for completion.
    10. Calls flt_otel_scope_finish_marked() to end marked spans/contexts.

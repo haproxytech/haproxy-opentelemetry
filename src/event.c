@@ -86,6 +86,114 @@ static int flt_otel_cond_pass(struct acl_cond *cond, struct stream *s, uint dir)
 
 /***
  * NAME
+ *   flt_otel_cond_taken - first-match check for a repeated sample key
+ *
+ * SYNOPSIS
+ *   static int flt_otel_cond_taken(struct stream *s, uint dir, struct list *head, struct flt_otel_conf_sample *sample)
+ *
+ * ARGUMENTS
+ *   s      - the stream being processed
+ *   dir    - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
+ *   head   - the configured sample list holding <sample>
+ *   sample - the sample line whose turn is being decided
+ *
+ * DESCRIPTION
+ *   Implements the first-match rule for a repeated key: the lines of one key
+ *   are tried in configuration order and only the first one whose condition
+ *   holds is applied.  Scans the lines preceding <sample> in <head> for one
+ *   with the same key whose condition holds; event lines are compared within
+ *   one event name only, carried in the extra data.
+ *
+ * RETURN VALUE
+ *   Returns a non-zero value when an earlier line already took the key and
+ *   <sample> must be skipped, 0 otherwise.
+ */
+static int flt_otel_cond_taken(struct stream *s, uint dir, struct list *head, struct flt_otel_conf_sample *sample)
+{
+	struct flt_otel_conf_sample *prev;
+	int                          retval = 0;
+
+	OTELC_FUNC("%p, %u, %p, %p", s, dir, head, sample);
+
+	list_for_each_entry(prev, head, list) {
+		if (prev == sample)
+			break;
+
+		if (strcmp(prev->key, sample->key) != 0)
+			continue;
+
+		/* Event lines group by name; a key repeats freely across names. */
+		if ((prev->extra.u_type == OTELC_VALUE_DATA) && (sample->extra.u_type == OTELC_VALUE_DATA))
+			if (strcmp((const char *)(prev->extra.u.value_data), (const char *)(sample->extra.u.value_data)) != 0)
+				continue;
+
+		if (flt_otel_cond_pass(prev->cond, s, dir) != 0) {
+			retval = 1;
+
+			break;
+		}
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_unset_var_taken - first-match check for a repeated unset-var name
+ *
+ * SYNOPSIS
+ *   static int flt_otel_unset_var_taken(struct stream *s, uint dir, struct list *head, struct flt_otel_conf_unset_var *unset_var, const char *name)
+ *
+ * ARGUMENTS
+ *   s         - the stream being processed
+ *   dir       - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
+ *   head      - the configured unset-var list holding <unset_var>
+ *   unset_var - the unset-var line whose turn is being decided
+ *   name      - the variable name whose turn is being decided
+ *
+ * DESCRIPTION
+ *   Implements the first-match rule for a repeated variable name: the lines
+ *   naming one variable are tried in configuration order and only the first
+ *   one whose condition holds unsets it.  Scans the lines preceding
+ *   <unset_var> in <head> for one whose condition holds and that names <name>.
+ *
+ * RETURN VALUE
+ *   Returns a non-zero value when an earlier line already took the variable
+ *   and <name> must be skipped, 0 otherwise.
+ */
+static int flt_otel_unset_var_taken(struct stream *s, uint dir, struct list *head, struct flt_otel_conf_unset_var *unset_var, const char *name)
+{
+	struct flt_otel_conf_unset_var *prev;
+	struct flt_otel_conf_str       *var;
+	int                             retval = 0;
+
+	OTELC_FUNC("%p, %u, %p, %p, \"%s\"", s, dir, head, unset_var, OTELC_STR_ARG(name));
+
+	list_for_each_entry(prev, head, list) {
+		if (prev == unset_var)
+			break;
+
+		if (flt_otel_cond_pass(prev->cond, s, dir) == 0)
+			continue;
+
+		list_for_each_entry(var, &(prev->vars), list)
+			if (strcmp(var->str, name) == 0) {
+				retval = 1;
+
+				break;
+			}
+
+		if (retval != 0)
+			break;
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_scope_run_instrument_record - metric instrument value recorder
  *
  * SYNOPSIS
@@ -837,6 +945,9 @@ static int flt_otel_scope_run_set_var(struct stream *s, uint dir, struct flt_ote
 		if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
 			continue;
 
+		if (flt_otel_cond_taken(s, dir, &(scope->set_vars), sample) != 0)
+			continue;
+
 		OTELC_DBG(DEBUG, "set-var '%s' -> '%s'", sample->key, sample->fmt_string);
 
 		if (flt_otel_sample_eval(s, dir, sample, false, &value, err) == FLT_OTEL_RET_ERROR) {
@@ -890,14 +1001,31 @@ static int flt_otel_scope_run_set_var_ctx(struct stream *s, struct filter *f, ui
 	OTELC_FUNC("%p, %p, %u, %p, %p:%p", s, f, dir, scope, OTELC_DPTR_ARGS(err));
 
 	list_for_each_entry(conf_set_var_ctx, &(scope->set_var_ctxs), list) {
-		struct flt_otel_scope_span    *sc_span;
-		struct flt_otel_scope_context *sc_ctx;
-		struct otelc_span             *ref_span = NULL;
-		struct otelc_span_context     *ref_ctx = NULL;
-		const char                    *ref_baggage = NULL;
-		char                           value[BUFSIZ];
+		struct flt_otel_scope_span       *sc_span;
+		struct flt_otel_scope_context    *sc_ctx;
+		struct otelc_span                *ref_span = NULL;
+		struct otelc_span_context        *ref_ctx = NULL;
+		const char                       *ref_baggage = NULL;
+		char                              value[BUFSIZ];
+		struct flt_otel_conf_set_var_ctx *prev_ctx;
+		bool                              flag_taken = false;
 
 		if (flt_otel_cond_pass(conf_set_var_ctx->cond, s, dir) == 0)
+			continue;
+
+		/* First-match per variable: an earlier passing line wins. */
+		list_for_each_entry(prev_ctx, &(scope->set_var_ctxs), list) {
+			if (prev_ctx == conf_set_var_ctx)
+				break;
+
+			if (FLT_OTEL_CONF_STR_CMP(prev_ctx->name, conf_set_var_ctx->name) && (flt_otel_cond_pass(prev_ctx->cond, s, dir) != 0)) {
+				flag_taken = true;
+
+				break;
+			}
+		}
+
+		if (flag_taken)
 			continue;
 
 		OTELC_DBG(DEBUG, "set-var-ctx '%s' -> '%s' field %d", conf_set_var_ctx->name, conf_set_var_ctx->ref, conf_set_var_ctx->field);
@@ -1170,6 +1298,9 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 			if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
 				continue;
 
+			if (flt_otel_cond_taken(s, dir, &(conf_span->attributes), sample) != 0)
+				continue;
+
 			OTELC_DBG(DEBUG, "adding attribute '%s' -> '%s'", sample->key, sample->fmt_string);
 
 			if (flt_otel_sample_add(s, dir, sample, &data, FLT_OTEL_EVENT_SAMPLE_ATTRIBUTE, err) == FLT_OTEL_RET_ERROR)
@@ -1180,6 +1311,9 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 			if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
 				continue;
 
+			if (flt_otel_cond_taken(s, dir, &(conf_span->events), sample) != 0)
+				continue;
+
 			OTELC_DBG(DEBUG, "adding event '%s' -> '%s'", sample->key, sample->fmt_string);
 
 			if (flt_otel_sample_add(s, dir, sample, &data, FLT_OTEL_EVENT_SAMPLE_EVENT, err) == FLT_OTEL_RET_ERROR)
@@ -1188,6 +1322,9 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 
 		list_for_each_entry(sample, &(conf_span->baggages), list) {
 			if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
+				continue;
+
+			if (flt_otel_cond_taken(s, dir, &(conf_span->baggages), sample) != 0)
 				continue;
 
 			OTELC_DBG(DEBUG, "adding baggage '%s' -> '%s'", sample->key, sample->fmt_string);
@@ -1243,9 +1380,14 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 		if (flt_otel_cond_pass(unset_var->cond, s, dir) == 0)
 			continue;
 
-		list_for_each_entry(var, &(unset_var->vars), list)
+		list_for_each_entry(var, &(unset_var->vars), list) {
+			/* First-match per variable: an earlier passing line wins. */
+			if (flt_otel_unset_var_taken(s, dir, &(conf_scope->unset_vars), unset_var, var->str) != 0)
+				continue;
+
 			if (flt_otel_var_unset_byname(s, var->str, dir, err) == FLT_OTEL_RET_ERROR)
 				retval = FLT_OTEL_RET_ERROR;
+		}
 	}
 
 	/* Mark the configured spans for finishing and clean up. */

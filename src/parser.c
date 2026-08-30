@@ -1676,6 +1676,56 @@ static int flt_otel_parse_trailing_cond(const char *file, int line, char **args,
 
 /***
  * NAME
+ *   flt_otel_parse_check_sample_open - reject a key that a bare line closed
+ *
+ * SYNOPSIS
+ *   static int flt_otel_parse_check_sample_open(const struct list *head, const struct flt_otel_conf_sample *sample, char **err)
+ *
+ * ARGUMENTS
+ *   head   - the destination sample list to check against
+ *   sample - the newly parsed sample line
+ *   err    - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Enforces the bare-line placement rule for a repeated sample key: the line
+ *   without a condition must be the last one of its key, so once <head> holds
+ *   such a line, a further line with the same key is rejected.  Event lines
+ *   are compared within one event name only, carried in the extra data.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE (== 0) in case of success,
+ *   or a combination of ERR_* flags if an error is encountered.
+ */
+static int flt_otel_parse_check_sample_open(const struct list *head, const struct flt_otel_conf_sample *sample, char **err)
+{
+	const struct flt_otel_conf_sample *prev;
+	int                                retval = ERR_NONE;
+
+	OTELC_FUNC("%p, %p, %p:%p", head, sample, OTELC_DPTR_ARGS(err));
+
+	list_for_each_entry(prev, head, list) {
+		if (prev->cond != NULL)
+			continue;
+
+		if (strcmp(prev->key, sample->key) != 0)
+			continue;
+
+		/* Event lines group by name; a key repeats freely across names. */
+		if ((prev->extra.u_type == OTELC_VALUE_DATA) && (sample->extra.u_type == OTELC_VALUE_DATA))
+			if (strcmp((const char *)(prev->extra.u.value_data), (const char *)(sample->extra.u.value_data)) != 0)
+				continue;
+
+		FLT_OTEL_PARSE_ERR_ALRUNCOND(err, sample->key);
+
+		break;
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_parse_cfg_sample_cond - sample definition with optional condition
  *
  * SYNOPSIS
@@ -1695,7 +1745,10 @@ static int flt_otel_parse_trailing_cond(const char *file, int line, char **args,
  *   'unless' ACL condition.  The sample expressions are parsed up to the
  *   condition keyword, or to the end of the line when none is present; the
  *   condition is then built and stored on the just-created sample so the item
- *   is emitted only when the condition is met at runtime.
+ *   is emitted only when the condition is met at runtime.  The line is parsed
+ *   on a private list to bypass the duplicate-key check, so the same key may
+ *   be named on several lines, e.g. once per condition; the sample is moved
+ *   onto <head> once the whole line has parsed.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -1704,6 +1757,7 @@ static int flt_otel_parse_trailing_cond(const char *file, int line, char **args,
 static int flt_otel_parse_cfg_sample_cond(const char *file, int line, char **args, int idx, const struct otelc_value *extra, struct list *head, char **err)
 {
 	struct flt_otel_conf_sample *sample;
+	struct list                  sample_list = LIST_HEAD_INIT(sample_list);
 	int                          cond_pos = 0, n = 0, retval = ERR_NONE;
 
 	OTELC_FUNC("\"%s\", %d, %p, %d, %p, %p, %p:%p", OTELC_STR_ARG(file), line, args, idx, extra, head, OTELC_DPTR_ARGS(err));
@@ -1720,13 +1774,33 @@ static int flt_otel_parse_cfg_sample_cond(const char *file, int line, char **arg
 		OTELC_RETURN_INT(retval);
 	}
 
-	retval = flt_otel_parse_cfg_sample(file, line, args, idx, n, NULL, extra, head, err);
+	retval = flt_otel_parse_cfg_sample(file, line, args, idx, n, NULL, extra, &sample_list, err);
 	if (!(retval & ERR_CODE) && (cond_pos != 0)) {
 		/* Attach the trailing condition to the just-parsed sample. */
-		sample = LIST_PREV(head, typeof(sample), list);
+		sample = LIST_PREV(&sample_list, typeof(sample), list);
 
 		retval = flt_otel_parse_attach_cond(file, line, args, cond_pos, &(sample->cond), err);
 	}
+
+	/* The bare line of a key is final: nothing may follow it for that key. */
+	if (!(retval & ERR_CODE)) {
+		sample = LIST_PREV(&sample_list, typeof(sample), list);
+
+		retval = flt_otel_parse_check_sample_open(head, sample, err);
+	}
+
+	/* Move the parsed sample onto the destination, preserving order. */
+	if (!(retval & ERR_CODE))
+		while (!LIST_ISEMPTY(&sample_list)) {
+			sample = LIST_NEXT(&sample_list, typeof(sample), list);
+
+			LIST_DELETE(&(sample->list));
+			LIST_APPEND(head, &(sample->list));
+		}
+
+	/* On error, release a parsed sample that was not attached. */
+	if (retval & ERR_CODE)
+		FLT_OTEL_LIST_DESTROY(sample, &sample_list);
 
 	OTELC_RETURN_INT(retval);
 }
@@ -2526,11 +2600,30 @@ static int flt_otel_parse_cfg_unset_var(const char *file, int line, char **args,
 	}
 
 	/* Store the variable names up to the condition, or to the end of line. */
-	for (i = 1; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i) && ((cond_pos == 0) || (i < cond_pos)); i++)
-		if (flt_otel_var_register_byname(args[i], err) == FLT_OTEL_RET_ERROR)
+	for (i = 1; !(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(i) && ((cond_pos == 0) || (i < cond_pos)); i++) {
+		struct flt_otel_conf_unset_var *prev;
+		struct flt_otel_conf_str       *var_str;
+
+		/*
+		 * The bare line of a variable is final: nothing may follow it
+		 * for that variable.
+		 */
+		list_for_each_entry(prev, &(flt_otel_current_scope->unset_vars), list) {
+			if ((prev == unset_var) || (prev->cond != NULL))
+				continue;
+
+			list_for_each_entry(var_str, &(prev->vars), list)
+				if (strcmp(var_str->str, args[i]) == 0)
+					FLT_OTEL_PARSE_ERR_ALRUNCOND(err, args[i]);
+		}
+
+		if (retval & ERR_CODE)
+			/* Do nothing. */;
+		else if (flt_otel_var_register_byname(args[i], err) == FLT_OTEL_RET_ERROR)
 			retval |= ERR_ABORT | ERR_ALERT;
 		else if (flt_otel_conf_str_init(args[i], line, &(unset_var->vars), err) == NULL)
 			retval |= ERR_ABORT | ERR_ALERT;
+	}
 
 	if (!(retval & ERR_CODE) && (cond_pos != 0))
 		retval = flt_otel_parse_attach_cond(file, line, args, cond_pos, &(unset_var->cond), err);
@@ -2952,10 +3045,16 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 #undef FLT_OTEL_PARSE_SCOPE_STATUS_DEF
 		struct flt_otel_conf_sample *sample;
 		struct list                  status_list = LIST_HEAD_INIT(status_list);
+		bool                         flag_open = true;
 
 		kw = flt_otel_kw_lookup(status, OTELC_TABLESIZE(status), args[1]);
 		if (kw != NULL)
 			OTELC_DBG(DEBUG, "span status: %d '%s'", kw->code, kw->keyword);
+
+		/* The bare status line is final: no further status line may follow it. */
+		list_for_each_entry(sample, &(flt_otel_current_span->statuses), list)
+			if (sample->cond == NULL)
+				flag_open = false;
 
 		/*
 		 * Several status lines may be defined per span, each carrying
@@ -2968,6 +3067,9 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		if (kw == NULL) {
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid span status", args[1]);
 		}
+		else if (!flag_open) {
+			FLT_OTEL_PARSE_ERR_ALRUNCOND(&err, args[0]);
+		}
 		/*
 		 * The status description is optional.  A sample after the
 		 * code is the description; an 'if'/'unless' there, or nothing,
@@ -2977,6 +3079,11 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		else if (FLT_OTEL_ARG_ISVALID(2) && !FLT_OTEL_ARG_ISCOND(2)) {
 			struct otelc_value extra = { .u_type = OTELC_VALUE_INT32, .u.value_int32 = kw->code };
 
+			/*
+			 * flag_open above carries the bare-line rule here: the
+			 * list passed on is private, so the check inside sees
+			 * none of the statuses the span already holds.
+			 */
 			retval = flt_otel_parse_cfg_sample_cond(file, line, args, 2, &extra, &status_list, &err);
 		}
 		else if (flt_otel_conf_sample_init_code(kw->code, args[1], line, &status_list, &err) == NULL) {
@@ -3211,15 +3318,34 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			retval = flt_otel_parse_cfg_sample_cond(file, line, args, 2, NULL, &(flt_otel_current_scope->set_vars), &err);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_SET_VAR_CTX) {
-		struct flt_otel_conf_set_var_ctx *conf_set_var_ctx;
+		struct flt_otel_conf_set_var_ctx *conf_set_var_ctx, *prev_ctx;
 
-		conf_set_var_ctx = flt_otel_conf_set_var_ctx_init(args[1], line, &(flt_otel_current_scope->set_var_ctxs), &err);
+		/*
+		 * The structure is created unattached to bypass the duplicate
+		 * check, so the same variable may be set by several lines, e.g.
+		 * once per condition; it is appended once the line has parsed.
+		 */
+		conf_set_var_ctx = flt_otel_conf_set_var_ctx_init(args[1], line, NULL, &err);
 		if (conf_set_var_ctx == NULL)
 			retval |= ERR_ABORT | ERR_ALERT;
 		else if (flt_otel_var_register_byname(args[1], &err) == FLT_OTEL_RET_ERROR)
 			retval |= ERR_ABORT | ERR_ALERT;
 		else
 			retval = flt_otel_parse_cfg_set_var_ctx(file, line, args, conf_set_var_ctx, &err);
+
+		/*
+		 * The bare line of a variable is final: nothing may follow it
+		 * for that variable.
+		 */
+		if (!(retval & ERR_CODE))
+			list_for_each_entry(prev_ctx, &(flt_otel_current_scope->set_var_ctxs), list)
+				if ((prev_ctx->cond == NULL) && FLT_OTEL_CONF_STR_CMP(prev_ctx->name, conf_set_var_ctx->name))
+					FLT_OTEL_PARSE_ERR_ALRUNCOND(&err, args[1]);
+
+		if (!(retval & ERR_CODE))
+			LIST_APPEND(&(flt_otel_current_scope->set_var_ctxs), &(conf_set_var_ctx->list));
+		else if (conf_set_var_ctx != NULL)
+			flt_otel_conf_set_var_ctx_free(&conf_set_var_ctx);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_UNSET_VAR) {
 		retval = flt_otel_parse_cfg_unset_var(file, line, args, &err);

@@ -652,8 +652,9 @@ attribute <key> <sample> ... [{ if | unless } <condition>]
 
   An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
   covers the attribute; it is set only when the condition holds at request time.
-  The keyword may be repeated to set several attributes on one span, and every
-  line whose condition holds is applied.
+  The keyword may be repeated, one line per condition: the lines of one key are
+  tried in configuration order, the first whose condition holds sets that key,
+  and a line without a condition, placed last, acts as the key's default.
 
   Arguments :
     key       - key part of a data pair (attribute name)
@@ -675,8 +676,10 @@ baggage <key> <sample> ... [{ if | unless } <condition>]
   See the 'attribute' keyword description for the data type conversion table.
 
   An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
-  covers the baggage.  The keyword may be repeated to set several baggage items
-  on one span, and every line whose condition holds is applied.
+  decides whether the baggage is set.  The keyword may be repeated, one line
+  per condition: the lines of one key are tried in configuration order, the
+  first whose condition holds sets that key, and a line without a condition,
+  placed last, acts as the key's default.
 
   Arguments :
     key       - key part of a data pair; letters, digits, '_', '.' and '-'
@@ -704,7 +707,10 @@ event <name> [time [<unit>] <sample>] <key> <sample> ... [{ if | unless } <condi
   each distinct name produces a single span event, and the <key>/<sample> pairs
   of all lines sharing that name become the attributes of that one event.  The
   timestamp is set by the first such line whose 'time' clause evaluates, and
-  the later lines keep it.
+  the later lines keep it.  Within one event a key may be named across several
+  lines, one per condition: the first line whose condition holds supplies the
+  key, and a line without a condition, placed last for its key, acts as the
+  default.  The same key may appear in different events independently.
 
   Arguments :
     name      - name of the span event
@@ -1515,13 +1521,16 @@ status <code> [<sample> ...] [{ if | unless } <condition>]
   exported.
 
   An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
-  covers the status.  The keyword may be given more than once per span; the
-  lines are evaluated at runtime in configuration order, and the first one whose
-  condition holds sets the span status, the remaining lines being skipped.  A
-  line without a condition always matches, so an unconditional 'status' acts as
-  a default and any lines placed after it are never reached.  This first-match
-  behavior is specific to 'status'; 'attribute', 'event' and 'baggage' instead
-  apply every line whose condition holds.
+  decides whether the status applies.  The keyword may be given more than once
+  per span; the lines are evaluated at runtime in configuration order, and the
+  first one whose condition holds sets the span status, the remaining lines
+  being skipped.  A line without a condition always matches, so an unconditional
+  'status' is the default and comes last, and a line after it is a configuration
+  error.  The same first-match scheme governs 'attribute', 'baggage', the
+  variable keywords and the create form of 'instrument'; 'link', 'exception',
+  'log-record' and an 'instrument' update instead apply every line whose
+  condition holds, and so does 'event', though the value of a repeated (name,
+  key) pair is first-match again.
 
   For example:
     status "ok"
@@ -1551,6 +1560,8 @@ exception <type> [message <sample> ...] [attr <key> <sample> ...] [{ if | unless
   'status error' line when the exception marks the span as failed.  An optional
   trailing 'if'/'unless' condition (same syntax as 'otel-event') covers the
   record.  The keyword may be repeated to record several exceptions on one span.
+  The lines are independent: every line whose condition holds records its own
+  exception event, the same type included.
 
   For example:
     exception upstream_error message str("HTTP ") status
@@ -1575,8 +1586,10 @@ set-var <var-name> <sample> ... [{ if | unless } <condition>]
   'var(...)'.
 
   An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
-  covers the assignment.  The keyword may be repeated to set several variables
-  in one scope, and every line whose condition holds is applied.
+  decides whether the variable is set.  The keyword may be repeated, one line
+  per condition: the lines of one variable are tried in configuration order,
+  the first whose condition holds sets that variable, while a line without a
+  condition, placed last, acts as the variable's default.
 
   For example:
     set-var txn.otel_method method
@@ -1593,14 +1606,16 @@ set-var <var-name> <sample> ... [{ if | unless } <condition>]
 set-var-ctx <var-name> <ref> <field> [{ if | unless } <condition>]
   Set a HAProxy variable from a field of a referenced span or span context,
   evaluated when the scope's event fires.  <ref> names a span or a context
-  extracted in this scope; it is resolved against the active spans first and
-  then the extracted contexts; an unresolved reference leaves the variable
-  unchanged.  Because these assignments run after the scope's spans, a span
-  created in the same scope may be referenced.
+  that some otel-scope defines, this one or another; it is resolved against
+  the active spans first and then the extracted contexts, and an unresolved
+  reference leaves the variable unchanged.  Because these assignments run after
+  the scope's spans, a span created in the same scope may be referenced.
 
   An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
-  covers the assignment.  The keyword may be repeated within one scope, and
-  every line whose condition holds is applied.
+  decides whether the variable is set.  The keyword may be repeated, one line
+  per condition: the lines of one variable are tried in configuration order,
+  the first whose condition holds sets that variable, while a line without a
+  condition, placed last, acts as the variable's default.
 
   Supported fields:
     trace-id          - trace id, lowercase hex
@@ -1643,7 +1658,10 @@ unset-var <var-name> ... [{ if | unless } <condition>]
 
   An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
   covers the directive; when it does not pass, none of the listed variables
-  are removed.  The keyword may be repeated within one scope.
+  are removed.  The keyword may be repeated within one scope, with one line per
+  condition: the lines of one variable are tried in configuration order, the
+  first whose condition holds removes it, and the line without a condition,
+  placed last, acts as the variable's default.
 
   For example:
     unset-var txn.otel_scratch txn.otel_tmp
