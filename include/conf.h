@@ -103,10 +103,10 @@
 	                 flt_otel_list_dump(&((p)->acls)), flt_otel_list_dump(&((p)->ph_groups)), flt_otel_list_dump(&((p)->ph_scopes)))
 
 #define FLT_OTEL_DBG_CONF_INSTRUMENT(h,p)                                                                                       \
-	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%" PRId64 " %d %d '%s' '%s' %s %s %p %zu %p %p }", (p),             \
+	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%" PRId64 " %d %d '%s' '%s' %s %s %p %p %zu %p %p }", (p),       \
 	                 FLT_OTEL_CONF_HDR_ARGS(p, id), (p)->idx, (p)->type, (p)->aggr_type, OTELC_STR_ARG((p)->description),   \
 	                 OTELC_STR_ARG((p)->unit), flt_otel_list_dump(&((p)->samples)), flt_otel_list_dump(&((p)->attributes)), \
-	                 (p)->ref, (p)->bounds_num, (p)->bounds, (p)->cond)
+	                 (p)->ref, (p)->scope, (p)->bounds_num, (p)->bounds, (p)->cond)
 
 #define FLT_OTEL_DBG_CONF_LOG_RECORD(h,p)                                                                                    \
 	OTELC_DBG_STRUCT(DEBUG, h, h FLT_OTEL_CONF_HDR_FMT "%d %" PRId64 " '%s' '%s' %s %s %s %p }", (p),                    \
@@ -147,6 +147,8 @@
 		struct list list;     \
 	}
 
+
+struct flt_otel_conf_scope;
 
 /* Generic configuration header used for simple named list entries. */
 struct flt_otel_conf_hdr {
@@ -250,7 +252,8 @@ struct flt_otel_conf_instrument {
 	double                            *bounds;      /* Histogram bucket boundaries (create only). */
 	size_t                             bounds_num;  /* Number of histogram bucket boundaries. */
 	struct list                        attributes;  /* Instrument attributes (update only, flt_otel_conf_sample). */
-	struct flt_otel_conf_instrument   *ref;         /* Resolved create-form instrument (update only). */
+	struct flt_otel_conf_instrument   *ref;         /* The create line owning this name's instrument. */
+	struct flt_otel_conf_scope        *scope;       /* The scope the instrument is in, the creating one once it exists. */
 	struct acl_cond                   *cond;        /* Optional if/unless condition controlling recording. */
 };
 

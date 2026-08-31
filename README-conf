@@ -250,6 +250,8 @@ operation as a span event named 'exception'.
   bounds_num             Number of histogram bucket boundaries.
   attributes             Instrument attributes (update only, flt_otel_conf_sample).
   ref                    The create line owning this name's instrument.
+  scope                  The scope the instrument is in, the creating one
+                         once it exists.
   cond                   Optional if/unless condition controlling recording.
 
 Instruments come in two forms: create-form (defines a new metric with type,
