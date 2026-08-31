@@ -623,13 +623,30 @@ Supported keywords:
   instrument update <name> [attr <key> <sample> ...] [{ if | unless } <condition>]
       Create or update a metric instrument.  For the create form, the 'aggr',
       'desc', 'unit', 'value' and 'bounds' keywords may be given in any order.
-      A create-form instrument name may repeat, in the same or another scope,
-      as long as every repeat keeps the instrument type; a repeated name with a
-      different type is a configuration error.  An update form records on the
-      nearest preceding create form of the same name in its own scope, or on
-      the first match across all scopes; repeating an update form in a scope
-      with no same-name create form in between is a configuration error, as
-      the repeat would record twice.  Names compare case-insensitively.
+      A create-form instrument name may repeat, in the same or another scope:
+      the lines of one name share one instrument, so they must agree on the
+      type, the aggregation, the description, the unit and the bounds, and a
+      disagreement is a configuration error, while the value and the condition
+      are what the repeated lines vary.  Within one scope the create lines of
+      a name follow the first-match rule, one line per condition with the bare
+      line last as the default: an update form records the value of the first
+      line whose condition holds, taken from the chain of its own scope; without
+      one there it follows the scope that created the instrument, and until
+      it exists, the first scope of the file that runs and defines the name.  An
+      update that runs needs such a scope, so a name created only in scopes that
+      never run is refused.  At run time exactly one otel-scope ever creates
+      the instrument, and a create line of another otel-scope that finds it
+      already created is a runtime error, not a line without effect.  The update
+      form is additive, like 'log-record': it may repeat freely, and every
+      update line whose condition holds records one measurement of its own.  Its
+      'attr' keyword may stand once before the first <key> <sample> pair or
+      again before each of them, so no key may be called 'attr', and every key
+      takes a single sample expression.  The 'value' of a create form likewise
+      takes one and refuses a second.  Names compare case-insensitively.  A name
+      begins with a letter and carries letters, digits and the punctuation '_',
+      '.', '-' and '/' alone, and a unit is at most 63 ASCII characters: the
+      metric SDK refuses anything else, and an instrument it refuses records
+      nothing at all.
 
       Supported types:
         cnt_int   - counter (uint64)
@@ -666,9 +683,11 @@ Supported keywords:
       A create form registers the instrument and supplies the value to record;
       it emits no measurement on its own.  A data point is produced only when an
       update form for that instrument runs, recording the create form's value.
-      An optional trailing 'if'/'unless' ACL condition covers that measurement:
-      on a create form every recording of the instrument, on an update form only
-      that one.  Registration produces no data point and obeys no condition.
+      An optional trailing 'if'/'unless' ACL condition takes part as described
+      above: on a create form it decides whether that line supplies the value,
+      so a lone conditional create still controls every recording, and on an
+      update form it controls only that one measurement.  Registration follows
+      that condition too, and produces no data point.
 
       The update form itself supplies no value, only attributes and an optional
       condition; to record a different quantity, define a separate instrument.

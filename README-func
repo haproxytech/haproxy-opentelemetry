@@ -76,6 +76,23 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
       about any fetch or condition that cannot be evaluated at the given
       processing point.  Shared by the event-bound and group action checks.
 
+  flt_otel_str_differs
+      Compares two optional strings, where NULL stands for an argument that the
+      configuration line did not carry; two absent ones are equal.
+
+  flt_otel_instrument_def_differs
+      Compares the definition two create lines of one instrument name carry and
+      names the first argument that differs.  The type is left to the caller,
+      and the value and the condition are what the repeated lines vary.
+
+  flt_otel_conf_scope_in_group
+      Tells whether one of the otel-groups that the instrumentation names holds
+      the given scope, which is the way an 'otel-group' action reaches it.
+
+  flt_otel_conf_scope_runs
+      Tells whether a scope can ever run: the instrumentation has to name it,
+      and it must then bind an event or be held by a group an action reaches.
+
   flt_otel_ops_init_per_thread
       Per-thread init callback (flt_ops.init_per_thread).  Starts the OTel
       tracer, meter and logger on the first call only, guarded by an atomic
@@ -221,19 +238,19 @@ Event dispatching, metrics recording and scope/span execution engine.
 
   flt_otel_scope_run_instrument
       Processes all metric instruments for a scope.  Runs in two passes: the
-      first lazily creates create-form instruments via the meter, using
-      HA_ATOMIC_CAS to guarantee thread-safe one-time initialization; the second
-      iterates update-form instruments and records measurements via
-      flt_otel_scope_run_instrument_record().  An update takes the create
-      chain of its own scope when a create line stands there, otherwise the
-      one of the scope the instrument is in.  An instrument another thread
-      is creating right now (PENDING index) is waited for until that creation
-      completes rather than skipped, so a concurrent first use does not lose its
-      measurement; one not created at all (UNSET index) or given up after too
-      many failed creation attempts (FAILED index) is skipped.  A measurement is
-      recorded only when the update-form if/unless condition passes, taking the
-      value from the first line of the chain whose condition holds; instrument
-      creation produces no data point, condition or not.
+      first lazily creates the create-form instruments whose condition passes,
+      via the meter, using HA_ATOMIC_CAS to guarantee thread-safe one-time
+      initialization; the second iterates update-form instruments and records
+      measurements via flt_otel_scope_run_instrument_record().  An update
+      takes the create chain of its own scope when a create line stands there,
+      otherwise the one of the scope the instrument is in.  An instrument
+      another thread is creating right now (PENDING index) is waited for until
+      that creation completes rather than skipped, so a concurrent first use
+      does not lose its measurement; one not created at all (UNSET index)
+      or given up after too many failed creation attempts (FAILED index) is
+      skipped.  A measurement is recorded only when the update-form if/unless
+      condition passes, taking the value from the first line of the chain whose
+      condition holds; instrument creation produces no data point of its own.
 
   flt_otel_scope_run_log_record
       Emits log records for a scope.  Iterates over the configured log-record

@@ -893,7 +893,9 @@ instrument update <name> [attr <key> <sample> ...] [{ if | unless } <condition>]
   To update an existing instrument (a create form defined in any scope, the
   same one included), use 'update' followed by the instrument name.  Optional
   attributes can be added using the 'attr' keyword, followed by a key and a
-  sample expression evaluated at runtime.
+  single sample expression evaluated at runtime; the keyword may stand once
+  before the first pair or again before each of them, so no key may be called
+  'attr'.
 
   Supported instrument types.  The recorded <value> is applied differently by
   each one, so choose the type that matches how the measurement behaves:
@@ -934,12 +936,26 @@ instrument update <name> [attr <key> <sample> ...] [{ if | unless } <condition>]
   Double-precision types are not supported because HAProxy sample fetches do
   not return double values.
 
-  A create form registers the instrument and supplies the value to record, but
-  emits no measurement on its own; a data point is produced only when an
-  'update' form for that instrument runs.  An optional trailing 'if'/'unless'
-  condition (same syntax as 'otel-event') covers the measurement: on a create
-  form it covers every recording of the instrument, on an update form only that
-  one.  Registration itself produces no data point and obeys no condition.
+  A create form registers the instrument and supplies the value that is to be
+  recorded, but emits no measurement on its own; a data point is produced only
+  when an 'update' form written for that instrument runs.  A create-form name
+  may repeat, in the same or another scope, and compares case-insensitively:
+  the lines of one name share one instrument, so they must agree on the type,
+  the aggregation, the description, the unit and the bounds, and a disagreement
+  is a configuration error.  At run time exactly one otel-scope ever creates
+  the instrument, and a create line of another otel-scope that finds it already
+  created is a runtime error, not a line without effect.  Within one scope the
+  create lines of a name follow the first-match rule, one line per condition
+  with the bare line last as the default: the first line whose condition holds
+  registers the instrument, and an update form records its value, taken from the
+  chain of its own scope; without one there it follows the scope that created
+  the instrument, and until it exists, the first scope of the file that runs
+  and defines the name.  An update that runs needs such a scope; when every
+  create line of the name stands in a scope that never runs, the configuration
+  is refused.  The update form is additive, like 'log-record': it may repeat
+  freely, and every update line whose condition holds records one measurement of
+  its own; registration itself produces no data point, and a create line whose
+  condition does not hold registers nothing.
 
   The update form supplies no value of its own, only attributes and an optional
   condition; to record a different quantity, define a separate instrument.  To

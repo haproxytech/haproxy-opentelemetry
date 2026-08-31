@@ -857,6 +857,168 @@ int flt_otel_check_scope_loc(const struct flt_otel_conf *conf, const struct flt_
 
 /***
  * NAME
+ *   flt_otel_str_differs - optional string comparison
+ *
+ * SYNOPSIS
+ *   static bool flt_otel_str_differs(const char *a, const char *b)
+ *
+ * ARGUMENTS
+ *   a - the first string, or NULL when the argument was not given
+ *   b - the second string, or NULL when the argument was not given
+ *
+ * DESCRIPTION
+ *   Compares two optional strings, where NULL stands for an argument that the
+ *   configuration line did not carry.  Two absent arguments are equal, and an
+ *   absent one differs from a present one.
+ *
+ * RETURN VALUE
+ *   Returns 1 when the two strings differ, 0 when they are equal.
+ */
+static bool flt_otel_str_differs(const char *a, const char *b)
+{
+	bool retval;
+
+	OTELC_FUNC("\"%s\", \"%s\"", OTELC_STR_ARG(a), OTELC_STR_ARG(b));
+
+	if ((a == NULL) && (b == NULL))
+		retval = 0;
+	else if ((a == NULL) || (b == NULL))
+		retval = 1;
+	else
+		retval = (strcmp(a, b) != 0);
+
+	OTELC_RETURN_EX(retval, bool, "%hhu");
+}
+
+
+/***
+ * NAME
+ *   flt_otel_instrument_def_differs - create-form definition comparison
+ *
+ * SYNOPSIS
+ *   static const char *flt_otel_instrument_def_differs(const struct flt_otel_conf_instrument *a, const struct flt_otel_conf_instrument *b)
+ *
+ * ARGUMENTS
+ *   a - the create-form entry that owns the creation of the name
+ *   b - another create-form entry of the same name
+ *
+ * DESCRIPTION
+ *   Compares the definition that <b> carries against the one of <a>.  The
+ *   create lines of one name share a single instrument, so only one of their
+ *   definitions can ever take effect and the arguments behind them have to
+ *   agree.  The instrument type is compared by the caller, which reports it
+ *   with a message of its own; the aggregation type, the description, the unit
+ *   and the bucket boundaries are compared here.  The value expression and the
+ *   condition are not: those are what the repeated lines exist to vary.
+ *
+ * RETURN VALUE
+ *   Returns the name of the first argument that differs, or NULL when the two
+ *   definitions agree.
+ */
+static const char *flt_otel_instrument_def_differs(const struct flt_otel_conf_instrument *a, const struct flt_otel_conf_instrument *b)
+{
+	const char *retptr = NULL;
+	size_t      i;
+
+	OTELC_FUNC("%p, %p", a, b);
+
+	if (a->aggr_type != b->aggr_type)
+		retptr = FLT_OTEL_PARSE_INSTRUMENT_AGGR;
+	else if (flt_otel_str_differs(a->description, b->description))
+		retptr = FLT_OTEL_PARSE_INSTRUMENT_DESC;
+	else if (flt_otel_str_differs(a->unit, b->unit))
+		retptr = FLT_OTEL_PARSE_INSTRUMENT_UNIT;
+	else if (a->bounds_num != b->bounds_num)
+		retptr = FLT_OTEL_PARSE_INSTRUMENT_BOUNDS;
+	else
+		for (i = 0; (retptr == NULL) && (i < a->bounds_num); i++)
+			if (fabs(a->bounds[i] - b->bounds[i]) > FLT_OTEL_DBL_EPSILON)
+				retptr = FLT_OTEL_PARSE_INSTRUMENT_BOUNDS;
+
+	OTELC_RETURN_EX(retptr, const char *, "%p");
+}
+
+
+/***
+ * NAME
+ *   flt_otel_conf_scope_in_group - otel-scope membership of a used group
+ *
+ * SYNOPSIS
+ *   static bool flt_otel_conf_scope_in_group(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope)
+ *
+ * ARGUMENTS
+ *   conf       - the OTel filter configuration
+ *   conf_scope - the otel-scope to look for
+ *
+ * DESCRIPTION
+ *   Looks for <conf_scope> among the scopes of the otel-groups the
+ *   instrumentation names on its 'groups' lines.  An 'otel-group' action
+ *   reaches only those, so a scope that none of them holds runs at its own
+ *   event or not at all.
+ *
+ * RETURN VALUE
+ *   Returns 1 when such a group holds the scope, 0 otherwise.
+ */
+static bool flt_otel_conf_scope_in_group(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope)
+{
+	const struct flt_otel_conf_group *conf_group;
+	const struct flt_otel_conf_ph    *ph_scope;
+	bool                              retval = 0;
+
+	OTELC_FUNC("%p, %p", conf, conf_scope);
+
+	list_for_each_entry(conf_group, &(conf->groups), list) {
+		if (!conf_group->flag_used)
+			continue;
+
+		list_for_each_entry(ph_scope, &(conf_group->ph_scopes), list)
+			if (ph_scope->ptr == conf_scope) {
+				retval = 1;
+
+				break;
+			}
+
+		if (retval)
+			break;
+	}
+
+	OTELC_RETURN_EX(retval, bool, "%hhu");
+}
+
+
+/***
+ * NAME
+ *   flt_otel_conf_scope_runs - otel-scope execution check
+ *
+ * SYNOPSIS
+ *   static bool flt_otel_conf_scope_runs(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope)
+ *
+ * ARGUMENTS
+ *   conf       - the OTel filter configuration
+ *   conf_scope - the otel-scope to check
+ *
+ * DESCRIPTION
+ *   Tells whether <conf_scope> can ever run: the instrumentation must name it
+ *   on a 'scopes' line or through a group, and it must then either bind an
+ *   event or be held by a group that an 'otel-group' action can reach.
+ *
+ * RETURN VALUE
+ *   Returns 1 when the scope runs, 0 otherwise.
+ */
+static bool flt_otel_conf_scope_runs(const struct flt_otel_conf *conf, const struct flt_otel_conf_scope *conf_scope)
+{
+	bool retval;
+
+	OTELC_FUNC("%p, %p", conf, conf_scope);
+
+	retval = conf_scope->flag_used && ((conf_scope->event != FLT_OTEL_EVENT__NONE) || flt_otel_conf_scope_in_group(conf, conf_scope));
+
+	OTELC_RETURN_EX(retval, bool, "%hhu");
+}
+
+
+/***
+ * NAME
  *   flt_otel_ops_check - filter check callback (flt_ops.check)
  *
  * SYNOPSIS
@@ -1286,12 +1448,10 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	OTELC_DBG(DEBUG, "- defined instruments ----------");
 
 	/*
-	 * Validate update-form instruments: for each one, resolve its reference
-	 * to the nearest preceding create-form instrument of the same name in
-	 * its own scope, or to the first match across all scopes.
-	 *
-	 * Validate create-form instruments: check that a repeated name keeps
-	 * the same instrument type across all scopes.
+	 * A histogram left without an explicit aggregation takes the default
+	 * one, and a create-form name repeated across the scopes has to keep
+	 * one instrument type.  The create line owning each name is bound in
+	 * the loop below.
 	 */
 	list_for_each_entry(conf_scope, &(conf->scopes), list) {
 		struct flt_otel_conf_instrument *conf_instr, *instr;
@@ -1300,43 +1460,6 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 		list_for_each_entry(conf_instr, &(conf_scope->instruments), list) {
 			if (conf_instr->type == OTELC_METRIC_INSTRUMENT_UPDATE) {
 				FLT_OTEL_DBG_CONF_INSTRUMENT("  update ", conf_instr);
-
-				/*
-				 * Bind the update to the nearest preceding
-				 * create-form instrument of the same name in
-				 * its own scope, so that repeated create and
-				 * update pairs keep their declared pairing.
-				 */
-				list_for_each_entry(instr, &(conf_scope->instruments), list)
-					if (instr == conf_instr)
-						break;
-					else if ((instr->type != OTELC_METRIC_INSTRUMENT_UPDATE) && (strcasecmp(instr->id, conf_instr->id) == 0))
-						conf_instr->ref = instr;
-
-				/*
-				 * Without one, search all scopes for the first
-				 * create-form instrument whose name matches
-				 * this update-form instrument.
-				 */
-				if (conf_instr->ref == NULL)
-					list_for_each_entry(scope, &(conf->scopes), list) {
-						list_for_each_entry(instr, &(scope->instruments), list) {
-							if ((instr->type != OTELC_METRIC_INSTRUMENT_UPDATE) && (strcasecmp(instr->id, conf_instr->id) == 0))
-								conf_instr->ref = instr;
-
-							if (conf_instr->ref != NULL)
-								break;
-						}
-
-						if (conf_instr->ref != NULL)
-							break;
-					}
-
-				if (conf_instr->ref == NULL) {
-					FLT_OTEL_ALERT("'%s' : update-form instrument has no matching create-form definition", conf_instr->id);
-
-					retval++;
-				}
 			} else {
 				bool flag_past = false, flag_dup = false;
 
@@ -1381,6 +1504,100 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 					if (flag_dup)
 						break;
 				}
+			}
+		}
+	}
+
+	/*
+	 * Bind every instrument to the create line that owns its name, so that
+	 * the lines of one name share one instrument.  The owner is the first
+	 * line of a scope that runs, since that scope creates the instrument,
+	 * and one of a scope that never runs only when no other scope defines
+	 * the name.  Only one of their definitions can take effect, hence the
+	 * create lines have to agree on everything but the value and the
+	 * condition.
+	 */
+	list_for_each_entry(conf_scope, &(conf->scopes), list) {
+		struct flt_otel_conf_instrument *conf_instr, *instr, *owner, *owner_unused;
+		struct flt_otel_conf_scope      *scope;
+
+		list_for_each_entry(conf_instr, &(conf_scope->instruments), list) {
+			struct flt_otel_conf_scope *owner_scope = NULL, *owner_scope_unused = NULL;
+			const char                 *arg;
+
+			owner = owner_unused = NULL;
+
+			list_for_each_entry(scope, &(conf->scopes), list) {
+				list_for_each_entry(instr, &(scope->instruments), list)
+					if ((instr->type != OTELC_METRIC_INSTRUMENT_UPDATE) && (strcasecmp(instr->id, conf_instr->id) == 0)) {
+						if (flt_otel_conf_scope_runs(conf, scope)) {
+							owner       = instr;
+							owner_scope = scope;
+						}
+						else if (owner_unused == NULL) {
+							owner_unused       = instr;
+							owner_scope_unused = scope;
+						}
+
+						break;
+					}
+
+				if (owner != NULL)
+					break;
+			}
+
+			if (owner == NULL) {
+				owner       = owner_unused;
+				owner_scope = owner_scope_unused;
+			}
+
+			/*
+			 * A create line always reaches itself in the scan, so
+			 * the second branch only makes the non-NULL result
+			 * explicit: the runtime dereferences the owner of a
+			 * create line unconditionally.  The instrument starts
+			 * out in the owner's scope; the scope that creates it
+			 * takes that place at run time.
+			 */
+			if (owner != NULL) {
+				conf_instr->ref = owner;
+				owner->scope    = owner_scope;
+			}
+			else if (conf_instr->type != OTELC_METRIC_INSTRUMENT_UPDATE) {
+				conf_instr->ref   = conf_instr;
+				conf_instr->scope = conf_scope;
+			}
+
+			/*
+			 * An update that runs records the value of a create
+			 * line, so one has to run as well: with the whole name
+			 * defined in scopes that never run, the update would
+			 * create the instrument itself from a definition its
+			 * place in the file picked.
+			 */
+			if (conf_instr->type == OTELC_METRIC_INSTRUMENT_UPDATE) {
+				if (owner == NULL) {
+					FLT_OTEL_ALERT("'%s' : update-form instrument has no matching create-form definition", conf_instr->id);
+
+					retval++;
+				}
+				else if (flt_otel_conf_scope_runs(conf, conf_scope) && !flt_otel_conf_scope_runs(conf, owner_scope)) {
+					FLT_OTEL_ALERT("'%s' : update-form instrument has no create-form definition in an " FLT_OTEL_PARSE_SECTION_SCOPE_ID " that runs", conf_instr->id);
+
+					retval++;
+				}
+
+				continue;
+			}
+
+			if (conf_instr->ref == conf_instr)
+				continue;
+
+			arg = flt_otel_instrument_def_differs(conf_instr->ref, conf_instr);
+			if (arg != NULL) {
+				FLT_OTEL_ALERT("'%s' : create-form instrument '%s' repeated with a different '%s'", conf->id, conf_instr->id, arg);
+
+				retval++;
 			}
 		}
 	}

@@ -593,9 +593,12 @@ and the keyword parser via INITCALL1 (parser.c).
       and flag_used).
     - Rejects an otel-group that no 'groups' line of the instrumentation names.
     - Warns about unused scopes, missing root spans, or multiple root spans.
-    - Validates metric instruments: resolves update-form references to their
-      matching create-form definitions, and rejects duplicate create-form names
-      across scopes.
+    - Validates metric instruments: binds the lines of one name to the create
+      line that owns its single creation, taken from a scope that runs, and
+      places the instrument in that scope until one creates it; rejects a
+      create-form name that repeats with another instrument type or an otherwise
+      differing definition, and an update whose create forms all stand in scopes
+      that never run.
     - Rejects a used scope whose event runs before the request context can be
       read while 'require-context' is set, and a configuration where no used
       scope extracts one at all.
@@ -829,11 +832,12 @@ side.
        storing a field of a referenced span or context into a HAProxy
        variable (after the spans have run, so their contexts are available).
     6. Processes metric instruments via flt_otel_scope_run_instrument(), which
-       runs two passes: the first lazily creates create-form instruments using
-       HA_ATOMIC_CAS for thread-safe one-time initialization; the second records
-       measurements for update-form instruments, waiting for any still being
-       created (PENDING) and skipping any never created (UNSET) or given up
-       after repeated creation failures (FAILED).
+       runs two passes: the first lazily creates the create-form instruments
+       whose condition passes, using HA_ATOMIC_CAS for thread-safe one-time
+       creation; the second records measurements for update-form instruments,
+       creating on the spot one not created yet (UNSET), waiting for one that
+       another thread is creating (PENDING) and skipping one given up after
+       repeated creation failures (FAILED).
     7. Emits log records via flt_otel_scope_run_log_record(), which iterates
        the scope's log-record list, skips entries below the logger's severity
        threshold, evaluates sample expressions into a body string, resolves
@@ -1592,12 +1596,14 @@ for gauges.  A fixed expression is therefore a valid source for the model's
 recording side.
 
 A create form emits no data point on its own; a measurement appears only when an
-update form for that instrument runs.  Within a scope a name may carry at most
-one create form and one update form, but update forms in other scopes may target
-the same create form, so one instrument can be recorded from several sites, each
-with its own attributes, condition and driving event.  Across those sites the
-one thing that cannot vary is the value expression; to record another quantity,
-declare a separate instrument instead.
+update form for that instrument runs.  Within a scope a name may carry several
+create lines, one per condition and the bare line last, and any number of update
+lines; the update lines of other scopes record on the same instrument, so one
+instrument can be recorded from several sites, each with its own attributes,
+condition and driving event.  As section 4.5 states, the create lines of one
+name must agree on the type, the aggregation, the description, the unit and the
+bounds; the value expression and the condition are what the repeated lines exist
+to vary.
 
 18.5.1  Instrument Types
 
@@ -1646,7 +1652,11 @@ The flt_otel_conf_instrument structure (conf.h) holds:
   bounds       Histogram bucket boundaries array (create-form only).
   bounds_num   Number of histogram bucket boundaries.
   attributes   List of flt_otel_conf_sample entries (update-form only).
-  ref          Pointer to the create-form instrument (update-form only).
+  ref          Pointer to the create-form instrument that owns the name, set on
+               both forms; the owning entry points at itself.
+  scope        The otel-scope the instrument is in, held by the owning entry:
+               the scope of that entry until one creates the instrument, the
+               creating scope afterwards.
   cond         Optional if/unless ACL condition controlling the recording.
 
 18.5.3  Meter Initialization and Startup
@@ -1666,7 +1676,8 @@ passes during scope execution.
   Pass 1 -- Create-form instruments (event.c):
 
     Iterates all instruments in the scope.  For each create-form
-    instrument whose idx is OTELC_METRIC_INSTRUMENT_UNSET:
+    instrument whose 'if'/'unless' condition passes and whose owner's idx
+    is not OTELC_METRIC_INSTRUMENT_PENDING:
 
     a. Thread-safe one-time creation: HA_ATOMIC_CAS transitions the idx
        from UNSET to PENDING.  If the CAS fails (another thread is
