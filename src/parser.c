@@ -2225,7 +2225,8 @@ static int flt_otel_parse_cfg_instrument(const char *file, int line, char **args
  *   "event", "time", "span", and "attr" follow in any order.  The remaining
  *   arguments at the end are parsed as fetch expressions or a log-format
  *   string, with an optional trailing 'if'/'unless' condition that covers the
- *   whole record.
+ *   whole record.  The 'id' and 'event' clauses must be given together or both
+ *   omitted.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -2334,6 +2335,10 @@ static int flt_otel_parse_cfg_log_record(const char *file, int line, char **args
 
 	if (!(retval & ERR_CODE) && LIST_ISEMPTY(&(log->samples)))
 		FLT_OTEL_PARSE_ERR(err, "'%s' : missing body expression (use '%s%s')", args[0], pdata->name, pdata->usage);
+
+	/* The event id and the event name must be set together, or neither. */
+	if (!(retval & ERR_CODE) && ((log->event_id == 0) != (log->event_name == NULL)))
+		FLT_OTEL_PARSE_ERR(err, "'%s' : 'id' and 'event' must be given together or both omitted", args[0]);
 
 	OTELC_RETURN_INT(retval);
 }

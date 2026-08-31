@@ -604,6 +604,9 @@ and the keyword parser via INITCALL1 (parser.c).
       nameless-header context anywhere on the proxy.
     - Rejects an 'extract' context name that a span of the configuration already
       carries.
+    - Rejects a 'parent', 'link', 'finish', 'set-var-ctx' or 'log-record' name
+      that no otel-scope defines as a span, or as an extracted context where
+      one may stand.
     - Rejects a used scope whose event runs before the request context can be
       read while 'require-context' is set, and a configuration where no used
       scope extracts one at all.

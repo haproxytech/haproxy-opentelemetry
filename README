@@ -583,6 +583,15 @@ detachment.  The "otel-scope" section is used to define actions related to
 individual events.  However, this section may be part of a group, so the event
 does not have to be part of the definition.
 
+A keyword that names a span or an extracted context -- the 'parent' and the
+inline 'link' of a span, the standalone 'link', 'finish', 'set-var-ctx' and
+the 'span' of a 'log-record', which takes a span alone -- refers to a name
+that some otel-scope defines, this one or another.  The name is resolved at
+run time against the spans and the contexts the stream has opened by then, so
+a name that no otel-scope defines anywhere can never resolve and is refused when
+the configuration is checked.  The three 'finish' wildcards are the exception,
+standing for whatever the stream holds at that moment.
+
 
 otel-scope <name>
   Creates a new OTel scope definition named <name>.

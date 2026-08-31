@@ -1162,9 +1162,13 @@ static int flt_otel_check_inject_foreign(const struct proxy *p, const struct flt
  *   scope names, empty groups, group-to-scope and instrumentation-to-group/scope
  *   cross-references, a group that no 'groups' line names, unused scopes,
  *   the events the proxy's mode or the filter's placement keeps from firing,
- *   require-context event eligibility, root span count, analyzer bits, and
- *   create-form instrument type consistency and update-form instrument
- *   resolution.
+ *   require-context event eligibility, the root span rules, analyzer bits,
+ *   create-form instrument type consistency and definition agreement,
+ *   instrument ownership by a scope that runs and the create form an update
+ *   needs, the inject context names, unique in the instance and across the
+ *   proxy's OTel filters, the extract context name that no span may carry, and
+ *   the span or context a parent, link, finish, set-var-ctx or log-record name
+ *   refers to.
  *
  * RETURN VALUE
  *   Returns the number of encountered errors.
@@ -1810,12 +1814,69 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 			}
 	}
 
+	/*
+	 * Validate the reference names.  A 'parent', a 'link', a 'finish' and
+	 * a 'set-var-ctx' name resolves at run time against the spans and the
+	 * extracted contexts of the stream, so one that no otel-scope defines
+	 * can never resolve and only makes the directive carrying it do
+	 * nothing.  The 'finish' wildcards name whatever the stream holds and
+	 * resolve on their own.  A root span may take an extracted context as
+	 * its parent, the remote parent of the trace, but not a span of the
+	 * configuration: a local parent contradicts the root mark.
+	 */
+	list_for_each_entry(conf_scope, &(conf->scopes), list) {
+		struct flt_otel_conf_span        *conf_span;
+		struct flt_otel_conf_link        *conf_link;
+		struct flt_otel_conf_str         *conf_str;
+		struct flt_otel_conf_set_var_ctx *conf_set_var_ctx;
+
+		list_for_each_entry(conf_span, &(conf_scope->spans), list) {
+			if ((conf_span->ref_id != NULL) && !flt_otel_conf_ref_defined(conf, conf_span->ref_id, 1)) {
+				FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : span '%s' : '" FLT_OTEL_PARSE_SPAN_PARENT "' references undefined span/context '%s'", conf_scope->id, conf_span->id, conf_span->ref_id);
+
+				retval++;
+			}
+			else if ((conf_span->ref_id != NULL) && conf_span->flag_root && flt_otel_conf_ref_defined(conf, conf_span->ref_id, 0)) {
+				FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : span '%s' : a root span cannot be parented under span '%s'", conf_scope->id, conf_span->id, conf_span->ref_id);
+
+				retval++;
+			}
+
+			list_for_each_entry(conf_link, &(conf_span->links), list)
+				if (!flt_otel_conf_ref_defined(conf, conf_link->ref, 1)) {
+					FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : span '%s' : '" FLT_OTEL_PARSE_KW_LINK "' references undefined span/context '%s'", conf_scope->id, conf_span->id, conf_link->ref);
+
+					retval++;
+				}
+		}
+
+		list_for_each_entry(conf_str, &(conf_scope->spans_to_finish), list) {
+			if ((strcmp(conf_str->str, FLT_OTEL_SCOPE_SPAN_FINISH_ALL) == 0) ||
+			    (strcmp(conf_str->str, FLT_OTEL_SCOPE_SPAN_FINISH_REQ) == 0) ||
+			    (strcmp(conf_str->str, FLT_OTEL_SCOPE_SPAN_FINISH_RES) == 0))
+				continue;
+
+			if (!flt_otel_conf_ref_defined(conf, conf_str->str, 1)) {
+				FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : '" FLT_OTEL_PARSE_KW_FINISH "' references undefined span/context '%s'", conf_scope->id, conf_str->str);
+
+				retval++;
+			}
+		}
+
+		list_for_each_entry(conf_set_var_ctx, &(conf_scope->set_var_ctxs), list)
+			if (!flt_otel_conf_ref_defined(conf, conf_set_var_ctx->ref, 1)) {
+				FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : '" FLT_OTEL_PARSE_KW_SET_VAR_CTX "' '%s' references undefined span/context '%s'", conf_scope->id, conf_set_var_ctx->name, conf_set_var_ctx->ref);
+
+				retval++;
+			}
+	}
+
 	OTELC_DBG(DEBUG, "- defined log records ----------");
 
 	/*
-	 * Validate log-record span references: for each log-record that
-	 * names a span, verify that a span with that name exists in one
-	 * of the configured scopes.
+	 * Validate log-record span references: the record is correlated with a
+	 * span, which an extracted context cannot stand in for, so only the
+	 * spans are searched here.
 	 */
 	list_for_each_entry(conf_scope, &(conf->scopes), list) {
 		struct flt_otel_conf_log_record *conf_log;
@@ -1823,37 +1884,8 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 		list_for_each_entry(conf_log, &(conf_scope->log_records), list) {
 			FLT_OTEL_DBG_CONF_LOG_RECORD("  ", conf_log);
 
-			if (conf_log->span != NULL) {
-				struct flt_otel_conf_scope *find_scope;
-				struct flt_otel_conf_span  *find_span;
-				bool                        flag_found = false;
-
-				list_for_each_entry(find_scope, &(conf->scopes), list) {
-					list_for_each_entry(find_span, &(find_scope->spans), list)
-						if (strcmp(find_span->id, conf_log->span) == 0) {
-							flag_found = true;
-
-							break;
-						}
-
-					if (flag_found)
-						break;
-				}
-
-				if (!flag_found) {
-					FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : log-record references undefined span '%s'", conf_scope->id, conf_log->span);
-
-					retval++;
-				}
-			}
-
-			/*
-			 * The event id and event name must either both be
-			 * unset or both be set; any other combination is a
-			 * configuration error.
-			 */
-			if ((conf_log->event_id == 0) != (conf_log->event_name == NULL)) {
-				FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : log-record must define both event id and event name, or neither", conf_scope->id);
+			if ((conf_log->span != NULL) && !flt_otel_conf_ref_defined(conf, conf_log->span, 0)) {
+				FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : " FLT_OTEL_PARSE_KW_LOG_RECORD " references undefined span '%s'", conf_scope->id, conf_log->span);
 
 				retval++;
 			}
