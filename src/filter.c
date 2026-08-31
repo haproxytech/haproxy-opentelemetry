@@ -941,6 +941,63 @@ static const char *flt_otel_instrument_def_differs(const struct flt_otel_conf_in
 
 /***
  * NAME
+ *   flt_otel_conf_ref_defined - configured span or context name lookup
+ *
+ * SYNOPSIS
+ *   static bool flt_otel_conf_ref_defined(const struct flt_otel_conf *conf, const char *ref, bool flag_ctx)
+ *
+ * ARGUMENTS
+ *   conf     - the OTel filter configuration
+ *   ref      - the referenced name
+ *   flag_ctx - whether an extracted context may carry the name
+ *
+ * DESCRIPTION
+ *   Looks the name <ref> up among the spans of every configured otel-scope
+ *   and, when <flag_ctx> is set, among the contexts their 'extract' lines
+ *   define.  A reference resolves at run time against the spans and contexts
+ *   the stream has built by then, and every one of those is named by a line
+ *   checked here, so a name that no scope defines can never resolve.  The
+ *   scope that defines it does not matter: the lookup covers the whole
+ *   configuration because a reference may name a span of another scope.
+ *
+ * RETURN VALUE
+ *   Returns 1 when a scope defines the name, 0 otherwise.
+ */
+static bool flt_otel_conf_ref_defined(const struct flt_otel_conf *conf, const char *ref, bool flag_ctx)
+{
+	const struct flt_otel_conf_scope   *conf_scope;
+	const struct flt_otel_conf_span    *conf_span;
+	const struct flt_otel_conf_context *conf_ctx;
+	bool                                retval = 0;
+
+	OTELC_FUNC("%p, \"%s\", %hhu", conf, OTELC_STR_ARG(ref), flag_ctx);
+
+	list_for_each_entry(conf_scope, &(conf->scopes), list) {
+		list_for_each_entry(conf_span, &(conf_scope->spans), list)
+			if (strcmp(conf_span->id, ref) == 0) {
+				retval = 1;
+
+				break;
+			}
+
+		if (!retval && flag_ctx)
+			list_for_each_entry(conf_ctx, &(conf_scope->contexts), list)
+				if (strcmp(conf_ctx->id, ref) == 0) {
+					retval = 1;
+
+					break;
+				}
+
+		if (retval)
+			break;
+	}
+
+	OTELC_RETURN_EX(retval, bool, "%hhu");
+}
+
+
+/***
+ * NAME
  *   flt_otel_conf_scope_in_group - otel-scope membership of a used group
  *
  * SYNOPSIS
@@ -1014,6 +1071,75 @@ static bool flt_otel_conf_scope_runs(const struct flt_otel_conf *conf, const str
 	retval = conf_scope->flag_used && ((conf_scope->event != FLT_OTEL_EVENT__NONE) || flt_otel_conf_scope_in_group(conf, conf_scope));
 
 	OTELC_RETURN_EX(retval, bool, "%hhu");
+}
+
+
+/***
+ * NAME
+ *   flt_otel_check_inject_foreign - cross-instance inject context name check
+ *
+ * SYNOPSIS
+ *   static int flt_otel_check_inject_foreign(const struct proxy *p, const struct flt_conf *fconf, const struct flt_otel_conf_scope *conf_scope, const struct flt_otel_conf_span *conf_span)
+ *
+ * ARGUMENTS
+ *   p          - the proxy whose OTel filters are walked
+ *   fconf      - the filter configuration being checked, skipped in the walk
+ *   conf_scope - the otel-scope holding the checked span
+ *   conf_span  - the span whose inject context name is checked
+ *
+ * DESCRIPTION
+ *   Checks the resolved inject context name of <conf_span> against every
+ *   other OTel filter of the proxy <p>.  Those instances run on the same
+ *   streams, so two of them carrying one context name, or two nameless-header
+ *   contexts, would write the same headers or transaction variables on one
+ *   request.  The names compare case-insensitively because both carriers fold
+ *   the case.  Filters of other proxies are left alone: they collide only when
+ *   a stream routed from a frontend to a backend meets both, which the
+ *   configuration cannot foresee.  Each instance runs this check, so one
+ *   collision is reported from both sides, the way the duplicated filter IDs
+ *   are.
+ *
+ * RETURN VALUE
+ *   Returns the number of encountered errors.
+ */
+static int flt_otel_check_inject_foreign(const struct proxy *p, const struct flt_conf *fconf, const struct flt_otel_conf_scope *conf_scope, const struct flt_otel_conf_span *conf_span)
+{
+	struct flt_conf *fconf_tmp;
+	int              retval = 0;
+
+	OTELC_FUNC("%p, %p, %p, %p", p, fconf, conf_scope, conf_span);
+
+	list_for_each_entry(fconf_tmp, &(p->filter_configs), list) {
+		struct flt_otel_conf       *conf_tmp;
+		struct flt_otel_conf_scope *scope;
+		struct flt_otel_conf_span  *span2;
+
+		if ((fconf_tmp == fconf) || (fconf_tmp->id != otel_flt_id))
+			continue;
+
+		conf_tmp = fconf_tmp->conf;
+
+		list_for_each_entry(scope, &(conf_tmp->scopes), list)
+			list_for_each_entry(span2, &(scope->spans), list) {
+				if (span2->ctx_id == NULL)
+					/* Do nothing. */;
+				else if (strcasecmp(span2->ctx_id, conf_span->ctx_id) == 0) {
+					FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : inject '%s' : context name already used by filter '%s'",
+					               conf_scope->id, conf_span->ctx_id, conf_tmp->id);
+
+					retval++;
+				}
+				else if ((span2->ctx_id[0] == FLT_OTEL_PARSE_CTX_IGNORE_NAME) && (span2->ctx_flags & FLT_OTEL_CTX_USE_HEADERS) &&
+				         (conf_span->ctx_id[0] == FLT_OTEL_PARSE_CTX_IGNORE_NAME) && (conf_span->ctx_flags & FLT_OTEL_CTX_USE_HEADERS)) {
+					FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : inject '%s' : only one nameless-header "
+					               "context is allowed on the proxy", conf_scope->id, conf_span->ctx_id);
+
+					retval++;
+				}
+			}
+	}
+
+	OTELC_RETURN_INT(retval);
 }
 
 
@@ -1600,6 +1726,88 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 				retval++;
 			}
 		}
+	}
+
+	/*
+	 * The resolved inject context names are unique across the whole
+	 * configuration, and at most one header-injecting context may carry
+	 * the leading FLT_OTEL_PARSE_CTX_IGNORE_NAME marker: such headers
+	 * carry no name at all and would collide whatever the names are.
+	 * Two names differing only in case are one name here, because HTX
+	 * holds a header name in lower case and the generated variable name
+	 * lowercases the letters as well.
+	 */
+	list_for_each_entry(conf_scope, &(conf->scopes), list) {
+		struct flt_otel_conf_span *conf_span;
+
+		list_for_each_entry(conf_span, &(conf_scope->spans), list) {
+			struct flt_otel_conf_scope *scope;
+			struct flt_otel_conf_span  *span2;
+			bool                        flag_past = false, flag_dup = false;
+
+			if (conf_span->ctx_id == NULL)
+				continue;
+
+			list_for_each_entry(scope, &(conf->scopes), list) {
+				list_for_each_entry(span2, &(scope->spans), list) {
+					if (span2 == conf_span) {
+						flag_past = true;
+
+						continue;
+					}
+
+					if (!flag_past || (span2->ctx_id == NULL))
+						continue;
+
+					if (strcasecmp(span2->ctx_id, conf_span->ctx_id) == 0) {
+						FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : inject '%s' : context name already used", scope->id, span2->ctx_id);
+
+						retval++;
+
+						flag_dup = true;
+					}
+					else if ((span2->ctx_id[0] == FLT_OTEL_PARSE_CTX_IGNORE_NAME) && (conf_span->ctx_id[0] == FLT_OTEL_PARSE_CTX_IGNORE_NAME) && (span2->ctx_flags & FLT_OTEL_CTX_USE_HEADERS) && (conf_span->ctx_flags & FLT_OTEL_CTX_USE_HEADERS)) {
+						FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : inject '%s' : only one nameless-header context is allowed", scope->id, span2->ctx_id);
+
+						retval++;
+
+						flag_dup = true;
+					}
+
+					if (flag_dup)
+						break;
+				}
+
+				if (flag_dup)
+					break;
+			}
+
+			/*
+			 * The instances of one proxy run on the same streams,
+			 * so the name is checked against the proxy's other
+			 * OTel filters as well.
+			 */
+			retval += flt_otel_check_inject_foreign(p, fconf, conf_scope, conf_span);
+		}
+	}
+
+	/*
+	 * A name is either a span or an extracted context, never both.  Every
+	 * reference is resolved against the spans first, so a context sharing
+	 * the name could never be reached and the line naming it would work on
+	 * the span instead.  The spans of the whole configuration are searched:
+	 * the stream holds those of every scope that has run, whichever scope
+	 * defined them.
+	 */
+	list_for_each_entry(conf_scope, &(conf->scopes), list) {
+		struct flt_otel_conf_context *conf_ctx;
+
+		list_for_each_entry(conf_ctx, &(conf_scope->contexts), list)
+			if (flt_otel_conf_ref_defined(conf, conf_ctx->id, 0)) {
+				FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : extract '%s' : the name is already used by a span", conf_scope->id, conf_ctx->id);
+
+				retval++;
+			}
 	}
 
 	OTELC_DBG(DEBUG, "- defined log records ----------");

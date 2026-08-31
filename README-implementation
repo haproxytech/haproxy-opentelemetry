@@ -599,6 +599,11 @@ and the keyword parser via INITCALL1 (parser.c).
       create-form name that repeats with another instrument type or an otherwise
       differing definition, and an update whose create forms all stand in scopes
       that never run.
+    - Rejects a resolved inject context name that another span already carries,
+      in this instance or in another OTel filter of the proxy, and a second
+      nameless-header context anywhere on the proxy.
+    - Rejects an 'extract' context name that a span of the configuration already
+      carries.
     - Rejects a used scope whose event runs before the request context can be
       read while 'require-context' is set, and a configuration where no used
       scope extracts one at all.

@@ -62,6 +62,12 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
       root span rules, warns about the events the proxy's mode or the filter's
       placement keeps from firing, and sets analyzer bits.
 
+  flt_otel_check_inject_foreign
+      Checks a resolved inject context name against the other OTel filters of
+      the proxy, which run on the same streams; a repeated name, one differing
+      only in case included, or a second nameless-header context is rejected
+      from both sides, the way a duplicated filter ID is.
+
   flt_otel_check_cond_loc
       Warns when a scope's 'if'/'unless' condition can never match at the
       processing point where the scope runs; a NULL condition is ignored.
@@ -84,6 +90,11 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
       Compares the definition two create lines of one instrument name carry and
       names the first argument that differs.  The type is left to the caller,
       and the value and the condition are what the repeated lines vary.
+
+  flt_otel_conf_ref_defined
+      Looks a referenced name up among the spans of every otel-scope and, when
+      an extracted context may stand there, among the contexts their 'extract'
+      lines define.  A name no scope defines can never resolve at run time.
 
   flt_otel_conf_scope_in_group
       Tells whether one of the otel-groups that the instrumentation names holds

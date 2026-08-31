@@ -729,7 +729,10 @@ extract <name-prefix> [use-vars | use-headers]
   The default carrier is HTTP headers.  If OTEL_USE_VARS is enabled at compile
   time, the 'use-vars' option can be used instead to extract context from
   HAProxy variables.  A header whose name is only the prefix itself is ignored,
-  as stripping the prefix would leave an empty data name.
+  as stripping the prefix would leave an empty data name.  No span may carry the
+  context name: a reference resolves to the spans first, so the context could
+  never be reached.  A prefix is unique within its scope and a repetition is a
+  configuration error, while another otel-scope may reuse the name.
 
   Header extraction (use-headers) needs a channel to read from and is rejected
   on the two events that fire without one, on-stream-start and on-stream-stop.
@@ -796,7 +799,14 @@ inject <name-prefix> [use-vars] [use-headers]
 
   When neither 'use-vars' nor 'use-headers' is given, injection defaults to
   'use-headers'.  A span carries a single context, so 'inject' may appear at
-  most once per span; a second 'inject' on the same span is a configuration
+  most once per span of one otel-scope; a second 'inject' on the same span in
+  the same scope is a configuration error, while a span re-activated in another
+  otel-scope may carry a second context there.  The resolved context name is, in
+  addition, one that no other 'inject' of the configuration or of the other OTel
+  filters of the proxy resolves to, two names differing only in case counting as
+  one because both carriers keep the name in lower case, and at most one context
+  on the proxy that injects headers may use a name with the leading '-', whose
+  headers carry no name at all; a second one of either kind is a configuration
   error.
 
   Header injection (use-headers) is only available on events that provide a
