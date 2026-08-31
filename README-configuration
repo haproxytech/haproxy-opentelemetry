@@ -346,6 +346,14 @@ Example (from test/sa/otel.cfg):
 An "otel-scope" section defines the actions that take place when a particular
 event fires or when a group is triggered.
 
+A keyword that names a span or an extracted context -- the 'parent' and the
+inline 'link' of a span, the standalone 'link', 'finish', 'set-var-ctx' and the
+'span' of a 'log-record', which takes a span alone -- refers to a name that
+some otel-scope defines, this one or another.  The name is resolved at run time
+against the spans and the contexts the stream has opened by then, so a name
+that no otel-scope defines anywhere can never resolve and is refused when the
+configuration is checked.
+
 Syntax:
 
   otel-scope <name>
