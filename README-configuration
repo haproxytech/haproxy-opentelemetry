@@ -182,6 +182,15 @@ declares its own id and names the shared scope on its filter line:
   filter opentelemetry id flt-1 config otel.cfg my-first-filter
   filter opentelemetry id flt-2 config otel.cfg my-first-filter
 
+Two filters of one proxy cannot share a scope that injects a context: they run
+on the same streams and would both write the same headers on one request, so
+the resolved inject names stay unique across the OTel filters of a proxy.  A
+frontend's and a backend's filter meet on the streams routed between them as
+well; the parser cannot see that pairing, so those names are kept apart by the
+writer.  Filters that never run on one stream may reuse the names freely, the
+injected variables included: everything the filter writes stays bound to the
+stream, and the variables carry the transaction scope.
+
 Several OTel scopes may coexist in a single configuration file, each declared
 filter selecting and running one of them.  Since the wrapper version 3.0.0,
 every filter instance holds its own library context, so several filters may
@@ -540,7 +549,14 @@ Supported keywords:
       compile time.
 
       A span carries a single context, so 'inject' may appear at most once per
-      span; a second is a configuration error.
+      span of one otel-scope; a second in the same scope is a configuration
+      error, while a span re-activated in another otel-scope may carry a second
+      context there.  The resolved context name is in addition one that no other
+      'inject' of the configuration or of the other OTel filters of the proxy
+      resolves to, two names differing only in case counting as one because both
+      carriers keep the name in lower case, and at most one context on the proxy
+      may inject the nameless headers, those of a name with the leading '-'.  A
+      second one of either kind is a configuration error.
 
       Header injection (use-headers) works only on events that expose a writable
       HTTP header carrier; using it on any other event is a configuration error.
@@ -574,11 +590,15 @@ Supported keywords:
       variables.  The extracted context can then be used as a parent reference
       in 'span ... parent <name-prefix>'.  Default storage: use-headers.  The
       'use-vars' option requires OTEL_USE_VARS=1 at compile time.  A stream
-      that carries no matching context data is not an error -- the extraction
-      is simply skipped.  A span that then names the missing context as its
-      parent fails to resolve the reference and is not created.  A header whose
-      name is only the prefix itself is ignored, as stripping the prefix would
-      leave an empty data name.
+      that carries no matching context data is not an error -- the extraction is
+      simply skipped.  A span that then names the missing context as its parent
+      fails to resolve the reference and is not created.  A header whose name is
+      only the prefix itself is ignored, as stripping the prefix would leave an
+      empty data name.  No span may carry the context name: a reference resolves
+      to the spans first, so the context could never be reached.  A prefix is
+      unique within its scope and a repetition is a configuration error, while
+      another otel-scope may reuse the name.  The prefix takes the characters
+      an 'inject' prefix does.
 
       Header extraction (use-headers) needs a channel to read from, so it is a
       configuration error on on-stream-start and on-stream-stop, the two events
