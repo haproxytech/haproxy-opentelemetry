@@ -1468,6 +1468,16 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 			}
 
 			/*
+			 * A scope without an event runs only where an
+			 * 'otel-group' action names the group holding it, so one
+			 * that no such group holds never runs at all.  The
+			 * 'scopes' line that keeps it out of the unused scopes
+			 * does not run it.
+			 */
+			if (!flag_runs)
+				FLT_OTEL_WARNING("'%s' : " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' has no '" FLT_OTEL_PARSE_KW_ON_EVENT "' and no " FLT_OTEL_PARSE_SECTION_GROUP_ID " holds it, so it never runs", conf->id, conf_scope->id);
+
+			/*
 			 * The event's fetch-validity location, the union of its
 			 * FE and BE checkpoints.  The filter observes the whole
 			 * stream, so a backend-phase event still fires at its BE
