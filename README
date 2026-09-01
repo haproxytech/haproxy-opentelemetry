@@ -827,6 +827,11 @@ inject <name-prefix> [use-vars] [use-headers]
     on-tcp-response, on-http-end-request, on-http-end-response, on-http-reply,
     on-server-session-end
 
+  A scope that carries no 'otel-event' at all is rejected the same way: it
+  runs wherever the 'otel-group' action that reaches it stands, which the OTel
+  configuration file cannot know, so such a scope can inject the context into
+  variables only.
+
   Variable injection (use-vars) carries no such restriction and may be used
   with any event.
 
@@ -1461,8 +1466,9 @@ idle-timeout <time>
   Set the idle timeout interval for a scope bound to the 'on-idle-timeout'
   event.  The timer fires periodically at the given interval when the stream
   is idle.  This keyword is mandatory for scopes using the 'on-idle-timeout'
-  event and cannot be used with any other event.  Only one 'idle-timeout' may be
-  defined per scope; a second is a configuration error.
+  event and cannot be used with any other event, nor with a scope that carries
+  no 'otel-event' at all.  Only one 'idle-timeout' may be defined per scope; a
+  second is a configuration error.
 
   The <time> argument accepts the standard HAProxy time format: a number
   followed by a unit suffix (us, ms, s, m, h, d).  A value of zero is not

@@ -3161,6 +3161,19 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			}
 
 			/*
+			 * Writing the context into the headers needs an event
+			 * that can still change them, so a scope that already
+			 * names another one is refused here, on the line that
+			 * completes the pair.  An event named further down is
+			 * refused on its own line, and a scope that names none
+			 * at all once the section has been read.
+			 */
+			if (!(retval & ERR_CODE) && (flt_otel_current_span->ctx_flags & FLT_OTEL_CTX_USE_HEADERS) &&
+			    (flt_otel_current_scope->event != FLT_OTEL_EVENT__NONE) &&
+			    !flt_otel_event_data[flt_otel_current_scope->event].flag_http_inject)
+				FLT_OTEL_PARSE_ERR(&err, "%s '%s' : " FLT_OTEL_MSG_CTXEVENT, args[0], args[1]);
+
+			/*
 			 * An explicit name is warned about now; the autoname's
 			 * warning is deferred to the post-parse phase, where it
 			 * is emitted against the resolved name.
@@ -3277,6 +3290,17 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			FLT_OTEL_PARSE_ERR(&err, "'%s' : value must be greater than zero", args[0]);
 		else
 			flt_otel_current_scope->idle_timeout = timeout;
+
+		/*
+		 * The keyword belongs to the 'on-idle-timeout' event, so a
+		 * scope that already names another one is refused here, on the
+		 * line that completes the pair.  An event named further down
+		 * is refused on its own line, and a scope that names none at
+		 * all once the section has been read.
+		 */
+		if (!(retval & ERR_CODE) && (flt_otel_current_scope->event != FLT_OTEL_EVENT__NONE) &&
+		    (flt_otel_current_scope->event != FLT_OTEL_EVENT__IDLE_TIMEOUT))
+			FLT_OTEL_PARSE_ERR(&err, "'%s' : " FLT_OTEL_MSG_IDLEEVENT, args[0]);
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_SCOPE_ON_EVENT) {
 		/* Scope can only have one event defined. */
@@ -3284,6 +3308,7 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			FLT_OTEL_PARSE_ERR_ALRSET(&err, args[0], pdata);
 		} else {
 			struct flt_otel_conf_context *conf_ctx;
+			struct flt_otel_conf_span    *conf_span;
 
 			/* Check the event name. */
 			for (i = 0; i < OTELC_TABLESIZE(flt_otel_event_data); i++)
@@ -3299,14 +3324,23 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 			 */
 			if (flt_otel_current_scope->event == FLT_OTEL_EVENT__NONE)
 				FLT_OTEL_PARSE_ERR(&err, "'%s' : invalid event", args[1]);
+			/* The event a preceding 'idle-timeout' needs is checked here. */
+			else if ((flt_otel_current_scope->idle_timeout != 0) &&
+			         (flt_otel_current_scope->event != FLT_OTEL_EVENT__IDLE_TIMEOUT))
+				FLT_OTEL_PARSE_ERR(&err, "'%s' : 'idle-timeout' " FLT_OTEL_MSG_IDLEEVENT, args[0]);
 			else if (FLT_OTEL_ARG_ISVALID(2))
 				retval = flt_otel_parse_trailing_cond(file, line, args, 2, &(flt_otel_current_scope->cond), &err);
 
-			/*
-			 * An 'extract use-headers' may stand above its event;
-			 * it is refused here, on the line that completes the
-			 * pair.
-			 */
+			/* The event a preceding 'inject use-headers' needs is checked here. */
+			if (!(retval & ERR_CODE) && !flt_otel_event_data[flt_otel_current_scope->event].flag_http_inject)
+				list_for_each_entry(conf_span, &(flt_otel_current_scope->spans), list)
+					if ((conf_span->ctx_id != NULL) && (conf_span->ctx_flags & FLT_OTEL_CTX_USE_HEADERS)) {
+						FLT_OTEL_PARSE_ERR(&err, "'%s' : inject '%s' : " FLT_OTEL_MSG_CTXEVENT, args[0], conf_span->ctx_id);
+
+						break;
+					}
+
+			/* The same for a preceding 'extract use-headers'. */
 			if (!(retval & ERR_CODE) && !flt_otel_event_data[flt_otel_current_scope->event].flag_http_extract)
 				list_for_each_entry(conf_ctx, &(flt_otel_current_scope->contexts), list)
 					if (conf_ctx->flags & FLT_OTEL_CTX_USE_HEADERS) {
@@ -3472,10 +3506,12 @@ static int flt_otel_post_parse_ctx_autoname(struct flt_otel_conf_span *conf_span
  *   This function takes no arguments.
  *
  * DESCRIPTION
- *   Post-parse callback for the otel-scope section.  Verifies that HTTP header
- *   injection is only used on events that support it, and that an idle-timeout
- *   is paired with the on-idle-timeout event (required for it, and rejected
- *   with any other event).
+ *   Post-parse callback for the otel-scope section.  Resolves a deferred
+ *   autoname context and checks what is left of the two rules that pair a
+ *   keyword with the scope event: an 'inject use-headers' or an 'idle-timeout'
+ *   on a scope that names no event, and the 'idle-timeout' that the
+ *   'on-idle-timeout' event requires.  The pairings the parser can see while it
+ *   reads the two lines are refused there, on the line that completes them.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -3494,7 +3530,8 @@ static int flt_otel_post_parse_cfg_scope(void)
 	/*
 	 * Resolve any deferred autoname context, then verify that HTTP
 	 * header injection is only used on events that support it.  The
-	 * scope event is known here regardless of the directive order.
+	 * parser refuses the pairing on the line that completes it, so what
+	 * is left here is a scope that names no event at all.
 	 */
 	list_for_each_entry(conf_span, &(flt_otel_current_scope->spans), list) {
 		if ((conf_span->ctx_id != NULL) && (strcmp(conf_span->ctx_id, FLT_OTEL_PARSE_CTX_AUTONAME) == 0))

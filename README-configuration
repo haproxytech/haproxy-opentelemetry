@@ -575,6 +575,11 @@ Supported keywords:
         on-tcp-response, on-http-end-request, on-http-end-response,
         on-http-reply, on-server-session-end
 
+      A scope that carries no 'otel-event' at all is rejected the same way: it
+      runs wherever the 'otel-group' action that reaches it stands, which the
+      OTel configuration file cannot know.  Such a scope can therefore inject
+      the context into variables only.
+
       Variable injection (use-vars) has no such restriction.
 
       When transferring the context via HTTP headers, if the first character of
