@@ -1179,6 +1179,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	struct flt_otel_conf       *conf = FLT_OTEL_DEREF(fconf, conf, NULL);
 	struct flt_otel_conf_group *conf_group;
 	struct flt_otel_conf_scope *conf_scope;
+	struct flt_otel_conf_span  *root_span = NULL, *root_dup = NULL;
 	struct flt_otel_conf_ph    *ph_group, *ph_scope;
 	int                         retval = 0, scope_unused_cnt = 0, span_root_cnt = 0, span_cnt = 0, ctx_extract_cnt = 0;
 
@@ -1390,26 +1391,41 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	OTELC_DBG(DEBUG, "- defined spans ----------");
 
 	/*
-	 * Walk every configured scope: for used ones, log the defined spans,
-	 * count root spans, and set the required analyzer bits; for unused
-	 * ones, record a warning so the operator is notified.
+	 * Walk every configured scope: log the defined spans and look for the
+	 * root marks; for used ones set the required analyzer bits, for unused
+	 * ones record a warning so the operator is notified.
 	 */
 	list_for_each_entry(conf_scope, &(conf->scopes), list) {
-		if (conf_scope->flag_used) {
-			struct flt_otel_conf_span *conf_span;
-			uint                       where;
-			bool                       flag_fe_phase, flag_same_be;
+		struct flt_otel_conf_span *conf_span;
+		bool                       flag_runs = flt_otel_conf_scope_runs(conf, conf_scope);
 
-			/*
-			 * In principle, only one span should be labeled
-			 * as a root span.
-			 */
-			list_for_each_entry(conf_span, &(conf_scope->spans), list) {
-				FLT_OTEL_DBG_CONF_SPAN("   ", conf_span);
+		/*
+		 * Only one span name may carry the root mark, in whatever
+		 * scope it stands; the same name marked in another scope is
+		 * an alternative creation of that one span.  The counters
+		 * drive the missing-root warning instead, which speaks of
+		 * what runs, so they leave out the scopes that never do.
+		 */
+		list_for_each_entry(conf_span, &(conf_scope->spans), list) {
+			FLT_OTEL_DBG_CONF_SPAN("   ", conf_span);
 
+			if (flag_runs)
 				span_cnt++;
-				span_root_cnt += conf_span->flag_root ? 1 : 0;
+
+			if (conf_span->flag_root) {
+				if (flag_runs)
+					span_root_cnt++;
+
+				if (root_span == NULL)
+					root_span = conf_span;
+				else if ((root_dup == NULL) && !FLT_OTEL_CONF_STR_CMP(root_span->id, conf_span->id))
+					root_dup = conf_span;
 			}
+		}
+
+		if (conf_scope->flag_used) {
+			uint where;
+			bool flag_fe_phase, flag_same_be;
 
 #ifdef DEBUG_OTEL
 			conf->cnt.event[conf_scope->event].flag_used = 1;
@@ -1550,9 +1566,9 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 		}
 
 	/*
-	 * Unused scopes or a number of root spans other than one do not
-	 * necessarily have to be errors, but it is good to print it when
-	 * starting HAProxy.
+	 * Unused scopes or a missing root span do not necessarily have to be
+	 * errors, but it is good to print it when starting HAProxy.  A second
+	 * span name marked as the root is a contradiction and is rejected.
 	 */
 	if (scope_unused_cnt > 0)
 		FLT_OTEL_WARNING("'%s' : %d scope(s) not in use", conf->id, scope_unused_cnt);
@@ -1561,8 +1577,12 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 		/* No defined spans, so the root-span check does not apply. */;
 	else if (span_root_cnt == 0)
 		FLT_OTEL_WARNING("'%s' : no span is marked as the root span", conf->id);
-	else if (span_root_cnt > 1)
-		FLT_OTEL_WARNING("'%s' : multiple spans are marked as the root span", conf->id);
+
+	if (root_dup != NULL) {
+		FLT_OTEL_ALERT("'%s' : spans '%s' and '%s' are both marked as the root span", conf->id, root_span->id, root_dup->id);
+
+		retval++;
+	}
 
 	/*
 	 * With 'require-context' at least one used scope must carry an
@@ -1822,7 +1842,9 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	 * nothing.  The 'finish' wildcards name whatever the stream holds and
 	 * resolve on their own.  A root span may take an extracted context as
 	 * its parent, the remote parent of the trace, but not a span of the
-	 * configuration: a local parent contradicts the root mark.
+	 * configuration: a local parent contradicts the root mark.  The mark
+	 * belongs to the name, so the rule reaches every creation line of the
+	 * marked span, in whatever scope it stands.
 	 */
 	list_for_each_entry(conf_scope, &(conf->scopes), list) {
 		struct flt_otel_conf_span        *conf_span;
@@ -1831,12 +1853,14 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 		struct flt_otel_conf_set_var_ctx *conf_set_var_ctx;
 
 		list_for_each_entry(conf_span, &(conf_scope->spans), list) {
+			bool flag_root_name = (root_span != NULL) && FLT_OTEL_CONF_STR_CMP(root_span->id, conf_span->id);
+
 			if ((conf_span->ref_id != NULL) && !flt_otel_conf_ref_defined(conf, conf_span->ref_id, 1)) {
 				FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : span '%s' : '" FLT_OTEL_PARSE_SPAN_PARENT "' references undefined span/context '%s'", conf_scope->id, conf_span->id, conf_span->ref_id);
 
 				retval++;
 			}
-			else if ((conf_span->ref_id != NULL) && conf_span->flag_root && flt_otel_conf_ref_defined(conf, conf_span->ref_id, 0)) {
+			else if ((conf_span->ref_id != NULL) && flag_root_name && flt_otel_conf_ref_defined(conf, conf_span->ref_id, 0)) {
 				FLT_OTEL_ALERT(FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s' : span '%s' : a root span cannot be parented under span '%s'", conf_scope->id, conf_span->id, conf_span->ref_id);
 
 				retval++;

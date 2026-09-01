@@ -592,7 +592,9 @@ and the keyword parser via INITCALL1 (parser.c).
       references to actual configuration structures (setting the ptr field
       and flag_used).
     - Rejects an otel-group that no 'groups' line of the instrumentation names.
-    - Warns about unused scopes, missing root spans, or multiple root spans.
+    - Warns about unused scopes, a scope that neither an event nor a group runs,
+      and a missing root span; rejects a second root span name and a root span
+      parented under a span.
     - Validates metric instruments: binds the lines of one name to the create
       line that owns its single creation, taken from a scope that runs, and
       places the instrument in that scope until one creates it; rejects a
