@@ -935,7 +935,12 @@ Supported keywords:
       Bind this scope to a filter event, optionally with an ACL-based condition.
       A scope binds to a single event, so 'otel-event' may appear at most once;
       a second is a configuration error.  A scope without the keyword runs only
-      where an 'otel-group' action names a group that holds it.
+      where an 'otel-group' action names a group that holds it; when no group
+      does, it never runs and a warning says so at load.  On this and every
+      other keyword that takes a condition, a bare 'if' or 'unless' with no
+      ACL terms after it is rejected.  They are likewise rejected as a span or
+      context reference and as the name of a span, an otel-scope, an otel-group
+      or an extract context.
 
       The filter attaches to both HTTP-mode and TCP-mode proxies.  A TCP proxy
       carries no HTTP message and runs no HTTP analysis, so the events tagged

@@ -1114,7 +1114,8 @@ otel-event <name> [{ if | unless } <condition>]
   one 'otel-event' may be defined per scope; a second is a configuration error.
   Optionally, it can be followed by an ACL-based condition, in which case it
   will only be evaluated if the condition is true.  A scope with no 'otel-event'
-  is run by an 'otel-group' action instead.
+  is run by an 'otel-group' action instead; when no group holds it, it never
+  runs and a warning says so at load.
 
   ACL-based conditions are executed in the context of a stream that processes
   the client and server connections.  To configure and use the ACL, see section
