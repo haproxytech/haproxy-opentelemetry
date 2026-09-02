@@ -22,7 +22,8 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
       diagnostic messages.
 
   flt_otel_thread_id
-      Returns the current HAProxy thread ID (tid).
+      Returns the current HAProxy thread ID (tid).  A debug build with threads
+      hands a thread the SDK created an ID of its own from an atomic offset.
 
   flt_otel_lib_init
       Initializes the OTel C wrapper library: verifies the library version,

@@ -56,10 +56,12 @@ is emitted as-is.
 Use sample_parse_expr() when the configuration token is a single, standalone
 sample expression (no surrounding text).  This is the case for the otel filter
 keywords such as "attribute", "event", "baggage", "status", "value", and
-similar.
+similar, whenever the value does not start with "%[".
 
 Use parse_logformat_string() when the value is a free-form string that may mix
-literal text with zero or more embedded expressions.
+literal text with zero or more embedded expressions.  The otel filter takes
+this path for a value that starts with "%[", so the choice is made per value
+rather than per keyword.
 
 
 2  Signal keywords

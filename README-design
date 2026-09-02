@@ -20,8 +20,8 @@ a helper macro whose name is supplied by the expansion context.
 FLT_OTEL_EVENT_DEFINES (event.h) drives the event system.  Each entry has the
 form:
 
-  FLT_OTEL_EVENT_DEF(NAME, CHANNEL, SMP_FE, SMP_BE, INJECT, EXTRACT, HTTP_ONLY,
-                     "string")
+  FLT_OTEL_EVENT_DEF(NAME, CHANNEL, SMP_FE, SMP_BE, INJECT, EXTRACT,
+                     HTTP_ONLY, CONTEXT, "string")
 
 The same list is expanded twice:
 
@@ -34,8 +34,8 @@ The same list is expanded twice:
   - In the flt_otel_event_data[] initializer (event.c) to produce a const table
     of struct flt_otel_event_data entries carrying the analyzer bit and name,
     the sample fetch direction, the SMP_VAL_FE_* / SMP_VAL_BE_* fetch-validity
-    bits, the HTTP context-injection and context-extraction flags, the
-    HTTP-only flag and the event name string.
+    bits, the HTTP context-injection and context-extraction flags, the HTTP-only
+    flag, the readable-context flag and the event name string.
 
 Adding a new event requires a single line in the X-macro list.
 
@@ -86,10 +86,11 @@ boilerplate teardown (for free).
 
 The generated init function:
   1. Validates the identifier is non-NULL and non-empty.
-  2. Checks the length against _max_, FLT_OTEL_ID_MAXLEN (128) for a name and
+  2. Handles auto-generated IDs (FLT_OTEL_CONF_HDR_SPECIAL prefix), so that the
+     generated name is what the next two steps measure and compare.
+  3. Checks the length against _max_, FLT_OTEL_ID_MAXLEN (128) for a name and
      FLT_OTEL_LEN_UNLIMITED for the text of a sample expression.
-  3. Detects duplicates in the target list.
-  4. Handles auto-generated IDs (FLT_OTEL_CONF_HDR_SPECIAL prefix).
+  4. Detects duplicates in the target list.
   5. Allocates with OTELC_CALLOC, duplicates the ID with OTELC_STRDUP.
   6. Appends to the parent list via LIST_APPEND.
   7. Executes the custom _func_ body.
