@@ -640,9 +640,9 @@ Supported keywords:
 
   finish <name> ...
       Close one or more spans or span contexts.  Special names:
-        '*'      - finish all open spans
-        '*req*'  - finish all request-channel spans
-        '*res*'  - finish all response-channel spans
+        '*'      - finish all open spans and contexts
+        '*req*'  - finish all request-channel spans and contexts
+        '*res*'  - finish all response-channel spans and contexts
 
       Multiple names can be given on one line; each is matched independently
       against the open spans and contexts by exact name.  The three special
@@ -967,7 +967,20 @@ Supported keywords:
       carries no HTTP message and runs no HTTP analysis, so the events tagged
       '(HTTP only)' below never fire on one: a scope bound to such an event on a
       non-HTTP proxy is inert and reported as a warning at config load.  Every
-      unmarked event fires on both proxy modes.
+      unmarked event can fire on both proxy modes, with one difference: on an
+      HTTP proxy the filter enables the analysers of its events itself, while
+      on a raw TCP stream it cannot, so there an analyser event fires only when
+      the proxy's own rules schedule the analyser:
+
+        tcp-request content rules   on-frontend-tcp-request,
+                                    on-backend-tcp-request
+        use-server rules            on-process-server-rules-request
+        persist rdp-cookie          on-tcp-rdp-cookie-request
+        stick rules                 on-process-sticking-rules-request,
+                                    on-process-store-rules-response
+        tcp-response content rules  on-tcp-response
+
+      The lifecycle and session events fire on every connection.
 
       Where the filter line stands matters too.  A filter of a backend section
       joins the stream at backend selection, after the frontend-phase analysers

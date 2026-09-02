@@ -95,6 +95,9 @@ make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_INC=/opt/
 PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_DEBUG=1
 ```
 
+The debug build links the `opentelemetry-c-wrapper_dbg` pkg-config package,
+so the debug variant of the wrapper library must be installed as well.
+
 #### Without the wrapper library (compile testing)
 
 The `dummy/` directory holds a stand-in implementation of the wrapper API, so

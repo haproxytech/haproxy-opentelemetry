@@ -128,6 +128,7 @@ the correct free function:
   proxy      Proxy owning the filter.
   id         The OpenTelemetry filter id.
   cfg_file   The OpenTelemetry filter configuration file name.
+  sec_name   The configuration file section name (NULL = the filter id).
   instr      The OpenTelemetry instrumentation settings (pointer).
   groups     List of all available groups.
   scopes     List of all available scopes.
@@ -239,8 +240,10 @@ operation as a span event named 'exception'.
 
   FLT_OTEL_CONF_HDR(id)  The name of the instrument.
   idx                    Meter instrument index: UNSET (-1) before creation,
-                         PENDING (-2) while another thread is creating, or >= 0
-                         for the actual meter index.
+                         PENDING (-2) while another thread is creating, FAILED
+                         (-3) once creation was given up, or >= 0 for the
+                         actual meter index.
+  fail_num               Number of failed creation attempts.
   type                   Instrument type (or UPDATE).
   aggr_type              Aggregation type for the view (create only).
   description            Instrument description (create only).
@@ -344,7 +347,7 @@ names with an optional condition, so one condition covers the whole removal.
 
 4.14  Simple Types
 
-  flt_otel_conf_hdr   Generic header; used for simple named entries.
+  flt_otel_conf_hdr   Generic header; unused, conf_str is its live twin.
   flt_otel_conf_str   String holder (identical to conf_hdr in layout, but the
                       HDR field is named "str" instead of "id"); used for
                       spans_to_finish and the unset-var name lists.
@@ -391,7 +394,10 @@ provides.  The custom init body runs after the base allocation and list
 insertion succeed:
 
   conf_sample:
-    LIST_INIT for exprs.  Calls lf_expr_init for lf_expr.
+    LIST_INIT for exprs and time.  Calls lf_expr_init for lf_expr.
+
+  conf_link:
+    LIST_INIT for attributes.
 
   conf_span:
     LIST_INIT for links, attributes, events, baggages, statuses, exceptions.
@@ -409,7 +415,7 @@ insertion succeed:
 
   conf_instrument:
     Sets idx and type to OTELC_METRIC_INSTRUMENT_UNSET, aggr_type to
-    OTELC_METRIC_AGGREGATION_UNSET.  LIST_INIT for samples.
+    OTELC_METRIC_AGGREGATION_UNSET.  LIST_INIT for samples, attributes.
 
   conf_log_record:
     LIST_INIT for time, attributes, samples.
@@ -421,8 +427,8 @@ insertion succeed:
     Sets rate_limit to FLT_OTEL_FLOAT_U32(100.0) (100%).  Calls init_new_proxy
     for log.proxy.  LIST_INIT for acls, ph_groups, ph_scopes.
 
-Types with no custom body (hdr, str, link, ph, sample_expr, context,
-set_var_ctx, stop) rely entirely on the zeroed OTELC_CALLOC allocation.
+Types with no custom body (hdr, str, ph, sample_expr, context, set_var_ctx,
+stop) rely entirely on the zeroed OTELC_CALLOC allocation.
 
 5.3  Extended Sample Initialization
 
@@ -448,7 +454,7 @@ pattern:
 
   1. Allocates flt_otel_conf with OTELC_CALLOC.
   2. Stores the proxy reference.
-  3. Initializes the groups and scopes lists.
+  3. Initializes the groups, scopes and smp_args lists.
 
 
 6  Deallocation
@@ -482,6 +488,9 @@ freed while the parent is still valid:
 
   conf_sample_expr:
     Releases the HAProxy sample expression via release_sample_expr.
+
+  conf_link:
+    Destroys the attributes list and frees the optional ACL condition.
 
   conf_span:
     Frees ref_id and ctx_id strings.
@@ -519,12 +528,12 @@ freed while the parent is still valid:
     Destroys the ph_scopes list.
 
   conf_instr:
-    Frees the config string.  Prunes and frees each ACL entry.  Frees each
-    logger entry from log.proxy.loggers.  Destroys the ph_groups and ph_scopes
-    lists.
+    Frees the config and ctx_name strings.  Prunes and frees each ACL entry.
+    Frees each logger entry from log.proxy.loggers.  Destroys the ph_groups and
+    ph_scopes lists.
 
-Types with no custom cleanup (hdr, str, link, ph, context) only run the base
-teardown: free the identifier, unlink, free the structure.
+Types with no custom cleanup (hdr, str, ph, context) only run the base teardown:
+free the identifier, unlink, free the structure.
 
 6.3  List Destruction
 
@@ -536,12 +545,14 @@ recursive teardown from parent to leaf.
 
 The flt_otel_conf_free function (conf.c) is hand-written:
 
-  1. Frees the id and cfg_file strings.
+  1. Frees the id, cfg_file and sec_name strings.
   2. Calls flt_otel_conf_instr_free for the instrumentation.
   3. Destroys the groups list (which recursively frees placeholders).
   4. Destroys the scopes list (which recursively frees contexts, spans,
      instruments, log records, and all their children).
-  5. Frees the root structure and sets the pointer to NULL.
+  5. Deletes and frees each sample fetch argument still on the smp_args list,
+     which only an error path leaves unresolved.
+  6. Frees the root structure and sets the pointer to NULL.
 
 
 7  Summary of Init/Free Pairs

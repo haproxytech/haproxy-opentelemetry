@@ -879,6 +879,8 @@ side.
     flag_disabled  Set when the filter encounters a hard error or an 'otel-stop'
                    directive fires, and by 'require-context' when no extract
                    of a scope yields a valid context.
+    flag_ctx_valid Set once an extract yields a valid upstream span context;
+                   read with 'require-context' only.
     flag_res_started Set when the response channel starts its analysis, that is
                      once a server connection is established.
     logging        Logging flags.
@@ -1117,12 +1119,12 @@ http-after-response rules:
   flt_otel_trash_alloc()  Acquires a trash buffer chunk.
   flt_otel_trash_free()   Releases a trash buffer chunk.
 
-Pool heads are registered for hot-path structures:
-  - otel_scope_span       (scope.c)
-  - otel_scope_context    (scope.c)
-  - otel_runtime_context  (scope.c)
-  - otel_span_context     (filter.c, used by the C wrapper via otelc_ext_init
-                          callback)
+Pool heads are registered in pool.c for the hot-path structures:
+  - otel_scope_span       (allocated in scope.c)
+  - otel_scope_context    (allocated in scope.c)
+  - otel_runtime_context  (allocated in scope.c)
+  - otel_span_context     (allocated by the C wrapper through the
+                          otelc_ext_init callbacks in filter.c)
 
 The wrapper library's memory allocations are redirected through
 flt_otel_mem_malloc() / flt_otel_mem_free() which use the otel_span_context
@@ -1200,9 +1202,10 @@ The debug level is a bitmask that can be adjusted at runtime via the CLI.
   tcp   TCP mode: traces the raw connection on a TCP-mode proxy and counts the
         forwarded payload via the otel.bytes_in / otel.bytes_out fetches.
 
-  updown Up-down counter: a single udcnt_int instrument records a signed
-         per-session delta, +1 on client session start and -1 on session end,
-         so its value tracks the number of active client sessions.
+  updown Up-down counter: two udcnt_int instruments, one counting the client
+         sessions and one recording a signed per-session delta of +1 on client
+         session start and -1 on session end, so its value tracks the number of
+         active client sessions.
 
   err   Error logging: the response scope parents its span under an 'orphan
         span' created only by on-server-unavailable, so span creation fails

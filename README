@@ -777,14 +777,14 @@ extract <name-prefix> [use-vars | use-headers]
 finish <name> ...
   Closing a particular span or span context.  Instead of the name of the span,
   there are several specially predefined names with which we can finish certain
-  groups of spans.  So it can be used as the name '*req*' for all open spans
-  related to the request channel, '*res*' for all open spans related to the
-  response channel and '*' for all open spans regardless of which channel they
-  are related to.  Several spans and/or span contexts can be specified in one
-  line.  A name may be given only once in the scope, whether on one line or on
-  several, and a repetition is a configuration error; another otel-scope may
-  finish the same span.  The keyword does not accept a trailing 'if'/'unless'
-  condition; one given after the names is rejected.
+  groups of spans and span contexts.  So it can be used as the name '*req*' for
+  all open spans and contexts related to the request channel, '*res*' for all
+  of them related to the response channel and '*' for all of them regardless of
+  which channel they are related to.  Several spans and/or span contexts can be
+  specified in one line.  A name may be given only once in the scope, whether
+  on one line or on several, and a repetition is a configuration error; another
+  otel-scope may finish the same span.  The keyword does not accept a trailing
+  'if'/'unless' condition; one given after the names is rejected.
 
   Arguments :
     name - the name of the span or span context
@@ -1224,7 +1224,7 @@ otel-event <name> [{ if | unless } <condition>]
   it runs HTX-level analysis, so every event above is reachable.  A TCP proxy
   carries no HTTP message and runs no HTTP analysis, so the HTTP-phase events
   never fire on one: a scope bound to such an event on a non-HTTP proxy is inert
-  and is reported as a warning at config load.  These events fire on a TCP-mode
+  and is reported as a warning at config load.  These can fire on a TCP-mode
   proxy:
 
     stream lifecycle:
@@ -1249,6 +1249,20 @@ otel-event <name> [{ if | unless } <condition>]
       on-tcp-response
       on-process-store-rules-response
       on-server-session-end
+
+  On an HTTP proxy the filter enables the analysers of its events itself, so
+  each analyser event fires on every request.  On a raw TCP stream it cannot,
+  as an analyser that nothing retires would stall the connection, so there an
+  analyser event fires only when the proxy's own rules schedule the analyser:
+
+    tcp-request content rules   on-frontend-tcp-request, on-backend-tcp-request
+    use-server rules            on-process-server-rules-request
+    persist rdp-cookie          on-tcp-rdp-cookie-request
+    stick rules                 on-process-sticking-rules-request,
+                                on-process-store-rules-response
+    tcp-response content rules  on-tcp-response
+
+  The lifecycle and session events fire on every connection.
 
   The remaining events carry HTTP message data and fire only on an HTTP-mode
   proxy:
@@ -1707,8 +1721,9 @@ set-var-ctx <var-name> <ref> <field> [{ if | unless } <condition>]
 
 unset-var <var-name> ... [{ if | unless } <condition>]
   Remove one or more HAProxy variables when the scope's event fires.  A variable
-  that is not currently set is silently ignored.  Removal runs after all other
-  directives in the scope.
+  that is not currently set is silently ignored.  Removal runs after the scope's
+  spans, instruments and log records, so all of them still read the variables;
+  only 'finish' and 'otel-stop' run afterwards.
 
   An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
   covers the directive; when it does not pass, none of the listed variables
@@ -2030,7 +2045,7 @@ the 'counters' block appear only in a debug build):
    opentelemetry filter status
   ------------------------------------------------------------------------------
      library:         C++ 1.26.0, C wrapper 3.3.0-1005
-     debug level:     0x7f
+     debug level:     0x077f
      export pipeline:
        signal   queued  dropped  exported  failed  last export
        traces   0/2048        0   2400/12     0/0  120 ms
@@ -2050,6 +2065,8 @@ the 'counters' block appear only in a debug build):
          rate limit:    100.00 %
          hard errors:   no
          disabled:      no
+         require ctx:   no
+         noflush:       no
          logging:       enabled
          runtime err:   hard 0, soft 0
          suppressed:    pending 0, total 0
