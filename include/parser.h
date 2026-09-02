@@ -51,6 +51,12 @@
 /* Punctuation a metric instrument name may carry beside letters and numbers. */
 #define FLT_OTEL_PARSE_METRIC_CHARS           "_.-/"
 
+/* Punctuation of an HTTP token beside letters and digits (W3C baggage key). */
+#define FLT_OTEL_PARSE_TOKEN_CHARS            "!#$%&'*+-.^_`|~"
+
+/* Punctuation of a W3C tracestate key beside lower-case letters and digits. */
+#define FLT_OTEL_PARSE_TRACESTATE_CHARS       "_-*/"
+
 /* Scope keywords that are also spelled outside the parser tables. */
 #define FLT_OTEL_PARSE_KW_LINK                "link"
 #define FLT_OTEL_PARSE_KW_ATTRIBUTE           "attribute"
