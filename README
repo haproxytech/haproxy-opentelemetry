@@ -1,7 +1,7 @@
                    -----------------------------------------
                       The HAProxy OpenTelemetry filter (OTel)
                                  Version 2.2.0
-                          ( Last update: 2026-09-01 )
+                          ( Last update: 2026-09-02 )
                    -----------------------------------------
                            Author : Miroslav Zagorac
                      Contact : mzagorac at haproxy dot com
@@ -594,7 +594,8 @@ standing for whatever the stream holds at that moment.
 
 
 otel-scope <name>
-  Creates a new OTel scope definition named <name>.
+  Creates a new OTel scope definition named <name>.  The name is unique within
+  its top-level scope; another top-level scope may reuse it.
 
   Arguments :
     name - the name of the OTel scope
@@ -704,11 +705,12 @@ event <name> [time [<unit>] <sample>] <key> <sample> ... [{ if | unless } <condi
 
   See the 'attribute' keyword description for the data type conversion table.
 
-  An optional 'time [<unit>] <sample>' clause, placed between the event name and
-  the first key, overrides the event timestamp.  The unit is 's' (default),
+  An optional 'time [<unit>] <sample>' clause, placed between the event name
+  and the first key, overrides the event timestamp.  The unit is 's' (default),
   'ms', 'us' or 'ns', and the sample must evaluate to a number; without it the
-  event inherits the span timestamp.  A 'time' token directly after the name is
-  read as this clause, so it cannot also serve as an attribute key there.
+  event takes the time of the scope run that adds it, the span's own start only
+  in the run that creates the span.  A 'time' token directly after the name is
+  read as this clause, so the key cannot be called 'time'.
 
   An optional trailing 'if'/'unless' condition (same syntax as 'otel-event')
   covers the event.  The keyword may be repeated, and every line whose condition
@@ -840,9 +842,10 @@ inject <name-prefix> [use-vars] [use-headers]
   used to construct the data name prefix, with uppercase letters converted to
   lowercase when the prefix is created.  The special prefix '-' can be used to
   generate the name automatically from the scope's event name or the span name.
-  The generated name keeps a leading '-', so by the rule below the injected
-  headers carry only the bare propagation headers, with no HAProxy-specific
-  name prefix.
+  The span name is checked like a written prefix, so it has to hold only those
+  characters and fit the length limit.  The generated name keeps a leading '-',
+  so by the rule below the injected headers carry only the bare propagation
+  headers, with no HAProxy-specific name prefix.
 
   When the OpenTelemetry context is transferred via the HTTP header and the
   first character of the context name is '-', the context name is excluded
@@ -1513,16 +1516,16 @@ span <name> [parent <ref>] [link <ref>] [root] [kind <kind>]
   OTel span kind, one of internal, server (the default), client, producer or
   consumer.
 
-  Each 'span' opens a sub-context within the scope: the 'attribute', 'event',
-  'baggage', 'status', 'link' and 'inject' keywords that follow it apply to that
-  span -- the 'currently active span' -- until the next 'span' or the end of the
-  scope.  A later bare 'span <name>' naming an already created span makes it the
-  active one again, so further operations can be attached to it; repeating the
-  definition with arguments in the same scope is an error.  Another otel-scope
-  may carry a defining line of the same name, which the parser accepts because
-  it cannot know which scope runs first: at run time exactly one line creates
-  the span, and a defining line of another scope that finds it already created
-  is an error, not a line without effect.
+  Each 'span' opens a sub-context within the scope: the 'link', 'attribute',
+  'event', 'baggage', 'inject', 'status' and 'exception' keywords that follow
+  it apply to that span -- the 'currently active span' -- until the next 'span'
+  or the end of the scope.  A later bare 'span <name>' naming an already created
+  span makes it the active one again, so further operations can be attached to
+  it; repeating the definition with arguments in the same scope is an error.
+  Another otel-scope may carry a defining line of the same name, which the
+  parser accepts because it cannot know which scope runs first: at run time
+  exactly one line creates the span, and a defining line of another scope that
+  finds it already created is an error, not a line without effect.
 
   For example:
     span "HAProxy session" root
