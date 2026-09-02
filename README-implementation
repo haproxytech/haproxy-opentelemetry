@@ -73,6 +73,7 @@ with runner scripts.
       |-- otlp_http-replay.py    OTLP/HTTP traffic replayer
       |-- haproxy-common.cfg     Shared HAProxy configuration part
       |-- index.html     Static page served by the origin server
+      |-- README.md      Test overview, coverage and speed results
       |-- README-parser  Configuration parser test description
       |-- sa/            Standalone test configs
       |-- full/          Full event-coverage test configs
