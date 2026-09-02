@@ -103,6 +103,7 @@
 	struct flt_otel_conf_##_type_ *flt_otel_conf_##_type_##_init(const char *id, int line, struct list *head, char **err); \
 	void                           flt_otel_conf_##_type_##_free(struct flt_otel_conf_##_type_ **ptr);
 
+/* NOTE: nothing calls the 'hdr' pair; see struct flt_otel_conf_hdr. */
 FLT_OTEL_CONF_FUNC_DECL(hdr)
 FLT_OTEL_CONF_FUNC_DECL(str)
 FLT_OTEL_CONF_FUNC_DECL(ph)
