@@ -1823,7 +1823,7 @@ static int flt_otel_parse_cfg_sample_cond(const char *file, int line, char **arg
  * DESCRIPTION
  *   Parses a space-separated string of numbers into a dynamically allocated
  *   array of doubles suitable for the meter add_view API.  The string is
- *   duplicated internally and tokenized with strtok().  Each token is
+ *   duplicated internally and tokenized with strtok_r().  Each token is
  *   converted with flt_otel_strtod().  The values are sorted internally.
  *
  * RETURN VALUE
@@ -3565,7 +3565,7 @@ static int flt_otel_post_parse_ctx_autoname(struct flt_otel_conf_span *conf_span
 	} else {
 		/*
 		 * The span name fallback is only valid as a context prefix
-		 * when it has only the characters [A-Za-z_.-].
+		 * when it has only the characters [A-Za-z0-9_.-].
 		 */
 		ch = invalid_prefix_char(conf_span->id);
 		if (ch == NULL)
