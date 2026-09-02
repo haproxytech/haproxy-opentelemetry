@@ -27,6 +27,13 @@
 #define FLT_OTEL_ID_MAXLEN        128           /* Maximum identifier length; the variable carrier holds 127 bytes. */
 #define FLT_OTEL_UNIT_MAXLEN      64            /* Maximum metric unit length, the limit of the OTel SDK. */
 #define FLT_OTEL_LEN_UNLIMITED    SIZE_MAX      /* No length limit, used where the name is not an identifier. */
+
+/* W3C limits on the key of a span context field, counted as the documents do. */
+#define FLT_OTEL_BAGGAGE_KEY_MAX         4096 /* Maximum baggage key length, one entry being that long. */
+#define FLT_OTEL_TRACESTATE_KEY_MAX      256  /* Maximum tracestate key length. */
+#define FLT_OTEL_TRACESTATE_TENANT_MAX   241  /* Maximum tracestate tenant id length. */
+#define FLT_OTEL_TRACESTATE_SYSTEM_MAX   14   /* Maximum tracestate system id length. */
+
 #define FLT_OTEL_DEBUG_LEVEL   0b11101111111 /* Default debug bitmask. */
 
 #define FLT_OTEL_ATTR_INIT_SIZE   8 /* Initial attribute array capacity. */

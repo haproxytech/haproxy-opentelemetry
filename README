@@ -1678,6 +1678,15 @@ set-var-ctx <var-name> <ref> <field> [{ if | unless } <condition>]
   reference, or the serialized outbound baggage for a span reference.  The
   'tracestate' fields are available only when <ref> names a context.
 
+  A key written between the parentheses follows the rule of its W3C carrier,
+  and the two differ.  A baggage key is an HTTP token: letters, digits and the
+  punctuation "!#$%&'*+-.^_`|~", at most 4096 characters of them.  A tracestate
+  key holds at most 256 lower-case letters, digits, '_', '-', '*' and '/' and
+  begins with a letter, or names a tenant id of at most 241 characters and a
+  system id of at most 14 around a single '@', the tenant id opening with a
+  letter or a digit and the system id with a letter.  No carrier holds another
+  key, so one written here is refused.
+
   For example:
     extract "inbound" use-headers
     span "HAProxy session" root

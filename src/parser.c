@@ -2446,6 +2446,104 @@ static int flt_otel_parse_cfg_exception(const char *file, int line, char **args,
 
 /***
  * NAME
+ *   flt_otel_parse_check_field_key - context field key check
+ *
+ * SYNOPSIS
+ *   static int flt_otel_parse_check_field_key(char **args, const char *field, int code, const char *key, char **err)
+ *
+ * ARGUMENTS
+ *   args  - configuration line arguments array
+ *   field - the field name the key stands in, named in the error messages
+ *   code  - the FLT_OTEL_VAR_FIELD_* code of that field
+ *   key   - the key written between the parentheses
+ *   err   - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Checks the key of a 'baggage' or a 'tracestate' field against the rule the
+ *   W3C document gives it.  A baggage key is an HTTP token as long as one
+ *   baggage entry may be, and a tracestate key is either a lower-case name or
+ *   a tenant id and a system id around a single '@'.  A key those rules refuse
+ *   cannot stand in the carrier the field is read from, so the line naming it
+ *   could never read a value; it is rejected here instead, where the alert
+ *   names the file and the line.  The other fields take no key at all, so the
+ *   caller only calls this for the two that do.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE (== 0) in case of success,
+ *   or a combination of ERR_* flags if an error is encountered.
+ */
+static int flt_otel_parse_check_field_key(char **args, const char *field, int code, const char *key, char **err)
+{
+	const char *at, *ptr;
+	size_t      len, max, tenant_len, system_len;
+	uint8_t     ch;
+	int         retval = ERR_NONE;
+
+	OTELC_FUNC("%p, \"%s\", %d, \"%s\", %p:%p", args, OTELC_STR_ARG(field), code, OTELC_STR_ARG(key), OTELC_DPTR_ARGS(err));
+
+	len = strlen(key);
+	max = (code == FLT_OTEL_VAR_FIELD_BAGGAGE) ? FLT_OTEL_BAGGAGE_KEY_MAX : FLT_OTEL_TRACESTATE_KEY_MAX;
+
+	if (len == 0) {
+		FLT_OTEL_PARSE_ERR(err, "'%s' : no '%s' key set", args[0], field);
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	if (len > max) {
+		FLT_OTEL_PARSE_ERR(err, "'%s' : the '%s' key is longer than %zu characters", args[0], field, max);
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	/* A baggage key is an HTTP token, nothing else. */
+	if (code == FLT_OTEL_VAR_FIELD_BAGGAGE) {
+		for (ptr = key; !(retval & ERR_CODE) && (*ptr != '\0'); ptr++) {
+			ch = (uint8_t)*ptr;
+
+			if ((isalnum(ch) == 0) && (strchr(FLT_OTEL_PARSE_TOKEN_CHARS, ch) == NULL))
+				FLT_OTEL_PARSE_ERR(err, "'%s' : invalid character '%c' in the '%s' key", args[0], *ptr, field);
+		}
+
+		OTELC_RETURN_INT(retval);
+	}
+
+	/*
+	 * A tracestate key holds a single '@' at most, between the tenant id
+	 * and the system id, and only that one is left out of the character
+	 * scan below, so a second one is refused there.  A digit opens the
+	 * tenant id alone, never a key written without the '@'.
+	 */
+	at = strchr(key, '@');
+
+	if ((islower((uint8_t)*key) == 0) && ((at == NULL) || (isdigit((uint8_t)*key) == 0))) {
+		FLT_OTEL_PARSE_ERR(err, "'%s' : invalid first character '%c' in the '%s' key", args[0], *key, field);
+	}
+	else if (at != NULL) {
+		tenant_len = at - key;
+		system_len = len - tenant_len - 1;
+
+		if ((tenant_len > FLT_OTEL_TRACESTATE_TENANT_MAX) || (system_len == 0) ||
+		    (system_len > FLT_OTEL_TRACESTATE_SYSTEM_MAX) || (islower((uint8_t)at[1]) == 0))
+			FLT_OTEL_PARSE_ERR(err, "'%s' : invalid tenant or system id in the '%s' key", args[0], field);
+	}
+
+	for (ptr = key; !(retval & ERR_CODE) && (*ptr != '\0'); ptr++) {
+		ch = (uint8_t)*ptr;
+
+		if (ptr == at)
+			continue;
+
+		if ((islower(ch) == 0) && (isdigit(ch) == 0) && (strchr(FLT_OTEL_PARSE_TRACESTATE_CHARS, ch) == NULL))
+			FLT_OTEL_PARSE_ERR(err, "'%s' : invalid character '%c' in the '%s' key", args[0], *ptr, field);
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_parse_cfg_set_var_ctx - set-var-ctx reference and field parser
  *
  * SYNOPSIS
@@ -2463,8 +2561,9 @@ static int flt_otel_parse_cfg_exception(const char *file, int line, char **args,
  *   selector in <args>[3] into <conf>.  The selector is a field name with an
  *   optional parenthesised key, such as 'trace-id', 'baggage(userId)' or
  *   'tracestate(vendor)'.  A key is optional for 'baggage' and 'tracestate',
- *   and rejected for the other fields.  An optional trailing 'if'/'unless'
- *   condition at <args>[4] controls the assignment at runtime.
+ *   where flt_otel_parse_check_field_key() holds it to the rule of the W3C
+ *   carrier, and rejected for the other fields.  An optional trailing
+ *   'if'/'unless' condition at <args>[4] controls the assignment at runtime.
  *
  * RETURN VALUE
  *   Returns ERR_NONE (== 0) in case of success,
@@ -2548,10 +2647,14 @@ static int flt_otel_parse_cfg_set_var_ctx(const char *file, int line, char **arg
 	conf->field_key = field_key;
 
 	/* Validate the presence or absence of a key for the chosen field. */
-	if ((conf->field == FLT_OTEL_VAR_FIELD_BAGGAGE) || (conf->field == FLT_OTEL_VAR_FIELD_TRACESTATE))
-		/* The key is optional for baggage and tracestate. */;
-	else if (field_key != NULL)
+	if ((conf->field == FLT_OTEL_VAR_FIELD_BAGGAGE) || (conf->field == FLT_OTEL_VAR_FIELD_TRACESTATE)) {
+		/* The key is optional for baggage and tracestate. */
+		if (field_key != NULL)
+			retval = flt_otel_parse_check_field_key(args, field_name, conf->field, field_key, err);
+	}
+	else if (field_key != NULL) {
 		FLT_OTEL_PARSE_ERR(err, "'%s' : field '%s' does not take a key", args[0], field_name);
+	}
 
 	/* An optional trailing 'if'/'unless' condition controls the assignment. */
 	if (!(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(4))

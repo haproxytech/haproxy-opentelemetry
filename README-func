@@ -537,6 +537,13 @@ sections.
       sample expressions, repeatable "attr" clauses and an optional if/unless
       condition.
 
+  flt_otel_parse_check_field_key
+      Checks the key inside a 'baggage' or a 'tracestate' field of set-var-ctx
+      against the rule the W3C document gives it: an HTTP token for baggage,
+      and for tracestate a lower-case name or a tenant and a system id around
+      one '@'.  A key those rules refuse cannot stand in the carrier the field
+      is read from, so the line naming it is rejected at parse time.
+
   flt_otel_parse_cfg_set_var_ctx
       Parses the set-var-ctx reference and field selector (a field name with an
       optional parenthesised key, such as 'baggage(userId)'), plus an optional
