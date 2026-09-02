@@ -383,6 +383,8 @@ Detailed documentation is available in the following files:
 - [README-implementation](README-implementation) -- component architecture
 - [README-func](README-func) -- function reference
 - [README-misc](README-misc) -- miscellaneous notes
+- [test/README.md](test/README.md) -- what the tests cover and what tracing
+  costs
 - [dummy/README](dummy/README) -- build-only stand-in for the wrapper library
 - [ChangeLog](ChangeLog) -- release notes
 
