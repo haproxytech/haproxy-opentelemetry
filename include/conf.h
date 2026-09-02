@@ -150,7 +150,11 @@
 
 struct flt_otel_conf_scope;
 
-/* Generic configuration header used for simple named list entries. */
+/*
+ * Generic configuration header used for simple named list entries.
+ * NOTE: no configuration uses this type; flt_otel_conf_str below is its
+ * live twin.
+ */
 struct flt_otel_conf_hdr {
 	FLT_OTEL_CONF_HDR(id); /* A list containing header names. */
 };
