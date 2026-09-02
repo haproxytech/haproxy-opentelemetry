@@ -3552,7 +3552,7 @@ static int flt_otel_post_parse_ctx_autoname(struct flt_otel_conf_span *conf_span
 	} else {
 		/*
 		 * The span name fallback is only valid as a context prefix
-		 * when it has only the characters [A-Za-z_.-].
+		 * when it has only the characters [A-Za-z0-9_.-].
 		 */
 		ch = invalid_prefix_char(conf_span->id);
 		if (ch == NULL)

@@ -185,11 +185,11 @@
 
 /* Invalid character check modes for identifier validation. */
 enum FLT_OTEL_PARSE_INVCHAR_enum {
-	FLT_OTEL_PARSE_INVALID_NONE,
-	FLT_OTEL_PARSE_INVALID_CHAR,
-	FLT_OTEL_PARSE_INVALID_DOM,
-	FLT_OTEL_PARSE_INVALID_CTX,
-	FLT_OTEL_PARSE_INVALID_METRIC,
+	FLT_OTEL_PARSE_INVALID_NONE,     /* No character check. */
+	FLT_OTEL_PARSE_INVALID_CHAR,     /* HAProxy's invalid_char(): the section and ACL names. */
+	FLT_OTEL_PARSE_INVALID_DOM,      /* HAProxy's invalid_domainchar(); currently not used for any keyword. */
+	FLT_OTEL_PARSE_INVALID_CTX,      /* HAProxy's invalid_prefix_char(): the context prefixes and the 'baggage' key. */
+	FLT_OTEL_PARSE_INVALID_METRIC,   /* The metric SDK name rule: letter first, then letters, digits and "_.-/". */
 };
 
 enum FLT_OTEL_PARSE_INSTR_enum {
