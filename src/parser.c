@@ -792,6 +792,10 @@ static int flt_otel_parse_cfg_file(char **ptr, const char *file, int line, char 
 
 	OTELC_FUNC("%p:%p, \"%s\", %d, %p, %p:%p, \"%s\"", OTELC_DPTR_ARGS(ptr), OTELC_STR_ARG(file), line, args, OTELC_DPTR_ARGS(err), err_msg);
 
+	/*
+	 * NOTE: 'config' takes two arguments at least, so the table check
+	 * refuses a bare keyword first and this branch never fires.
+	 */
 	if (!FLT_OTEL_ARG_ISVALID(1))
 		FLT_OTEL_PARSE_ERR(err, "'%s' : no %s specified", flt_otel_current_instr->id, err_msg);
 	else if (flt_otel_parse_reject_cond(args, 1, err) & ERR_CODE)
@@ -3116,6 +3120,11 @@ static int flt_otel_parse_cfg_scope(const char *file, int line, char **args, int
 		if (FLT_OTEL_PARSE_KEYWORD(2, FLT_OTEL_PARSE_LOG_RECORD_TIME)) {
 			int idx = 2;
 
+			/*
+			 * NOTE: 'event' takes four arguments at least, so
+			 * args[3] always exists here and this branch never
+			 * fires.
+			 */
 			if (!FLT_OTEL_ARG_ISVALID(3))
 				FLT_OTEL_PARSE_ERR_FEWARGS(&err, args[2], pdata);
 			else

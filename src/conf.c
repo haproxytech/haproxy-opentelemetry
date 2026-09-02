@@ -21,6 +21,9 @@
  *   duplicated and stored as the header identifier.  If <head> is non-NULL,
  *   the structure is appended to the list.
  *
+ *   NOTE: nothing calls this function; the conf_str type carries the lists
+ *   the configuration actually builds.
+ *
  * RETURN VALUE
  *   Returns a pointer to the initialized structure, or NULL on failure.
  */
@@ -40,6 +43,8 @@ FLT_OTEL_CONF_FUNC_INIT(hdr, id, FLT_OTEL_ID_MAXLEN, )
  * DESCRIPTION
  *   Deallocates memory used by the flt_otel_conf_hdr structure and its
  *   contents, then removes it from the list of structures of that type.
+ *
+ *   NOTE: nothing calls this function, its allocation counterpart included.
  *
  * RETURN VALUE
  *   This function does not return a value.

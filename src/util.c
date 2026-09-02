@@ -920,9 +920,9 @@ static int flt_otel_sample_set_status(struct flt_otel_scope_data_status *status,
 		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
 
 	/*
-	 * Only the first status whose condition holds is applied per span, so
-	 * this point should not be reached twice; the guard is kept as a
-	 * safeguard.
+	 * NOTE: the status structure is built afresh per span per scope run
+	 * and only the first status whose condition holds is applied, so this
+	 * is never reached twice; the guard is kept as a safeguard.
 	 */
 	if (status->description != NULL) {
 		FLT_OTEL_ERR("'%s' : span status already set", sample->key);

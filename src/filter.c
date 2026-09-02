@@ -1242,6 +1242,10 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 			}
 	}
 
+	/*
+	 * NOTE: the parser refuses a scope with no instrumentation and a
+	 * section with no 'config' line already, so the next two never fire.
+	 */
 	if (FLT_OTEL_DEREF(conf->instr, id, NULL) == NULL) {
 		FLT_OTEL_ALERT("'%s' : no instrumentation found", conf->id);
 
@@ -1256,6 +1260,8 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 
 	/*
 	 * Checking that defined 'otel-group' section names are unique.
+	 * NOTE: the parser refuses a repeated name as it reads it, so this
+	 * never fires.
 	 */
 	list_for_each_entry(conf_group, &(conf->groups), list) {
 		struct flt_otel_conf_group *conf_group_tmp;
@@ -1273,6 +1279,8 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 
 	/*
 	 * Checking that defined 'otel-scope' section names are unique.
+	 * NOTE: the parser refuses a repeated name as it reads it, so this
+	 * never fires.
 	 */
 	list_for_each_entry(conf_scope, &(conf->scopes), list) {
 		struct flt_otel_conf_scope *conf_scope_tmp;
@@ -1290,6 +1298,8 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 
 	/*
 	 * Checking that defined 'otel-group' sections are not empty.
+	 * NOTE: the parser refuses an empty one at the end of the section, so
+	 * this never fires.
 	 */
 	list_for_each_entry(conf_group, &(conf->groups), list)
 		if (LIST_ISEMPTY(&(conf_group->ph_scopes))) {
@@ -2495,8 +2505,9 @@ static int flt_otel_ops_channel_start_analyze(struct stream *s, struct filter *f
 		retval = flt_otel_event_run(s, f, chn, FLT_OTEL_EVENT_RES_SERVER_SESS_START, &err);
 
 		/*
-		 * WAIT is currently never returned by flt_otel_event_run(),
-		 * this is kept for defensive purposes only.
+		 * NOTE: WAIT is never returned by flt_otel_event_run(), whose
+		 * result is only OK or ERROR, so this is dead but kept as a
+		 * defensive branch.
 		 */
 		if (retval == FLT_OTEL_RET_WAIT) {
 			channel_dont_read(chn);
@@ -2616,8 +2627,8 @@ static int flt_otel_ops_channel_pre_analyze(struct stream *s, struct filter *f, 
 	retval = flt_otel_event_run(s, f, chn, event, &err);
 
 	/*
-	 * WAIT is currently never returned by flt_otel_event_run(), this is
-	 * kept for defensive purposes only.
+	 * NOTE: WAIT is never returned by flt_otel_event_run(), whose result
+	 * is only OK or ERROR, so this is dead but kept as a defensive branch.
 	 */
 	if ((retval == FLT_OTEL_RET_WAIT) && (chn->flags & CF_ISRESP)) {
 		channel_dont_read(chn);
@@ -2805,7 +2816,7 @@ static int flt_otel_ops_http_payload(struct stream *s, struct filter *f, struct 
 
 	OTELC_DBG(DEBUG, "channel: %s, mode: %s (%s), offset: %u, len: %u, forward: %d", flt_otel_chn_label(msg->chn), flt_otel_pr_mode(s), flt_otel_stream_pos(s), offset, len, retval);
 
-	/* Debug stub -- retval is always len, wakeup is never reached. */
+	/* NOTE: debug stub, retval is always len, so the wakeup is dead. */
 	if (retval != len)
 		task_wakeup(s->task, TASK_WOKEN_MSG);
 
@@ -2870,6 +2881,9 @@ static int flt_otel_ops_http_end(struct stream *s, struct filter *f, struct http
  * DESCRIPTION
  *   HTTP reply callback.  It fires the on-http-reply event when HAProxy
  *   generates an internal reply (e.g. error page or deny response).
+ *
+ *   NOTE: nothing has invoked the flt_http_reply() dispatcher since HAProxy
+ *   2.2-dev8, so this callback never runs; see README-implementation 6.1.
  *
  * RETURN VALUE
  *   This function does not return a value.
