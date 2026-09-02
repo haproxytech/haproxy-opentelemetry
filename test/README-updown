@@ -2,10 +2,11 @@ Up-down counter test configuration (updown/)
 ===========================================
 
 The 'updown' test demonstrates an up-down counter (udcnt_int) instrument that
-rises on one event and falls on another.  A single instrument named
-'haproxy.sessions.active' tracks how many client sessions are currently open:
-it is incremented by one when a client session starts and decremented by one
-when that session ends, so its value equals the live session concurrency.
+rises on one event and falls on another.  Two of them are recorded on the client
+session events.  The first, 'haproxy.sessions.total', takes +1 on every session
+start and counts the sessions served; the second, 'haproxy.sessions.active',
+takes +1 on a session start and -1 on the end of that session, so its value
+equals the live session concurrency.
 
 An up-down counter records a signed delta.  The create form of an instrument
 supplies one value expression that every 'update' form re-evaluates in the
@@ -29,23 +30,26 @@ Files
 Events
 ------
 
-  on-client-session-start  Stores +1 in the delta variable and adds it to the
+  on-client-session-start  Records +1 on haproxy.sessions.total and, through
+                           the delta variable, +1 on haproxy.sessions.active.
+  on-client-session-end    Stores -1 in the delta variable and adds that to the
                            haproxy.sessions.active counter.
-  on-client-session-end    Stores -1 in the delta variable and adds it to the
-                           counter.
 
 
-Instrument
-----------
+Instruments
+-----------
 
-  A create form on session_start registers the instrument; an 'update' form in
-  each scope records the signed measurement:
+  A create form on session_start registers each instrument, and an 'update' form
+  records its measurement: in both scopes for the active counter, and in the
+  session_start scope alone for the total one:
 
+    instrument udcnt_int "haproxy.sessions.total" value int(1)
     instrument udcnt_int "haproxy.sessions.active" \
         value var(sess.otel_updown_delta)
 
-  With three concurrent client sessions the counter reads 3, returning to 0
-  once they all close.
+  With three concurrent client sessions the active counter reads 3 and returns
+  to 0 once they all close, while the total one keeps the number of the sessions
+  that were served.
 
 
 YAML pipeline
@@ -60,8 +64,8 @@ YAML pipeline
     metrics    exporter_metrics_ostream  reader_metrics
     logs       exporter_logs_dev_null    processor_logs_single
 
-  The metrics exporter writes the counter to the __updown_metrics file.  The
-  ostream exporter flushes on shutdown, so the recorded value is read there
+  The metrics exporter writes both counters to the __updown_metrics file.  The
+  ostream exporter flushes on shutdown, so the recorded values are read there
   after haproxy stops (for example with a 'soft-stop' signal).
 
 
