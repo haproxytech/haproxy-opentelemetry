@@ -122,6 +122,8 @@ struct flt_otel_runtime_context {
 	bool           flag_harderr;  /* [0 1] */
 	bool           flag_disabled; /* [0 1] */
 	bool           flag_ctx_valid; /* [0 1] */
+	bool           flag_norec;    /* Root span is not recording (sampled out): fast path. */
+	struct otelc_span *root_span; /* The stream's root span (parent fallback in fast path). */
 	uint8_t        logging;       /* [0 1 3] */
 	uint           analyzers;     /* Executed channel analyzers. */
 	uint           idle_timeout;  /* Idle timeout interval in milliseconds (0 = off). */

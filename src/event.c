@@ -630,6 +630,26 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 		span->span = OTELC_OPS(conf->instr->tracer, start_span_with_options, span->id, span->ref_span, span->ref_ctx, ts_steady, ts_system, conf_span->kind, NULL, 0);
 		if (span->span == NULL)
 			OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+
+		/*
+		 * Non-recording fast path.  The sampler decides at the root: a
+		 * root that is not recording (sampled out) means every span of
+		 * this stream will be a non-recording span whose attributes,
+		 * events and status the SDK silently discards.  Remember that
+		 * on the runtime context so the remaining scopes can skip the
+		 * sample evaluation and the creation of spans that do not take
+		 * part in context propagation (see flt_otel_scope_run()).
+		 */
+		if (conf_span->flag_root) {
+			struct flt_otel_runtime_context *rt_ctx = FLT_OTEL_RT_CTX(f->ctx);
+
+			rt_ctx->root_span = span->span;
+			if (OTELC_OPS(span->span, is_recording) == 0) {
+				OTELC_DBG(INFO, "root span '%s' is not recording: fast path enabled", span->id);
+
+				rt_ctx->flag_norec = 1;
+			}
+		}
 	}
 
 	/* Add all resolved span links to the current span. */
@@ -669,7 +689,7 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 			retval = FLT_OTEL_RET_ERROR;
 
 	/* Record exceptions on the span via the wrapper's record_exception(). */
-	if (!LIST_ISEMPTY(&(conf_span->exceptions))) {
+	if (!FLT_OTEL_RT_CTX(f->ctx)->flag_norec && !LIST_ISEMPTY(&(conf_span->exceptions))) {
 		struct flt_otel_conf_exception *conf_exc;
 
 		list_for_each_entry(conf_exc, &(conf_span->exceptions), list) {
@@ -933,7 +953,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 	struct flt_otel_conf_unset_var *unset_var;
 	struct timespec                 ts_now_steady, ts_now_system;
 	int                             retval = FLT_OTEL_RET_OK;
-	bool                            flag_stop = 0;
+	bool                            flag_stop = 0, norec = 0;
 
 	OTELC_FUNC("%p, %p, %p, %p, %p, %p, %u, %p:%p", s, f, chn, conf_scope, ts_steady, ts_system, dir, OTELC_DPTR_ARGS(err));
 
@@ -1078,6 +1098,21 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 		OTELC_DBG(INFO, "run span '%s' -> '%s'", conf_scope->id, conf_span->id);
 		FLT_OTEL_DBG_CONF_SPAN("run span ", conf_span);
 
+		/*
+		 * Non-recording fast path: the root span was sampled out, so
+		 * nothing produced here will ever be exported.  Spans that do
+		 * not inject a context are not created at all, and for the ones
+		 * that are (propagation must stay intact so that downstream
+		 * follows the sampling decision) no attribute, event, baggage,
+		 * link or status sample is evaluated.
+		 */
+		norec = FLT_OTEL_RT_CTX(f->ctx)->flag_norec;
+		if (norec && !conf_span->flag_root && (conf_span->ctx_id == NULL)) {
+			OTELC_DBG(DEBUG, "fast path: span '%s' skipped", conf_span->id);
+
+			continue;
+		}
+
 		flt_otel_scope_data_init(&data);
 
 		span = flt_otel_scope_span_init(f->ctx, conf_span->id, conf_span->id_len, conf_span->ref_id, conf_span->ref_id_len, dir, err);
@@ -1092,7 +1127,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 		 * Each link name is looked up first in the active spans, then
 		 * in the extracted contexts.
 		 */
-		if (!LIST_ISEMPTY(&(conf_span->links))) {
+		if (!norec && !LIST_ISEMPTY(&(conf_span->links))) {
 			struct flt_otel_runtime_context *rt_ctx = FLT_OTEL_RT_CTX(f->ctx);
 			struct flt_otel_conf_link       *conf_link;
 
@@ -1148,7 +1183,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 			}
 		}
 
-		list_for_each_entry(sample, &(conf_span->attributes), list) {
+		if (!norec) list_for_each_entry(sample, &(conf_span->attributes), list) {
 			if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
 				continue;
 
@@ -1158,7 +1193,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 				retval = FLT_OTEL_RET_ERROR;
 		}
 
-		list_for_each_entry(sample, &(conf_span->events), list) {
+		if (!norec) list_for_each_entry(sample, &(conf_span->events), list) {
 			if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
 				continue;
 
@@ -1168,7 +1203,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 				retval = FLT_OTEL_RET_ERROR;
 		}
 
-		list_for_each_entry(sample, &(conf_span->baggages), list) {
+		if (!norec) list_for_each_entry(sample, &(conf_span->baggages), list) {
 			if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
 				continue;
 
@@ -1183,7 +1218,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 		 * defined, each gated by a condition; the first whose condition
 		 * holds is applied and the remaining lines are skipped.
 		 */
-		list_for_each_entry(sample, &(conf_span->statuses), list) {
+		if (!norec) list_for_each_entry(sample, &(conf_span->statuses), list) {
 			if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
 				continue;
 
