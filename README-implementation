@@ -495,18 +495,28 @@ and response fetches.
        a. Calls flt_otel_scope_span_init() which either returns an existing
           scope_span (by name) or creates a new one with resolved parent
           reference.
-       b. Resolves span links against the runtime context -- first searching
+       b. Calls flt_otel_scope_span_start() which creates the OTel span via
+          tracer->start_span_with_options(), unless an earlier scope created
+          it already, and sets flag_norec when the sampler left the new span
+          out.
+       c. Resolves span links against the runtime context -- first searching
           active spans, then extracted contexts.  Unresolved links are skipped
           (a debug build traces them; a release build stays silent).
-       c. Evaluates attributes, events, baggages, and status from sample
-          expressions via flt_otel_sample_add().
-       d. Calls flt_otel_scope_run_span() which:
-          - Creates the OTel span via tracer->start_span_with_options()
-            (if not already started).
+       d. Evaluates the attribute, event and status samples through
+          flt_otel_scope_span_samples(), and the baggage samples in place, both
+          of them via flt_otel_sample_add().
+       e. Calls flt_otel_scope_run_span() which:
           - Adds all resolved links via span->add_link().
           - Sets baggage, attributes, events, and status.
+          - Records the configured exceptions.
           - Optionally injects the span context into HTTP headers and/or
             HAProxy variables.
+
+       A span whose flag_norec is set skips the links of step c, the samples
+       of step d except the baggages, and the exceptions of step e, all of
+       which the SDK would discard.  The span itself is created and injected
+       all the same, so the trace still reaches the downstream services with
+       the sampled flag cleared.
     5. Runs "set-var-ctx" directives via flt_otel_scope_run_set_var_ctx(),
        storing a field of a referenced span or context into a HAProxy
        variable (after the spans have run, so their contexts are available).
@@ -558,6 +568,8 @@ and response fetches.
     id / id_len    Span operation name (borrowed from config).
     smp_opt_dir    Direction in which the span was created.
     flag_finish    Set by finish directives, cleared after ending.
+    flag_norec     Set when the created span reports that it does not record,
+                   which keeps its samples from being evaluated.
     span           The OTel span object (NULL before start, NULL after
                    end_with_options).
     ref_span       Parent span pointer (resolved at init).
@@ -922,8 +934,10 @@ Each test directory contains an otel.yml file configuring exporter types:
     events.
 
   - Lazy span creation: the OTel span object is created on first use in
-    flt_otel_scope_run_span(), not at scope_span_init time.  This separates
+    flt_otel_scope_span_start(), not at scope_span_init time.  This separates
     the span identity (name, parent reference) from the actual OTel resource.
+    The creation comes before the sample evaluation, so that the sampling
+    decision of the span is known while its samples are still unevaluated.
 
   - Soft/hard error modes: in soft mode, errors are logged but the stream
     continues with tracing effectively abandoned for that span.  In hard mode,
@@ -1115,14 +1129,12 @@ attributes, events and other data to the same logical span.
 18.4.2  OTel Span Creation (Lazy)
 
 The actual OTel span object is created lazily on first use in
-flt_otel_scope_run_span() (event.c):
+flt_otel_scope_span_start() (event.c):
 
-  if (span->span == NULL) {
-      span->span = OTELC_OPS(conf->instr->tracer,
-          start_span_with_options, span->id,
-          span->ref_span, span->ref_ctx,
-          ts_steady, ts_system, conf_span->kind, NULL, 0);
-  }
+  span->span = OTELC_OPS(conf->instr->tracer,
+      start_span_with_options, span->id,
+      span->ref_span, span->ref_ctx,
+      ts_steady, ts_system, conf_span->kind, NULL, 0);
 
 The arguments are:
 
@@ -1146,6 +1158,12 @@ which is reported through the runtime log, or start_span_with_options()
 returning NULL -- leaves the listed entry without an OTel span; completion
 skips such an entry, and flt_otel_scope_free_unused() then removes it like
 an ended one.
+
+The sampler decides while the span is created, so the new span is asked whether
+it records, and flag_norec is set when it does not.  The decision belongs to the
+span and not to the stream, because a sampler may record the child of a span it
+left out: the delegates of 'parent_based' for a parent that is not sampled say
+whether it does.
 
 18.4.3  Span Data Population
 
@@ -1186,6 +1204,12 @@ the span with data collected during scope execution:
     sets the span's status code and description string.  The configured
     status lines are tried in order and the first whose condition holds
     provides the one status that is set.
+
+None of that data is evaluated for a span whose flag_norec is set, the baggage
+excepted.  The SDK drops the attributes, the events, the links, the status and
+the exceptions of a span that does not record, while the baggage travels in the
+span context and reaches the downstream services whatever the sampling decision
+was.
 
 18.4.4  Span Context Injection
 

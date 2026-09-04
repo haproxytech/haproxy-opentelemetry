@@ -394,6 +394,7 @@ struct otelc_span_context {
 
 struct otelc_span_ops {
 	int (*get_id)(const struct otelc_span *span, uint8_t *span_id, size_t span_id_size, uint8_t *trace_id, size_t trace_id_size, uint8_t *trace_flags);
+	int (*is_recording)(const struct otelc_span *span);
 	void (*end_with_options)(struct otelc_span **span, const struct timespec *ts_steady, otelc_span_status_t status, const char *desc);
 	int (*set_baggage_kv_n)(const struct otelc_span *span, const struct otelc_kv *kv, size_t kv_len);
 	char *(*get_baggage)(const struct otelc_span *span, const char *key);

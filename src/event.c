@@ -583,6 +583,137 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 
 /***
  * NAME
+ *   flt_otel_scope_span_start - OTel span creation
+ *
+ * SYNOPSIS
+ *   static int flt_otel_scope_span_start(struct filter *f, struct flt_otel_scope_span *span, struct flt_otel_conf_span *conf_span, const struct timespec *ts_steady, const struct timespec *ts_system, char **err)
+ *
+ * ARGUMENTS
+ *   f         - the filter instance
+ *   span      - the runtime scope span to create the OTel span for
+ *   conf_span - the span configuration
+ *   ts_steady - the monotonic timestamp for span creation
+ *   ts_system - the wall-clock timestamp for span creation
+ *   err       - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Creates the OTel span of <span> via the tracer, using the parent span or
+ *   context resolved by flt_otel_scope_span_init() and the span kind from
+ *   <conf_span>.  A span an earlier scope has already created is left alone.
+ *   The sampler decides at creation time whether the new span records, and a
+ *   span that does not is marked with the flag_norec flag, which keeps the
+ *   caller from evaluating samples the SDK would only discard.
+ *
+ * RETURN VALUE
+ *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
+ */
+static int flt_otel_scope_span_start(struct filter *f, struct flt_otel_scope_span *span, struct flt_otel_conf_span *conf_span, const struct timespec *ts_steady, const struct timespec *ts_system, char **err)
+{
+	struct flt_otel_conf *conf = FLT_OTEL_CONF(f);
+	int                   retval = FLT_OTEL_RET_OK;
+
+	OTELC_FUNC("%p, %p, %p, %p, %p, %p:%p", f, span, conf_span, ts_steady, ts_system, OTELC_DPTR_ARGS(err));
+
+	/* The span may have been created by a scope that ran earlier. */
+	if (span->span != NULL)
+		OTELC_RETURN_INT(retval);
+
+	if (conf->instr->tracer == NULL) {
+		FLT_OTEL_ERR("span '%s' is used but the traces signal is not configured", span->id);
+
+		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+	}
+
+	span->span = OTELC_OPS(conf->instr->tracer, start_span_with_options, span->id, span->ref_span, span->ref_ctx, ts_steady, ts_system, conf_span->kind, NULL, 0);
+	if (span->span == NULL)
+		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+
+	/*
+	 * Everything added to a span the sampler left out is discarded by the
+	 * SDK, so such a span is marked here and its samples are not evaluated
+	 * at all.  The decision is taken per span because a sampler may well
+	 * record a child of a span that is not recording.
+	 */
+	if (OTELC_OPS(span->span, is_recording) == 0) {
+		OTELC_DBG(INFO, "span '%s' is not recording", span->id);
+
+		span->flag_norec = 1;
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_scope_span_samples - span attribute, event and status evaluation
+ *
+ * SYNOPSIS
+ *   static int flt_otel_scope_span_samples(struct stream *s, uint dir, struct flt_otel_conf_span *conf_span, struct flt_otel_scope_data *data, char **err)
+ *
+ * ARGUMENTS
+ *   s         - the stream providing the sample context
+ *   dir       - the sample fetch direction (SMP_OPT_DIR_REQ/RES)
+ *   conf_span - the span configuration
+ *   data      - the scope data the evaluated samples are collected into
+ *   err       - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Evaluates the attribute, event and status samples of <conf_span> whose
+ *   condition holds and collects the results in <data>.  A span has a single
+ *   status: several status lines may be defined, each with a condition, and
+ *   the first whose condition holds is applied while the remaining lines are
+ *   skipped.  The baggage samples are evaluated by the caller because they
+ *   are needed whatever the sampling decision was.
+ *
+ * RETURN VALUE
+ *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
+ */
+static int flt_otel_scope_span_samples(struct stream *s, uint dir, struct flt_otel_conf_span *conf_span, struct flt_otel_scope_data *data, char **err)
+{
+	struct flt_otel_conf_sample *sample;
+	int                          retval = FLT_OTEL_RET_OK;
+
+	OTELC_FUNC("%p, %u, %p, %p, %p:%p", s, dir, conf_span, data, OTELC_DPTR_ARGS(err));
+
+	list_for_each_entry(sample, &(conf_span->attributes), list) {
+		if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
+			continue;
+
+		OTELC_DBG(DEBUG, "adding attribute '%s' -> '%s'", sample->key, sample->fmt_string);
+
+		if (flt_otel_sample_add(s, dir, sample, data, FLT_OTEL_EVENT_SAMPLE_ATTRIBUTE, err) == FLT_OTEL_RET_ERROR)
+			retval = FLT_OTEL_RET_ERROR;
+	}
+
+	list_for_each_entry(sample, &(conf_span->events), list) {
+		if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
+			continue;
+
+		OTELC_DBG(DEBUG, "adding event '%s' -> '%s'", sample->key, sample->fmt_string);
+
+		if (flt_otel_sample_add(s, dir, sample, data, FLT_OTEL_EVENT_SAMPLE_EVENT, err) == FLT_OTEL_RET_ERROR)
+			retval = FLT_OTEL_RET_ERROR;
+	}
+
+	list_for_each_entry(sample, &(conf_span->statuses), list) {
+		if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
+			continue;
+
+		OTELC_DBG(DEBUG, "adding status '%s' -> '%s'", sample->key, OTELC_STR_ARG(sample->fmt_string));
+
+		if (flt_otel_sample_add(s, dir, sample, data, FLT_OTEL_EVENT_SAMPLE_STATUS, err) == FLT_OTEL_RET_ERROR)
+			retval = FLT_OTEL_RET_ERROR;
+
+		break;
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
  *   flt_otel_scope_run_span - single span execution
  *
  * SYNOPSIS
@@ -601,36 +732,22 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
  *   err       - indirect pointer to error message string
  *
  * DESCRIPTION
- *   Executes a single span: creates the OTel span on first call via the tracer,
- *   adds links, baggage, attributes, events and status from <data>, then
- *   injects the span context into HTTP headers or HAProxy variables if
- *   configured in <conf_span>.
+ *   Executes a single span created by flt_otel_scope_span_start(): adds links,
+ *   baggage, attributes, events and status from <data>, then injects the span
+ *   context into HTTP headers or HAProxy variables if configured in
+ *   <conf_span>.
  *
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
  */
 static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct channel *chn, uint dir, struct flt_otel_scope_span *span, struct flt_otel_scope_data *data, struct flt_otel_conf_span *conf_span, const struct timespec *ts_steady, const struct timespec *ts_system, char **err)
 {
-	struct flt_otel_conf *conf = FLT_OTEL_CONF(f);
-	int                   retval = FLT_OTEL_RET_OK;
+	int retval = FLT_OTEL_RET_OK;
 
 	OTELC_FUNC("%p, %p, %p, %u, %p, %p, %p, %p, %p, %p:%p", s, f, chn, dir, span, data, conf_span, ts_steady, ts_system, OTELC_DPTR_ARGS(err));
 
-	if (span == NULL)
+	if ((span == NULL) || (span->span == NULL))
 		OTELC_RETURN_INT(retval);
-
-	if (conf->instr->tracer == NULL) {
-		FLT_OTEL_ERR("span '%s' is used but the traces signal is not configured", span->id);
-
-		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
-	}
-
-	/* Create the OTel span on first invocation. */
-	if (span->span == NULL) {
-		span->span = OTELC_OPS(conf->instr->tracer, start_span_with_options, span->id, span->ref_span, span->ref_ctx, ts_steady, ts_system, conf_span->kind, NULL, 0);
-		if (span->span == NULL)
-			OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
-	}
 
 	/* Add all resolved span links to the current span. */
 	if (!LIST_ISEMPTY(&(data->links))) {
@@ -669,7 +786,7 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 			retval = FLT_OTEL_RET_ERROR;
 
 	/* Record exceptions on the span via the wrapper's record_exception(). */
-	if (!LIST_ISEMPTY(&(conf_span->exceptions))) {
+	if (!span->flag_norec && !LIST_ISEMPTY(&(conf_span->exceptions))) {
 		struct flt_otel_conf_exception *conf_exc;
 
 		list_for_each_entry(conf_exc, &(conf_span->exceptions), list) {
@@ -1088,11 +1205,22 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 		}
 
 		/*
+		 * The span is created before its samples are evaluated, so that
+		 * the sampling decision is known here: a span that records
+		 * nothing needs none of the samples that only feed the export.
+		 */
+		if (flt_otel_scope_span_start(f, span, conf_span, ts_steady, ts_system, err) == FLT_OTEL_RET_ERROR) {
+			retval = FLT_OTEL_RET_ERROR;
+
+			continue;
+		}
+
+		/*
 		 * Resolve configured span links against the runtime context.
 		 * Each link name is looked up first in the active spans, then
 		 * in the extracted contexts.
 		 */
-		if (!LIST_ISEMPTY(&(conf_span->links))) {
+		if (!span->flag_norec && !LIST_ISEMPTY(&(conf_span->links))) {
 			struct flt_otel_runtime_context *rt_ctx = FLT_OTEL_RT_CTX(f->ctx);
 			struct flt_otel_conf_link       *conf_link;
 
@@ -1148,26 +1276,19 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 			}
 		}
 
-		list_for_each_entry(sample, &(conf_span->attributes), list) {
-			if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
-				continue;
-
-			OTELC_DBG(DEBUG, "adding attribute '%s' -> '%s'", sample->key, sample->fmt_string);
-
-			if (flt_otel_sample_add(s, dir, sample, &data, FLT_OTEL_EVENT_SAMPLE_ATTRIBUTE, err) == FLT_OTEL_RET_ERROR)
+		/*
+		 * The attributes, events and the status of a span that records
+		 * nothing are dropped by the SDK, so they are not evaluated.
+		 */
+		if (!span->flag_norec)
+			if (flt_otel_scope_span_samples(s, dir, conf_span, &data, err) == FLT_OTEL_RET_ERROR)
 				retval = FLT_OTEL_RET_ERROR;
-		}
 
-		list_for_each_entry(sample, &(conf_span->events), list) {
-			if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
-				continue;
-
-			OTELC_DBG(DEBUG, "adding event '%s' -> '%s'", sample->key, sample->fmt_string);
-
-			if (flt_otel_sample_add(s, dir, sample, &data, FLT_OTEL_EVENT_SAMPLE_EVENT, err) == FLT_OTEL_RET_ERROR)
-				retval = FLT_OTEL_RET_ERROR;
-		}
-
+		/*
+		 * Baggage rides on the span context and reaches the downstream
+		 * services whatever the sampling decision was, so it is set
+		 * even on a span that records nothing.
+		 */
 		list_for_each_entry(sample, &(conf_span->baggages), list) {
 			if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
 				continue;
@@ -1176,23 +1297,6 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 
 			if (flt_otel_sample_add(s, dir, sample, &data, FLT_OTEL_EVENT_SAMPLE_BAGGAGE, err) == FLT_OTEL_RET_ERROR)
 				retval = FLT_OTEL_RET_ERROR;
-		}
-
-		/*
-		 * A span has a single status.  Several status lines may be
-		 * defined, each gated by a condition; the first whose condition
-		 * holds is applied and the remaining lines are skipped.
-		 */
-		list_for_each_entry(sample, &(conf_span->statuses), list) {
-			if (flt_otel_cond_pass(sample->cond, s, dir) == 0)
-				continue;
-
-			OTELC_DBG(DEBUG, "adding status '%s' -> '%s'", sample->key, OTELC_STR_ARG(sample->fmt_string));
-
-			if (flt_otel_sample_add(s, dir, sample, &data, FLT_OTEL_EVENT_SAMPLE_STATUS, err) == FLT_OTEL_RET_ERROR)
-				retval = FLT_OTEL_RET_ERROR;
-
-			break;
 		}
 
 		/* Attempt to run the span regardless of earlier errors. */

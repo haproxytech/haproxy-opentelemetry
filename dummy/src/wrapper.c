@@ -402,6 +402,19 @@ static int otel_span_get_id(const struct otelc_span *span, uint8_t *span_id, siz
 }
 
 
+/*
+ * Every span reports itself as recording, which keeps the filter on the same
+ * path it takes with a real library that samples the trace; a span reported
+ * as not recording would instead make the filter skip its sample evaluation.
+ */
+static int otel_span_is_recording(const struct otelc_span *span)
+{
+	OTELC_FUNC("%p", span);
+
+	OTELC_RETURN_INT(true);
+}
+
+
 static void otel_span_end_with_options(struct otelc_span **span, const struct timespec *ts_steady, otelc_span_status_t status, const char *desc)
 {
 	OTELC_FUNC("%p:%p, %p, %d, \"%s\"", OTELC_DPTR_ARGS(span), ts_steady, status, OTELC_STR_ARG(desc));
@@ -489,6 +502,7 @@ static int otel_span_record_exception(const struct otelc_span *span, const char 
 
 static const struct otelc_span_ops otel_span_ops = {
 	.get_id              = otel_span_get_id,
+	.is_recording        = otel_span_is_recording,
 	.end_with_options    = otel_span_end_with_options,
 	.set_baggage_kv_n    = otel_span_set_baggage_kv_n,
 	.get_baggage         = otel_span_get_baggage,
