@@ -1,7 +1,7 @@
                    -----------------------------------------
                     HAProxy OTel filter configuration guide
                                Version 2.2.0
-                        ( Last update: 2026-08-17 )
+                        ( Last update: 2026-09-04 )
                    -----------------------------------------
                          Author : Miroslav Zagorac
                    Contact : mzagorac at haproxy dot com
@@ -1055,6 +1055,16 @@ Supported types:
                                     "always_on" (default) or "always_off"
     local_not_sampled               sampler for a not-sampled local parent:
                                     "always_on" or "always_off" (default)
+
+
+A span the sampler leaves out is not exported, and the SDK drops the attributes,
+the events, the links, the status and the exceptions that are attached to it.
+The filter therefore evaluates none of those samples for such a span, which is
+what makes a trace that is not sampled inexpensive.  The decision is taken for
+each span on its own, so a sampler that records the child of a span it left out
+still receives the samples of that child.  What the downstream services need is
+kept in every case: the span is created, the 'traceparent' header carries the
+trace with the sampled flag cleared, and the baggage is set as configured.
 
 
 4.3. Processors

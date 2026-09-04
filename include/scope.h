@@ -11,10 +11,11 @@
 
 #define FLT_OTEL_RT_CTX(p)                   ((struct flt_otel_runtime_context *)(p))
 
-#define FLT_OTEL_DBG_SCOPE_SPAN(h,p)                                \
-	OTELC_DBG(DEBUG, h "%p:{ '%s' %zu %u %hhu %p %p %p }", (p), \
-	          FLT_OTEL_STR_HDR_ARGS(p, id), (p)->smp_opt_dir,   \
-	          (p)->flag_finish, (p)->span, (p)->ref_span, (p)->ref_ctx)
+#define FLT_OTEL_DBG_SCOPE_SPAN(h,p)                                     \
+	OTELC_DBG(DEBUG, h "%p:{ '%s' %zu %u %hhu %hhu %p %p %p }", (p), \
+	          FLT_OTEL_STR_HDR_ARGS(p, id), (p)->smp_opt_dir,        \
+	          (p)->flag_finish, (p)->flag_norec, (p)->span,          \
+	          (p)->ref_span, (p)->ref_ctx)
 
 #define FLT_OTEL_DBG_SCOPE_CONTEXT(h,p)                                  \
 	OTELC_DBG(DEBUG, h "%p:{ '%s' %zu %u %hhu %p '%s' }", (p),       \
@@ -98,6 +99,7 @@ struct flt_otel_scope_span {
 	FLT_OTEL_CONST_STR_HDR(id);             /* The span operation name/len. */
 	uint                       smp_opt_dir; /* SMP_OPT_DIR_RE(Q|S) */
 	bool                       flag_finish; /* Whether the span is marked for completion. */
+	bool                       flag_norec;  /* Whether the span is not recording (sampled out). */
 	struct otelc_span         *span;        /* The current span. */
 	struct otelc_span         *ref_span;    /* Span to which the current span refers. */
 	struct otelc_span_context *ref_ctx;     /* Span context to which the current span refers. */
