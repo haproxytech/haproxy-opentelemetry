@@ -204,9 +204,21 @@ struct flt_otel_scope_span *flt_otel_scope_span_init(struct flt_otel_runtime_con
 				 * regardless would silently turn it into a trace
 				 * root, which is meaningless.
 				 */
-				FLT_OTEL_ERR("cannot find referenced span/context '%s'", ref_id);
+				if (rt_ctx->flag_norec && (rt_ctx->root_span != NULL)) {
+					/*
+					 * Non-recording fast path: the parent was
+					 * skipped on purpose; hang this span off
+					 * the root so that the trace/flags it
+					 * propagates stay those of the stream.
+					 */
+					OTELC_DBG(DEBUG, "fast path: parent '%s' skipped, using root span", ref_id);
 
-				OTELC_RETURN_PTR(retptr);
+					ref_span = rt_ctx->root_span;
+				} else {
+					FLT_OTEL_ERR("cannot find referenced span/context '%s'", ref_id);
+
+					OTELC_RETURN_PTR(retptr);
+				}
 			}
 		}
 	}
