@@ -80,6 +80,7 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
 	struct sample                     smp;
 	struct otelc_value                value;
 	struct flt_otel_scope_data_kv     instr_attr;
+	struct buffer                    *buffer = NULL;
 	int                               retval = FLT_OTEL_RET_OK;
 
 	OTELC_FUNC("%p, %u, %p, %p, %p, %p:%p", s, dir, meter, instr_ref, instr, OTELC_DPTR_ARGS(err));
@@ -125,17 +126,16 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
 		 * Log-format path: evaluate into a temporary buffer and present
 		 * the result as a string sample.
 		 */
-		smp.data.u.str.area = OTELC_CALLOC(1, global.tune.bufsize);
-		if (smp.data.u.str.area == NULL) {
-			FLT_OTEL_ERR_NOMEM();
-
+		buffer = flt_otel_trash_alloc(0, err);
+		if (buffer == NULL) {
 			otelc_kv_destroy(&(instr_attr.attr), instr_attr.cnt);
 
 			OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
 		}
 
 		smp.data.type       = SMP_T_STR;
-		smp.data.u.str.data = build_logline(s, smp.data.u.str.area, global.tune.bufsize, &(sample->lf_expr));
+		smp.data.u.str      = *buffer;
+		smp.data.u.str.data = build_logline(s, buffer->area, buffer->size, &(sample->lf_expr));
 	} else {
 		/* The expressions list always contains exactly one entry. */
 		expr = LIST_NEXT(&(sample->exprs), struct flt_otel_conf_sample_expr *, list);
@@ -180,9 +180,7 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
 	}
 
 	otelc_kv_destroy(&(instr_attr.attr), instr_attr.cnt);
-
-	if (sample->lf_used)
-		OTELC_SFREE(smp.data.u.str.area);
+	flt_otel_trash_free(&buffer);
 
 	OTELC_RETURN_INT(retval);
 }
@@ -427,7 +425,7 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 		struct sample                     smp;
 		struct otelc_span                *otel_span = NULL;
 		struct flt_otel_scope_data_kv     log_attr;
-		struct buffer                     buffer;
+		struct buffer                    *buffer;
 		const struct timespec            *ts_ptr;
 		struct timespec                   ts_log;
 		int                               rc;
@@ -468,16 +466,16 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 		/* The samples list has exactly one entry. */
 		sample = LIST_NEXT(&(conf_log->samples), typeof(sample), list);
 
-		(void)memset(&buffer, 0, sizeof(buffer));
+		buffer = NULL;
 
 		if (sample->lf_used) {
 			/*
 			 * Log-format path: evaluate the log-format expression
-			 * into a dynamically allocated buffer.
+			 * into a trash buffer.
 			 */
-			chunk_init(&buffer, OTELC_CALLOC(1, global.tune.bufsize), global.tune.bufsize);
-			if (buffer.area != NULL)
-				buffer.data = build_logline(s, buffer.area, buffer.size, &(sample->lf_expr));
+			buffer = flt_otel_trash_alloc(0, err);
+			if (buffer != NULL)
+				buffer->data = build_logline(s, buffer->area, buffer->size, &(sample->lf_expr));
 		} else {
 			/*
 			 * Bare sample expression path: evaluate each expression
@@ -495,13 +493,13 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 					break;
 				}
 
-				if (buffer.area == NULL) {
-					chunk_init(&buffer, OTELC_CALLOC(1, global.tune.bufsize), global.tune.bufsize);
-					if (buffer.area == NULL)
+				if (buffer == NULL) {
+					buffer = flt_otel_trash_alloc(0, err);
+					if (buffer == NULL)
 						break;
 				}
 
-				rc = flt_otel_sample_to_str(&(smp.data), buffer.area + buffer.data, buffer.size - buffer.data, err);
+				rc = flt_otel_sample_to_str(&(smp.data), buffer->area + buffer->data, buffer->size - buffer->data, err);
 				if (rc == FLT_OTEL_RET_ERROR) {
 					retval    = FLT_OTEL_RET_ERROR;
 					flag_skip = true;
@@ -509,14 +507,11 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 					break;
 				}
 
-				buffer.data += rc;
+				buffer->data += rc;
 			}
 		}
 
-		if (buffer.area == NULL) {
-			if (retval != FLT_OTEL_RET_ERROR)
-				FLT_OTEL_ERR_NOMEM();
-
+		if (buffer == NULL) {
 			retval = FLT_OTEL_RET_ERROR;
 
 			otelc_kv_destroy(&(log_attr.attr), log_attr.cnt);
@@ -527,7 +522,7 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 		/* Do not emit a log record whose body evaluation failed. */
 		if (flag_skip) {
 			otelc_kv_destroy(&(log_attr.attr), log_attr.cnt);
-			OTELC_SFREE(buffer.area);
+			flt_otel_trash_free(&buffer);
 
 			continue;
 		}
@@ -570,11 +565,11 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 				ts_ptr = &ts_log;
 		}
 
-		if (OTELC_OPS(logger, log_span, conf_log->severity, conf_log->event_id, conf_log->event_name, otel_span, ts_ptr, ts, log_attr.attr, log_attr.cnt, "%s", buffer.area) == OTELC_RET_ERROR)
+		if (OTELC_OPS(logger, log_span, conf_log->severity, conf_log->event_id, conf_log->event_name, otel_span, ts_ptr, ts, log_attr.attr, log_attr.cnt, "%s", buffer->area) == OTELC_RET_ERROR)
 			retval = FLT_OTEL_RET_ERROR;
 
 		otelc_kv_destroy(&(log_attr.attr), log_attr.cnt);
-		OTELC_SFREE(buffer.area);
+		flt_otel_trash_free(&buffer);
 	}
 
 	OTELC_RETURN_INT(retval);

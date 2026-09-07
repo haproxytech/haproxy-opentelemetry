@@ -1396,9 +1396,9 @@ The recording function flt_otel_scope_run_instrument_record()
   the create-form instrument's samples list, using the stream's backend,
   session and direction context.
 
-  Log-format path: if sample->lf_used is set, allocates a temporary
-  buffer of global.tune.bufsize, calls build_logline() to evaluate the
-  log-format expression, and presents the result as an SMP_T_STR sample.
+  Log-format path: if sample->lf_used is set, takes a trash buffer through
+  flt_otel_trash_alloc(), calls build_logline() to evaluate the log-format
+  expression into it, and presents the result as an SMP_T_STR sample.
 
 Both paths converge on flt_otel_sample_to_value(), which converts the HAProxy
 sample data to an otelc_value.  A metric instrument value is always int64, so
@@ -1489,7 +1489,7 @@ For each configured log record the function performs:
      two paths:
 
      Log-format path (sample->lf_used is true):
-       A temporary buffer of global.tune.bufsize is allocated and
+       A trash buffer is taken through flt_otel_trash_alloc() and
        build_logline() evaluates the log-format expression into it.
 
      Bare sample expression path:

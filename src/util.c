@@ -707,7 +707,8 @@ int flt_otel_sample_to_str(const struct sample_data *data, char *value, size_t s
  */
 int flt_otel_sample_to_value(const char *key, const struct sample_data *data, struct otelc_value *value, char **err)
 {
-	int retval = FLT_OTEL_RET_ERROR;
+	struct buffer *buffer;
+	int            retval = FLT_OTEL_RET_ERROR;
 
 	OTELC_FUNC("\"%s\", %p, %p, %p:%p", OTELC_STR_ARG(key), data, value, OTELC_DPTR_ARGS(err));
 
@@ -734,13 +735,22 @@ int flt_otel_sample_to_value(const char *key, const struct sample_data *data, st
 		retval = sizeof(value->u.value_int64);
 	}
 	else {
-		value->u_type       = OTELC_VALUE_DATA;
-		value->u.value_data = OTELC_MALLOC(global.tune.bufsize);
+		buffer = flt_otel_trash_alloc(0, err);
+		if (buffer != NULL) {
+			retval = flt_otel_sample_to_str(data, buffer->area, buffer->size, err);
+			if (retval != FLT_OTEL_RET_ERROR) {
+				value->u.value_data = OTELC_STRNDUP(buffer->area, retval);
+				if (value->u.value_data == NULL) {
+					FLT_OTEL_ERR_NOMEM();
 
-		if (value->u.value_data == NULL)
-			FLT_OTEL_ERR_NOMEM();
-		else
-			retval = flt_otel_sample_to_str(data, value->u.value_data, global.tune.bufsize, err);
+					retval = FLT_OTEL_RET_ERROR;
+				} else {
+					value->u_type = OTELC_VALUE_DATA;
+				}
+			}
+
+			flt_otel_trash_free(&buffer);
+		}
 	}
 
 	OTELC_RETURN_INT(retval);
@@ -1017,7 +1027,8 @@ int flt_otel_sample_add_kv(struct flt_otel_scope_data_kv *kv, const char *key, c
  *   When <flag_native> is true and the sample has exactly one expression, the
  *   native HAProxy sample type is preserved via flt_otel_sample_to_value()
  *   (e.g. bool, int64).  Otherwise, all expression results are concatenated
- *   into a string (OTELC_VALUE_DATA).
+ *   into a string (OTELC_VALUE_DATA), built in a trash buffer and then copied
+ *   into an allocation of its own size.
  *
  *   On success, ownership of any dynamically allocated data within <value>
  *   (value->u.value_data for OTELC_VALUE_DATA) is transferred to the caller.
@@ -1030,33 +1041,26 @@ int flt_otel_sample_eval(struct stream *s, uint dir, struct flt_otel_conf_sample
 {
 	const struct flt_otel_conf_sample_expr *expr;
 	struct sample                           smp;
-	struct buffer                           buffer;
-	int                                     idx = 0, rc, retval = FLT_OTEL_RET_OK;
+	struct buffer                          *buffer = NULL;
+	int                                     rc, retval = FLT_OTEL_RET_OK;
 
 	OTELC_FUNC("%p, %u, %p, %hhu, %p, %p:%p", s, dir, sample, flag_native, value, OTELC_DPTR_ARGS(err));
 
 	FLT_OTEL_DBG_CONF_SAMPLE("sample ", sample);
 
 	(void)memset(value, 0, sizeof(*value));
-	(void)memset(&buffer, 0, sizeof(buffer));
 
 	/* Evaluate the sample: log-format path or expression list path. */
 	if (sample->lf_used) {
 		/*
 		 * Log-format path: evaluate the log-format expression into a
-		 * dynamically allocated buffer.
+		 * trash buffer.
 		 */
-		chunk_init(&buffer, OTELC_CALLOC(1, global.tune.bufsize), global.tune.bufsize);
-		if (buffer.area == NULL) {
-			FLT_OTEL_ERR_NOMEM();
-
+		buffer = flt_otel_trash_alloc(0, err);
+		if (buffer == NULL)
 			retval = FLT_OTEL_RET_ERROR;
-		} else {
-			buffer.data = build_logline(s, buffer.area, buffer.size, &(sample->lf_expr));
-
-			value->u_type       = OTELC_VALUE_DATA;
-			value->u.value_data = buffer.area;
-		}
+		else
+			buffer->data = build_logline(s, buffer->area, buffer->size, &(sample->lf_expr));
 	} else {
 		list_for_each_entry(expr, &(sample->exprs), list) {
 			FLT_OTEL_DBG_CONF_SAMPLE_EXPR("sample expression ", expr);
@@ -1094,39 +1098,44 @@ int flt_otel_sample_eval(struct stream *s, uint dir, struct flt_otel_conf_sample
 					break;
 				}
 			} else {
-				if (buffer.area == NULL) {
-					chunk_init(&buffer, OTELC_CALLOC(1, global.tune.bufsize), global.tune.bufsize);
-					if (buffer.area == NULL) {
-						FLT_OTEL_ERR_NOMEM();
-
+				if (buffer == NULL) {
+					buffer = flt_otel_trash_alloc(0, err);
+					if (buffer == NULL) {
 						retval = FLT_OTEL_RET_ERROR;
 
 						break;
 					}
 				}
 
-				rc = flt_otel_sample_to_str(&(smp.data), buffer.area + buffer.data, buffer.size - buffer.data, err);
+				rc = flt_otel_sample_to_str(&(smp.data), buffer->area + buffer->data, buffer->size - buffer->data, err);
 				if (rc == FLT_OTEL_RET_ERROR) {
 					retval = FLT_OTEL_RET_ERROR;
 
 					break;
-				} else {
-					buffer.data += rc;
-
-					if (sample->num_exprs == ++idx) {
-						value->u_type       = OTELC_VALUE_DATA;
-						value->u.value_data = buffer.area;
-					}
 				}
+
+				buffer->data += rc;
 			}
 		}
 	}
 
+	/* The trash buffer content becomes a value of exactly its size. */
+	if ((retval == FLT_OTEL_RET_OK) && (buffer != NULL)) {
+		value->u.value_data = OTELC_STRNDUP(buffer->area, buffer->data);
+		if (value->u.value_data == NULL) {
+			FLT_OTEL_ERR_NOMEM();
+
+			retval = FLT_OTEL_RET_ERROR;
+		} else {
+			value->u_type = OTELC_VALUE_DATA;
+		}
+	}
+
+	flt_otel_trash_free(&buffer);
+
 	/* On error, free any dynamically allocated value data. */
 	if (retval == FLT_OTEL_RET_ERROR) {
-		if (buffer.area != NULL)
-			OTELC_SFREE(buffer.area);
-		else if (value->u_type == OTELC_VALUE_DATA)
+		if (value->u_type == OTELC_VALUE_DATA)
 			OTELC_SFREE(value->u.value_data);
 
 		(void)memset(value, 0, sizeof(*value));
