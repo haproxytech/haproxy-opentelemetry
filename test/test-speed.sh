@@ -6,7 +6,7 @@
     SH_ARG_BACKEND=
         SH_ARG_CFG=
         SH_ARG_DIR=
-       SH_ARG_RATE="100.0 75.0 50.0 25.0 10.0 2.5 0.0 disabled off"
+       SH_ARG_RATE="100.0 75.0 50.0 25.0 10.0 2.5 0.0 disabled off unsampled"
    SH_ARG_DURATION="300"
 	   SH_NAME="$(basename "${0}")"
         SH_LOG_DIR="_logs"
@@ -91,11 +91,18 @@ sh_haproxy_run ()
 	_var_sed_haproxy=
 	_var_sed_otel=
 	_var_sed_yml="s/\(exporters: *exporter_[a-z]*_\).*/\1dev_null/g"
+	_var_types="always_on\|parent_based\|trace_id_ratio_based\|composite"
+	_var_keys="delegate\|composable\|ratio\|local_[a-z_]*\|remote_[a-z_]*"
 
 	if test "${_arg_ratio}" = "disabled"; then
 		_var_sed_otel="s/no \(option disabled\)/\1/"
 	elif test "${_arg_ratio}" = "off"; then
 		_var_sed_haproxy="s/^\(.* filter opentelemetry .*\)/#\1/g; s/^\(.* otel-group .*\)/#\1/g"
+	elif test "${_arg_ratio}" = "unsampled"; then
+		# The sampler drops every trace, and the keys of the one
+		# it replaces are commented out so that none is left over.
+		_var_sed_yml="${_var_sed_yml}; s/^\( *\)type: *\(${_var_types}\) *$/\1type:     always_off/"
+		_var_sed_yml="${_var_sed_yml}; s/^\( *\)\(${_var_keys}\):/\1#\2:/"
 	else
 		_var_sed_otel="s/\(rate-limit\) 100.0/\1 ${_arg_ratio}/"
 	fi

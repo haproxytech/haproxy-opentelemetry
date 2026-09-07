@@ -1,7 +1,7 @@
                    -----------------------------------------
                      HAProxy OTEL filter speed test guide
                                Version 2.2.0
-                          ( Last update: 2026-08-17 )
+                          ( Last update: 2026-09-07 )
                    -----------------------------------------
                          Author : Miroslav Zagorac
                    Contact : mzagorac at haproxy dot com
@@ -184,8 +184,8 @@ All published figures were measured on the following test system:
 5. Rate-limit levels
 ---------------------
 
-By default the script tests nine rate-limit levels in the following order (the
-'-r' option substitutes another series):
+By default the script tests ten levels in the following order (the '-r' option
+substitutes another series):
 
   100.0    - the filter processes every stream (worst case)
    75.0    - the filter processes 75% of streams
@@ -204,6 +204,12 @@ By default the script tests nine rate-limit levels in the following order (the
   off      - the 'filter opentelemetry' and 'otel-group' directives are
              commented out of haproxy.cfg; the filter is not loaded and has zero
              presence in the processing path; this is the absolute baseline
+
+  unsampled - the filter processes every stream, but the traces sampler of
+             otel.yml is replaced by 'always_off', so no span is exported and
+             the samples of a span that records nothing are never evaluated;
+             this measures what a stream costs when the sampler leaves its trace
+             out.  It is not a rate limit: the rate limit stays at 100.0
 
 In the result tables, the 'overhead' column is the throughput loss relative to
 the 'off' baseline, expressed as a percentage:
