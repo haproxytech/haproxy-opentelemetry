@@ -1,7 +1,7 @@
                    -----------------------------------------
                       The HAProxy OpenTelemetry filter (OTel)
                                  Version 2.2.0
-                          ( Last update: 2026-08-17 )
+                          ( Last update: 2026-09-07 )
                    -----------------------------------------
                            Author : Miroslav Zagorac
                      Contact : mzagorac at haproxy dot com
@@ -64,6 +64,10 @@ be negligible (see the 'rate-limit' keyword).
 The OTel filter allows intensive use of ACLs, which can be defined anywhere in
 the configuration.  Thus, it is possible to use the filter only for those
 connections that are of interest to us.
+
+The OTel filter is distributed under the GNU General Public License, version 2
+(reproduced in the LICENSE file) or any later version; the copyright is held by
+HAProxy Technologies.
 
 
 2. Build instructions

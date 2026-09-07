@@ -353,9 +353,12 @@ Detailed documentation is available in the following files:
 - [dummy/README](dummy/README) -- build-only stand-in for the wrapper library
 - [ChangeLog](ChangeLog) -- release notes
 
-### Copyright
+### License
 
-Copyright 2026 HAProxy Technologies
+This project is distributed under the [GNU General Public License](LICENSE),
+version 2 or any later version.
+
+Copyright (C) 2026 HAProxy Technologies.
 
 ### Author
 

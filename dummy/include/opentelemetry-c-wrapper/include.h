@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: LGPL-2.1-or-later */
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 
 /***
  * Build-only stand-in for the OpenTelemetry C wrapper, API version 3.3.0.
