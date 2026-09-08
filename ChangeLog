@@ -6,6 +6,138 @@ commits, with directly related commits folded into a single bullet, and the
 git log keeps the full descriptions.
 
 
+Version 2.3.0 (2026-09-11)
+--------------------------
+
+The samples of a span that the sampler leaves out are no longer evaluated.  The
+SDK discards the attributes, events, links, status and exceptions of such a
+span, so each span is created before its samples and asked whether it records,
+and the ones that do not skip the evaluation.  The span itself is still created,
+the injected 'traceparent' carries the trace with the sampled flag cleared, and
+the baggage samples are evaluated whatever the decision was.  A sample builds
+its string in a trash buffer and keeps a copy of the produced size, instead of
+a zeroed buffer of tune.bufsize bytes held until the scope data is freed.  The
+speed test gained an 'unsampled' level that measures that path.
+
+How often each keyword of the configuration file may be written is now stated
+in README-implementation and enforced by the parser and the configuration check.
+The words 'if' and 'unless' are refused as names, an identifier may run to 127
+characters, an ACL name is unique within its section, and a condition may mix
+the ACLs of the otel-scope, the instrumentation and the proxy.  The sections
+may stand in any order, every line lives inside a top-level OTel scope, each
+otel-instrumentation keyword is written once, and every otel-group must be named
+on a 'groups' line.  A key of 'attribute', 'event', 'baggage', 'set-var' or
+'set-var-ctx' may repeat once per condition with the first match applied, 'link'
+takes a condition and repeats, 'otel-stop' repeats, and the create lines of one
+instrument name share a single owner.  The inject and extract context names,
+the span and context names of every reference, the root span marks, the metric
+instrument name and unit and the W3C key of a context field are checked at parse
+time; a scope that never runs, an event the filter placement never fires and a
+rejected event pairing are reported where they stand.  A new parser test runs
+one 'haproxy -c' per case against those rules.
+
+A scope whose event condition did not match no longer disables the whole session
+because one of its spans carries the 'root' mark.  A request fetch on a stream
+lifecycle event, such as 'path' on 'on-backend-set', read the response side
+and returned nothing; those events now carry a usable direction.  An aborted
+parse left the section pointers dangling, so the next filter line made the check
+read freed memory; the pointers are cleared now.  A filter of a backend section
+arms its idle timer and no longer re-runs the frontend's http-request rules,
+and 'on-server-unavailable' fires only when no server was reached.  The 'config'
+parse error names its keyword, a sample expression is no longer measured as a
+name, the same expression may stand twice in one value, and an 'id' written
+after 'config' on the filter line selects the scope.
+
+The GNU General Public License, version 2 was added as the LICENSE file and
+the headers moved from the LGPL to the GPL, so the whole filter is under one
+license.  The keyword guides were corrected and completed, the warnings of the
+configuration check are described where the keyword is, and test/README.md gives
+an overview of the tests.  The required wrapper version is raised to 3.4.0,
+whose header exposes the debug level list in every build, so the 'debug-level'
+value is checked in a release build as well.
+
+  * MEDIUM: Skipped the samples of a span that records nothing; each span is now
+    created before its samples are evaluated and asked whether it records, while
+    the injected 'traceparent' and the baggage stay in place.
+  * MINOR: Evaluated the samples in a trash buffer and kept a copy of the size
+    produced, instead of a zeroed tune.bufsize buffer per value.
+  * MINOR: Added the 'unsampled' level to the speed test, whose sampler drops
+    every trace.
+  * LICENSE: Added the LICENSE file and moved the headers from the LGPL to the
+    GPL.
+  * CLEANUP: Collected the session disabling into one function.
+  * BUG/MINOR: Kept the session alive when a scope holding a root-marked span
+    is skipped by its event condition.
+  * MINOR: Checked 'extract use-headers' against the scope event, since the
+    stream start and stop events carry no readable channel.
+  * CLEANUP: Used the span event dump macro where the events are handled.
+  * BUG/MINOR: Gave the events that run on no channel a usable fetch direction,
+    so a request fetch on 'on-backend-set' reads the request side.
+  * BUG/MINOR: Cleared the section state after an aborted parse, which left
+    'haproxy -c' reading freed memory on the next filter line.
+  * MINOR: Required every otel-group to be named on a 'groups' line.
+  * BUG/MINOR: Armed the idle timer for a filter of a backend section, which
+    never received the stream-start callback.
+  * BUG/MINOR: Fired on-server-unavailable only when no server was reached,
+    instead of whenever no response analyser ran.
+  * BUG/MINOR: Kept a backend filter from re-running the frontend rules, which
+    applied the http-request rules a second time.
+  * MINOR: Warned about the events the filter placement never fires.
+  * CLEANUP: Replaced the words 'gate' and 'verbatim' in the comments and the
+    guides.
+  * DOC: Added the keyword definition rules to README-implementation and updated
+    the guides.
+  * MINOR: test: Added the configuration parser test, one 'haproxy -c' run per
+    case.
+  * CLEANUP: Collected the repeated error messages into macros and added the
+    entry traces to the functions that lacked them.
+  * CLEANUP: Compared the baggage carrier key without case folding.
+  * BUG/MINOR: Named the 'config' keyword in its own parse error.
+  * BUG/MINOR: Stopped measuring a sample expression as a name, which refused
+    one past 63 characters as too long.
+  * BUG/MINOR: Allowed a repeated sample expression in one value.
+  * BUG/MINOR: Read the whole filter line before its configuration, so an 'id'
+    written after 'config' selects the scope.
+  * MINOR: Named the sample key where the value stands on its own, so that no
+    argument of a 'time', 'message' or 'value' clause is taken for one.
+  * MINOR: Refused the reserved words 'if' and 'unless' as names and raised the
+    identifier limit to 127 characters.
+  * BUG/MINOR: Allowed a condition to mix ACLs of the otel-scope, the
+    instrumentation and the proxy.
+  * MINOR: Made an ACL name unique within its section.
+  * MINOR: Rejected a bare 'if' or 'unless' with no ACL term.
+  * MINOR: Allowed the configuration sections in any order.
+  * MINOR: Required the configuration to live inside a top-level OTel scope
+    with a unique name.
+  * MINOR: Allowed each otel-instrumentation keyword only once, accepted the
+    'default' prefix on 'option' and 'log', and checked the 'debug-level' value
+    in every build.
+  * MINOR: Checked the metric instrument name and unit against the SDK rules.
+  * MINOR: Separated a repeated span line from a redefinition.
+  * MINOR: Ended a sample list at a repeated clause of the same line.
+  * MINOR: Allowed the 'otel-stop' keyword to be repeated once per condition.
+  * MINOR: Gave the 'link' keyword a condition and let it repeat.
+  * MINOR: Let a key of the 'attribute', 'event', 'baggage', 'set-var' and the
+    'set-var-ctx' keywords repeat once per condition, first match applied.
+  * MINOR: Bound the instrument lines of one name to a single owner, so only
+    one otel-scope creates the instrument.
+  * MINOR: Enforced the rules of the inject and extract context names.
+  * MINOR: Validated the span and context names of every reference.
+  * MINOR: Enforced the root span rules.
+  * MINOR: Warned about an otel-scope that never runs.
+  * MINOR: Reported the event pairings on the line that completes them.
+  * DOC: Added an overview of the tests in test/README.md.
+  * MINOR: Checked the context field key against the W3C rules.
+  * CLEANUP: Described the invalid-character check modes and marked the code
+    that cannot run with a NOTE comment.
+  * DOC: Corrected and completed the keyword guides, corrected stale statements
+    across the guides and notes, and added the load-time warnings.
+  * DOC: Completed the stream stop notes and the function reference.
+  * BUG/MINOR: Left a baggage pair whose sample yielded nothing out, which had
+    cost the span every other pair.
+  * VERSION: Bumped the filter version to 2.3.0.
+
+
 Version 2.2.0 (2026-08-17)
 --------------------------
 
