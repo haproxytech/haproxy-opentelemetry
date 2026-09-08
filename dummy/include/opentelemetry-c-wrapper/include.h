@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 
 /***
- * Build-only stand-in for the OpenTelemetry C wrapper, API version 3.3.0.
+ * Build-only stand-in for the OpenTelemetry C wrapper, API version 3.4.0.
  *
  * Only what the HAProxy OTel filter references is declared, except that the
  * enumeration lists are carried complete so every enumerator keeps its real
@@ -25,7 +25,7 @@
 
 
 /* Version.  A zero build counter and a C++ version of "none" mark the stub. */
-#define OTELC_PACKAGE_VERSION      "3.3.0"
+#define OTELC_PACKAGE_VERSION      "3.4.0"
 #ifndef OTELC_PACKAGE_BUILD
 #  define OTELC_PACKAGE_BUILD      0
 #endif
