@@ -468,7 +468,9 @@ Supported keywords:
   baggage <key> <sample> ... [{ if | unless } <condition>]
       Set baggage on the currently active span.  Baggage propagates to all child
       spans.  The data type is always string.  The <key> holds letters, digits
-      and '_', '.' and '-', the characters a context prefix takes.
+      and '_', '.' and '-', the characters a context prefix takes.  A sample
+      that yields nothing leaves its pair out, since the carrier refuses an
+      empty value and would drop the other pairs of the span with it.
 
       An optional trailing 'if'/'unless' ACL condition covers the baggage.  The
       keyword may be repeated, one line per condition: the lines of one key are

@@ -1266,7 +1266,9 @@ int flt_otel_sample_eval_time(struct stream *s, uint dir, struct flt_otel_conf_s
  *   flt_otel_sample_eval(), then dispatches the result to the appropriate
  *   handler: flt_otel_sample_add_kv() for attributes and baggage,
  *   flt_otel_sample_add_event() for events, or flt_otel_sample_set_status()
- *   for status.
+ *   for status.  A baggage pair whose sample produced an empty value is left
+ *   out: the wrapper refuses such a value and drops the pairs of the span it
+ *   has already set along with it.
  *
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_ERROR on failure, or a non-negative value from the
@@ -1298,9 +1300,24 @@ int flt_otel_sample_add(struct stream *s, uint dir, struct flt_otel_conf_sample 
 			FLT_OTEL_ERR_NOMEM();
 	}
 	else if (type == FLT_OTEL_EVENT_SAMPLE_BAGGAGE) {
-		retval = flt_otel_sample_add_kv(&(data->baggage), sample->key, &value);
-		if (retval == FLT_OTEL_RET_ERROR)
-			FLT_OTEL_ERR_NOMEM();
+		/*
+		 * The wrapper takes the baggage of a span in one call and
+		 * stops at the first empty value, losing the pairs it has
+		 * already set, so a sample that yielded nothing is left out
+		 * here instead.
+		 */
+		if (!OTELC_STR_IS_VALID(OTELC_VALUE_STR(&value))) {
+			OTELC_DBG(WARNING, "WARNING: empty baggage value, key '%s' left out", sample->key);
+
+			OTELC_SFREE(value.u.value_data);
+			(void)memset(&value, 0, sizeof(value));
+
+			retval = FLT_OTEL_RET_OK;
+		} else {
+			retval = flt_otel_sample_add_kv(&(data->baggage), sample->key, &value);
+			if (retval == FLT_OTEL_RET_ERROR)
+				FLT_OTEL_ERR_NOMEM();
+		}
 	}
 	else if (type == FLT_OTEL_EVENT_SAMPLE_STATUS) {
 		retval = flt_otel_sample_set_status(&(data->status), sample, &value, err);
