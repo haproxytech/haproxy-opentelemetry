@@ -691,7 +691,9 @@ baggage <key> <sample> ... [{ if | unless } <condition>]
 
   This keyword allows setting the baggage for the currently active span.  The
   data type is always a string, ie any sample type is converted to a string.
-  The exception is a binary value that is not supported by the OTel filter.
+  The exception is a binary value that is not supported by the OTel filter.  A
+  sample that yields nothing leaves its pair out, since the carrier refuses an
+  empty value and would drop the other pairs of the span with it.
 
   See the 'attribute' keyword description for the data type conversion table.
 

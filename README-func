@@ -1147,7 +1147,9 @@ Utility and conversion functions.
   flt_otel_sample_add
       Top-level sample evaluator and dispatcher.  Calls flt_otel_sample_eval()
       to evaluate the sample, then dispatches the result to the appropriate
-      handler (attribute, event, baggage, status).
+      handler (attribute, event, baggage, status).  A baggage pair whose sample
+      produced an empty value is left out, the wrapper refusing such a value and
+      dropping the pairs of the span already set with it.
 
   flt_otel_baggage_value
       Scans a comma-separated W3C baggage carrier for the entry with the given
