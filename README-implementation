@@ -768,7 +768,9 @@ side.
 
   stream_stop(s, f):
     - Fires on-stream-stop with chn=NULL.
-    - Called when a stream is destroyed, after all channel processing.
+    - Called when a stream is destroyed, after all channel processing, over the
+      filters still attached: a filter of a backend section is released at the
+      end of the channel analysis and never sees it.
 
   check_timeouts(s, f):
     - Checks whether the idle-timeout timer has expired.

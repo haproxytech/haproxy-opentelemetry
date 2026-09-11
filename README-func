@@ -287,6 +287,19 @@ Event dispatching, metrics recording and scope/span execution engine.
       flt_otel_ctx_field_to_str(), and stores it into the named HAProxy
       variable.  An unresolved reference is skipped.
 
+  flt_otel_scope_span_start
+      Creates the OTel span through the tracer, with the parent span or context
+      that flt_otel_scope_span_init() resolved and the span kind of the span
+      configuration.  A span an earlier scope created is left alone, and one
+      the sampler leaves out is marked so that its samples are not evaluated.
+
+  flt_otel_scope_span_samples
+      Evaluates the attribute, event and status samples of a span whose own
+      condition holds, and collects the results for the span applier.  A span
+      has a single status, so the first status line whose condition holds is
+      the one applied; the baggage samples are evaluated by the caller, which
+      needs them whatever the sampling decision was.
+
   flt_otel_scope_run_span
       Executes a single span: creates the OTel span on first call, adds links,
       baggage, attributes, events and status, then injects the context into HTTP
