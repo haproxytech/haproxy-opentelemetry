@@ -1,0 +1,113 @@
+Optional upstream context test configuration (optctx/)
+======================================================
+
+The 'optctx' test traces a request whether or not it arrives with a W3C trace
+context.  A request that carries a valid 'traceparent' continues the trace it
+names, a request that carries none, or one the propagator cannot read, opens a
+trace of its own.  This is the shape an HAProxy at the edge needs, where part of
+the traffic comes from instrumented senders and the rest from browsers, health
+checkers and hand-written clients.
+
+A 'span' line takes no 'if'/'unless' condition, so the two root spans stand in
+two scopes bound to one event, and an ACL over the 'otel.context' fetch decides
+which of them runs.  The fetch answers only once the extraction has run, which
+is why the 'extract' keeps a scope of its own, placed first; scopes run in the
+order their sections appear in the file.
+
+This is the opposite of 'option require-context', which suppresses the telemetry
+of a stream that brings no context instead of tracing it on its own.
+
+
+Files
+-----
+
+  optctx/otel.cfg    OTel filter configuration (two conditional root spans)
+  optctx/haproxy.cfg HAProxy frontend/backend configuration
+  optctx/otel.yml    Exporter, processor, reader and provider definitions
+
+
+Events
+------
+
+  on-frontend-http-request  read by four scopes: the extraction, the two root
+                            span branches and the request span they share
+  on-http-response          adds the response span
+  on-server-session-end     closes the spans and the extracted context
+
+  The closing waits for the on-server-session-end event, because a 'finish *' on
+  the response event would drop the context before the HTTP response rules of
+  the frontend, the ones that read it through 'otel.context', have run.
+
+
+The decision
+------------
+
+  The context name is written with a leading '-', which keeps the name out of
+  the headers and reads the bare 'traceparent' and 'tracestate' that an outside
+  sender emits:
+
+    acl otel-ctx-valid otel.context(-otel-ctx)
+
+    otel-scope http_request_extract
+        extract "-otel-ctx" use-headers
+        otel-event on-frontend-http-request
+
+    otel-scope http_request_child
+        span "HAProxy session" parent "-otel-ctx" root
+        otel-event on-frontend-http-request if otel-ctx-valid
+
+    otel-scope http_request_new
+        span "HAProxy session" root
+        otel-event on-frontend-http-request unless otel-ctx-valid
+
+  The fetch reports the validity of the extracted context, not its presence,
+  so a malformed 'traceparent' takes the second branch as well.  A '-m found'
+  match would not separate those two cases, since with a name that carries no
+  prefix the extraction registers a context whatever the request holds, and the
+  match then reads as true even for a request without any trace headers.
+
+  Each branch marks its span with a 'haproxy.trace_continued' attribute, and
+  the frontend repeats the decision in an 'X-Otel-Trace-Continued' response
+  header, so a plain curl shows which one ran.
+
+
+Sampling
+--------
+
+  The SDK sampler is 'parent_based' with an 'always_on' delegate, which is what
+  this configuration needs, since a continued trace then follows the decision
+  its sender made and a trace opened here is sampled.
+
+  Keep the 'rate-limit' at 100.0 and sample in the SDK instead when the sender
+  is another HAProxy running this filter.  A rate limit below 100.0 skips the
+  filter for part of the streams, so the sender injects no context for them
+  and this configuration answers every one of those with a trace of its own.
+  A sampler drops the span instead of the filter, the context still travels
+  with the sampled flag cleared, and the two hosts stay on one trace.
+
+
+Running the test
+----------------
+
+The run-optctx.sh script (a symlink to run-test-config.sh) runs this
+configuration.  It invokes haproxy with -f haproxy-common.cfg -f
+optctx/haproxy.cfg, the same as the manual command shown below.  From the
+test/ directory:
+
+  % ./run-optctx.sh
+
+Or run it manually:
+
+  % /path/to/haproxy -f haproxy-common.cfg -f optctx/haproxy.cfg
+
+Then drive one request of each kind and read the response header that reports
+the branch:
+
+  % curl -sSD- -o /dev/null -H \
+      'traceparent: 00-11111111111111111111111111111111-2222222222222222-01' \
+      http://127.0.0.1:10080/
+  % curl -sSD- -o /dev/null http://127.0.0.1:10080/
+
+The first request produces a "HAProxy session" span in trace 1111...1111 with
+2222222222222222 as its parent, the second one a span in a trace of its own
+with an empty parent.

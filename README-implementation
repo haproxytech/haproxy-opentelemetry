@@ -67,6 +67,7 @@ scripts.
       |-- run-updown.sh  Up-down counter test runner (symlink)
       |-- run-err.sh     Error-logging test runner (symlink)
       |-- run-empty.sh   Empty configuration test runner (symlink)
+      |-- run-optctx.sh  Optional upstream context test runner (symlink)
       |-- run-parser.sh  Configuration parser test driver (real file)
       |-- otlp_http-recorder.py  OTLP/HTTP traffic recorder
       |-- otlp_http-replay.py    OTLP/HTTP traffic replayer
@@ -84,6 +85,7 @@ scripts.
       |-- updown/        Up-down counter test configs
       |-- err/           Error-logging test configs
       |-- empty/         Minimal/empty configuration test
+      |-- optctx/        Optional upstream context test configs
       `-- parser/        Parser test cases, tables and generators
 
 
@@ -1244,8 +1246,9 @@ a configuration name instead, and run-parser.sh takes [-k pattern] [-x] [-X]
   run-test-config.sh  Single-instance runner: derives the configuration
                 directory from the name it is invoked under (run-<dir>.sh).
                 run-sa.sh, run-full.sh, run-cmp.sh, run-ctx.sh, run-tcp.sh,
-                run-updown.sh, run-err.sh and run-empty.sh are symlinks to it,
-                each starting one HAProxy instance with its own config.
+                run-updown.sh, run-err.sh, run-empty.sh and run-optctx.sh are
+                symlinks to it, each starting one HAProxy instance with its
+                own config.
   run-fe-be.sh  Launches two HAProxy instances (frontend on port 10080, backend
                 on port 11080) forming a trace propagation chain.  Handles
                 graceful shutdown via SIGUSR1.  A separate script, not a

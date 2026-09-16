@@ -1,7 +1,7 @@
                    -----------------------------------------
                     HAProxy OTel filter configuration guide
                                Version 2.3.0
-                        ( Last update: 2026-09-14 )
+                        ( Last update: 2026-09-16 )
                    -----------------------------------------
                          Author : Miroslav Zagorac
                    Contact : mzagorac at haproxy dot com
@@ -1829,3 +1829,38 @@ are triggered:
 
 This is useful for testing the OTel filter initialization behavior without any
 actual telemetry processing.
+
+
+6.9. Optional upstream context example (optctx)
+-------------------------------------------------
+
+Traces a request whether or not it arrives with an upstream context.  An ACL
+over the 'otel.context' fetch picks between two root spans, one that continues
+the trace the request brings and one that opens a trace of its own.  A 'span'
+line takes no condition, so the two stand in scopes of their own, bound to the
+same event, and the extraction goes into a third one placed before them, because
+the fetch answers only once it has run:
+
+--- test/optctx/otel.cfg (excerpt) -------------------------------------
+
+    otel-instrumentation otel-test-instrumentation
+        acl otel-ctx-valid otel.context(-otel-ctx)
+
+    otel-scope http_request_extract
+        extract "-otel-ctx" use-headers
+        otel-event on-frontend-http-request
+
+    otel-scope http_request_child
+        span "HAProxy session" parent "-otel-ctx" root
+        otel-event on-frontend-http-request if otel-ctx-valid
+
+    otel-scope http_request_new
+        span "HAProxy session" root
+        otel-event on-frontend-http-request unless otel-ctx-valid
+
+---------------------------------------------------------------------
+
+The fetch reports the validity of the context rather than its presence, so a
+malformed 'traceparent' takes the second branch as well.  The 'require-context'
+option has to stay off, since it suppresses the telemetry of every stream that
+brings no context.

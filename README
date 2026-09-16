@@ -1,7 +1,7 @@
                    -----------------------------------------
                       The HAProxy OpenTelemetry filter (OTel)
                                  Version 2.3.0
-                          ( Last update: 2026-09-14 )
+                          ( Last update: 2026-09-16 )
                    -----------------------------------------
                            Author : Miroslav Zagorac
                      Contact : mzagorac at haproxy dot com
@@ -1973,6 +1973,7 @@ resolve the HAProxy binary and their configuration files relative to it):
   % ./run-updown.sh
   % ./run-err.sh
   % ./run-empty.sh
+  % ./run-optctx.sh
 
 The parser test runs the same way but starts no proxy.  It checks a series of
 generated configuration files with 'haproxy -c' against the keyword rules of

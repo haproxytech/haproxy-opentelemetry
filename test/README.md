@@ -46,6 +46,7 @@ rest of the directory:
 | `full` | Every filter event except `on-http-tarpit-request`, with all three signal types on every scope | [README-full](README-full) |
 | `tcp` | A `mode tcp` proxy: one session span per connection and the forwarded payload counted | [README-tcp](README-tcp) |
 | `updown` | Metrics only, an up-down counter recording a signed per-session delta | [README-updown](README-updown) |
+| `optctx` | A root span picked from the request: the session span continues the trace the client sent, or opens one of its own when no usable context arrived | [README-optctx](README-optctx) |
 | `empty` | The filter loaded with an instrumentation section and no scopes, to prove it starts and stops cleanly | [README-empty](README-empty) |
 | `err` | The runtime error path: hard-error episodes, swallowed soft errors and the counters that tally them | [README-err](README-err) |
 
