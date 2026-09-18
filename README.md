@@ -390,6 +390,7 @@ Detailed documentation is available in the following files:
   costs
 - [dummy/README](dummy/README) -- build-only stand-in for the wrapper library
 - [ChangeLog](ChangeLog) -- release notes
+- [SECURITY.md](SECURITY.md) -- security policy and reporting a vulnerability
 
 ### License
 
