@@ -341,10 +341,11 @@ and the context name of the 'config' line included, whether the line defines or
 references the name.  The ban is on the two words as written: another case never
 opens a condition and stays a plain name.  An ACL may not be called 'or' either,
 whatever its case, since that word joins the terms of a condition.  A standalone
-'link' reads 'attr' as its clause anywhere after the first reference and an
-'instrument' update anywhere after its name, so a later link target and a key of
-either may not be called 'attr'; an 'event' reads 'time' right after its name as
-that clause, so its key may not be called 'time'.
+'link' reads 'attr' as its clause after its reference and may carry several
+attributes there; an 'instrument' update reads 'attr' anywhere after its name,
+so a later link target and a key of either may not be called 'attr'; an 'event'
+reads 'time' right after its name as that clause, so its key may not be called
+'time'.
 
 A name is at most 127 characters long, every key and variable name included,
 a variable counted with its scope prefix and the key inside a 'set-var-ctx'
