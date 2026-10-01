@@ -1108,7 +1108,14 @@ static int flt_otel_parse_cfg_instr(const char *file, int line, char **args, int
 		}
 	}
 	else if (pdata->keyword == FLT_OTEL_PARSE_INSTR_CONFIG) {
-		retval = flt_otel_parse_cfg_file(&(flt_otel_current_instr->config), file, line, args, &err, "configuration file");
+		/*
+		 * A condition keyword standing alone after the file is the
+		 * context name, which may not be called that; followed by more
+		 * words, the table check has refused it as a condition.
+		 */
+		retval = flt_otel_parse_reject_name(args, 2, &err);
+		if (!(retval & ERR_CODE))
+			retval = flt_otel_parse_cfg_file(&(flt_otel_current_instr->config), file, line, args, &err, "configuration file");
 		if (!(retval & ERR_CODE) && FLT_OTEL_ARG_ISVALID(2))
 			retval = flt_otel_parse_strdup(&(flt_otel_current_instr->ctx_name), NULL, args[2], &err, args[0]);
 	}
