@@ -94,6 +94,16 @@
         instrument update m_one attr a_key str(v1) attr a_key2 str(v2)
 @end
 
+@case instrument-update-attr-omit-ok
+@kw scope:instrument
+@rule omit:instrument
+@tmpl scope
+@want ok
+@body
+        instrument cnt_int m_one value int(1)
+        instrument update m_one attr a_key str(v1) a_key2 str(v2)
+@end
+
 @case instrument-update-attr-keyword-no-pair
 @kw scope:instrument
 @tmpl scope

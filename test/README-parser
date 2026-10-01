@@ -191,4 +191,22 @@ that writes it twice on one line.  Such a case says so with a 'clause:<name>'
 tag in its '@rule' field, so a clause named in the section without the matching
 case fails the run.
 
+A sentence of those paragraphs that no shape can carry needs a case tagged with
+its name, written as '<kind>:<name>' in the '@rule' field, and the tag counts
+only on a case of the keyword that the sentence names.  The sentence that lets
+one name stand in two lists of a line takes 'twolists:parent-link' on a span,
+the per-item 'attr' clause takes 'peritem:attr' on a log-record and on an
+exception, the clause a link and an instrument update may leave out after the
+first takes 'omit:link' and 'omit:instrument' on those keywords, while the
+sample grouping exceptions take 'one:attr' on a link, 'one:time' on an event,
+and 'one:value' and 'one:bounds' on an instrument.  A sentence without its case
+fails the run, and so does a sentence reworded so that rules.awk no longer finds
+the phrase it looks for.
+
+A rules.tab row that carries the 'condforbid' shape must carry the
+'unlessforbid' shape beside it, and both must be errors unless the row gives
+them no alert text.  Only a keyword that the section exempts from the condition
+ban may do that, so a row that drops one of the spellings, weakens a verdict or
+loses its alert text fails the run as well.
+
 Both reports are skipped when the case set is filtered with '-k'.

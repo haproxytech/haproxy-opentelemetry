@@ -22,9 +22,14 @@
 #   - a forbidden condition ('condforbid') is tested exactly when the entry
 #     allows none, by a row shape or by a case naming the shape itself
 #
-# The paragraphs before the entries are read for one rule of their own: each
+# A row that carries 'condforbid' carries 'unlessforbid' beside it, both as an
+# error, unless the row gives them no alert text; a keyword the section exempts
+# from the condition ban must do that, and no other keyword may.
+#
+# The paragraphs before the entries are read for rules of their own: each
 # clause they name as writable once needs a case that writes it twice, which
-# the case declares with a 'clause:<name>' tag in its '@rule' field.
+# the case declares with a 'clause:<name>' tag in its '@rule' field, and each
+# sentence of the need[] table needs a case of every keyword listed there.
 #
 
 BEGIN {
@@ -45,6 +50,17 @@ BEGIN {
 	dflt["nospan"]       = "err"
 	dflt["fewargs"]      = "err"
 	dflt["badname"]      = "err"
+
+	# The sentences of the preamble that no scheme shape covers.  Each is
+	# recognised by a phrase it holds and needs a case of every keyword
+	# listed to its right, carrying the '@rule' tag named after the keyword.
+	need["same name may still stand in two lists"]   = "scope:span:twolists:parent-link"
+	need["stands before every key"]                  = "scope:log-record:peritem:attr,scope:exception:peritem:attr"
+	need["may be left out after the first"]          = "scope:link:omit:link,scope:instrument:omit:instrument"
+	need["except after the key of an 'attr' clause"] = "scope:link:one:attr"
+	need["and after a 'time' clause"]                = "scope:event:one:time"
+	need["refuses a second"]                         = "scope:instrument:one:value"
+	need["a repeated boundary value"]                = "scope:instrument:one:bounds"
 }
 
 function trim(s)
@@ -160,8 +176,10 @@ function clause_seen(id,   key)
 (FILENAME ~ /rules\.tab$/) && /^[ \t]*$/ { next }
 
 (FILENAME ~ /rules\.tab$/) {
-	if (split($0, field, "|") >= 10)
-		row[trim(field[2]) ":" trim(field[1])] = trim(field[10])
+	if (split($0, field, "|") >= 10) {
+		row[trim(field[2]) ":" trim(field[1])]    = trim(field[10])
+		cmatch[trim(field[2]) ":" trim(field[1])] = trim(field[8])
+	}
 
 	next
 }
@@ -175,6 +193,16 @@ function clause_seen(id,   key)
 
 END {
 	missing = 0
+
+	# The keywords the section exempts from the condition ban.
+	if (match(pre, /cannot enforce this for [^,.]*/)) {
+		text = substr(pre, RSTART, RLENGTH)
+
+		while (match(text, /'[a-z-]+'/)) {
+			exempt[substr(text, RSTART + 1, RLENGTH - 2)] = 1
+			text = substr(text, RSTART + RLENGTH)
+		}
+	}
 
 	for (i = 1; i <= nentry; i++) {
 		key   = order[i]
@@ -212,6 +240,24 @@ END {
 		if (shape == "")
 			continue
 
+		# A row that tests the condition ban must carry both condition
+		# spellings as errors.  Only an exempt keyword may give them no
+		# alert text, which makes the row accept the condition.
+		if (verdict(shape, "condforbid") != "") {
+			name = key
+			sub(/^[^:]*:/, "", name)
+
+			if (verdict(shape, "unlessforbid") == "")
+				report(sprintf("uncovered rule: '%s' tests one condition spelling with no 'unlessforbid' shape", key))
+
+			if ((cmatch[key] == "-") && !(name in exempt))
+				report(sprintf("rule mismatch: '%s' gives the forbidden condition no alert text, the section exempts it not", key))
+			else if ((cmatch[key] != "-") && (name in exempt))
+				report(sprintf("rule mismatch: '%s' tests the condition ban, the section exempts it", key))
+			else if ((cmatch[key] != "-") && ((verdict(shape, "condforbid") != "err") || (verdict(shape, "unlessforbid") == "ok")))
+				report(sprintf("rule mismatch: '%s' carries a forbidden-condition shape that is not an error", key))
+		}
+
 		if ((first || all) && (verdict(shape, "condok") != "ok"))
 			report(sprintf("uncovered rule: '%s' takes a condition with no 'condok' shape", key))
 
@@ -234,6 +280,23 @@ END {
 			if (!clause_seen(name))
 				report(sprintf("uncovered rule: the '%s' clause is named as written once, no case writes it twice", name))
 		}
+	}
+
+	# Every preamble sentence that no shape can carry needs a case of each
+	# keyword it names.  A phrase the section no longer holds leaves the
+	# need[] table above behind the section.
+	for (phrase in need) {
+		if (index(pre, phrase) == 0) {
+			report(sprintf("rule mismatch: the phrase '%s' is not in the section, the need[] table is stale", phrase))
+
+			continue
+		}
+
+		n = split(need[phrase], tag, ",")
+
+		for (i = 1; i <= n; i++)
+			if (covered[tag[i]] != 1)
+				report(sprintf("uncovered rule: the sentence '%s' needs the case '%s'", phrase, tag[i]))
 	}
 
 	exit((missing == 0) ? 0 : 1)
