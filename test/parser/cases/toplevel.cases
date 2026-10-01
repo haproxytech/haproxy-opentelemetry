@@ -500,6 +500,23 @@
         config @YML@
 @end
 
+@case top-filter-no-id-warn-ok
+@kw top:scope
+@tmpl whole
+@mode noid
+@want ok
+@warn no filter id set
+@body
+[otel-filter]
+    otel-instrumentation parser-instr
+        config @YML@
+        scopes parser-scope
+
+    otel-scope parser-scope
+        otel-event on-frontend-http-request
+        span sp1 root
+@end
+
 @case top-two-filters-error-in-scope
 @kw top:scope
 @tmpl whole

@@ -395,6 +395,7 @@
 
 @case scope-link-attr-two-samples
 @kw scope:link
+@rule one:attr
 @tmpl scope
 @want err
 @match too few arguments
@@ -1079,6 +1080,7 @@
 
 @case scope-instrument-two-samples
 @kw scope:instrument
+@rule one:value
 @tmpl scope
 @want err
 @match only one sample expression
@@ -1088,6 +1090,7 @@
 
 @case scope-event-time-two-samples
 @kw scope:event
+@rule one:time
 @tmpl scope
 @want err
 @match unknown fetch method
@@ -1125,6 +1128,7 @@
 
 @case scope-instrument-dup-bounds
 @kw scope:instrument
+@rule one:bounds
 @tmpl scope
 @want err
 @match duplicate boundary value

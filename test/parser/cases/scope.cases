@@ -169,6 +169,16 @@
         span sp2 parent sp1
 @end
 
+@case scope-span-parent-link-same-ok
+@kw scope:span
+@rule twolists:parent-link
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        span sp2 parent sp1 link sp1
+@end
+
 @case scope-span-name-prefix-ok
 @kw scope:span
 @tmpl scope
@@ -988,6 +998,17 @@
         link sp1 attr l_key str(v1)
 @end
 
+@case scope-link-attr-omit-ok
+@kw scope:link
+@rule omit:link
+@tmpl scope
+@want ok
+@body
+        span sp1 root
+        span sp2
+        link sp1 attr l_key str(v1) l_key2 str(v2)
+@end
+
 @case scope-link-attr-no-key
 @kw scope:link
 @tmpl scope
@@ -1033,6 +1054,7 @@
 
 @case scope-exception-attr-keyword-per-pair-ok
 @kw scope:exception
+@rule peritem:attr
 @tmpl scope
 @want ok
 @body
@@ -1326,6 +1348,7 @@
 
 @case scope-log-record-attr-keyword-per-pair-ok
 @kw scope:log-record
+@rule peritem:attr
 @tmpl scope
 @want ok
 @body

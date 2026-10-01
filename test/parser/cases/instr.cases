@@ -197,9 +197,10 @@
 
 @case instr-config-bare-if
 @kw instr:config
+@rule condforbid
 @tmpl whole
 @want err
-@match condition is not supported
+@match cannot be used as a name
 @body
 [parser]
     otel-instrumentation parser-instr
@@ -212,9 +213,10 @@
 
 @case instr-config-bare-unless
 @kw instr:config
+@rule unlessforbid
 @tmpl whole
 @want err
-@match condition is not supported
+@match cannot be used as a name
 @body
 [parser]
     otel-instrumentation parser-instr
