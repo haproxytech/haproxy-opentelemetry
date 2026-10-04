@@ -1,0 +1,99 @@
+Lua script test configuration (lua/)
+====================================
+
+The 'lua' test shows how a Lua script supplies values to the filter.  The script
+registers a sample fetch, a converter and an action, and the OTel scopes read
+what they produce: the fetch maps the first segment of the request path to an
+area name, the converter masks the digits of the last segment, and the action
+stores the request method in a transaction variable.
+
+The configuration is the runnable form of the example in section 5.1 of the
+configuration guide.  It needs an HAProxy build with Lua support: without the
+USE_LUA=1 option, haproxy refuses the Lua keywords of lua/haproxy.cfg.
+
+
+Files
+-----
+
+  lua/otel.cfg      OTel filter configuration (instrumentation and scopes)
+  lua/haproxy.cfg   HAProxy frontend/backend configuration
+  lua/otel.yml      Exporter, processor, reader and provider definitions
+  lua/otel-lua.lua  The Lua script: one fetch, one converter, one action
+  run-lua.sh        Convenience script to launch HAProxy with this config
+
+
+Lua values
+----------
+
+The script runs on the HAProxy thread that handles the stream, so the filter
+evaluates what it returns like any other sample.  The configuration name each
+registration takes, and where the scenario reads it:
+
+  Registration                          Name           Read by
+  -------------------------------------------------------------------
+  core.register_fetches("otel_area")    lua.otel_area  attribute lua.area
+  core.register_converters("otel_tail") lua.otel_tail  attribute lua.tail
+  core.register_action("otel_tag")      lua.otel_tag   http-request rule
+
+The action writes 'txn.otel_method' and the 'switching_rules_request' scope
+reads it back through 'var(txn.otel_method)'.
+
+
+Events
+------
+
+  T = Trace (span)    L = Log (log-record)
+
+  Stream lifecycle events:
+
+    Event                          Scope                     T  L
+    ------------------------------------------------------------------
+    on-stream-start                on_stream_start           x  -
+
+  Request analyzer events:
+
+    Event                          Scope                     T  L
+    ------------------------------------------------------------------
+    on-frontend-http-request       frontend_http_request     x  x
+    on-switching-rules-request     switching_rules_request   x  -
+
+The order matters here.  The 'on-frontend-http-request' event fires before the
+http-request rules, where the Lua action runs, so a scope bound to that event
+cannot see 'txn.otel_method'.  The variable is read by a scope bound only to
+'on-switching-rules-request', the first event after those rules.  A fetch or a
+converter needs no such care: the filter evaluates it in the run of the scope
+that names it.
+
+
+What to look for
+----------------
+
+A request to /api/v1/users/42 leaves:
+
+  "HTTP request"            attribute lua.area "service"
+                            attribute lua.tail "/api/v1/users/N"
+  "Switching rules request" attribute lua.method "GET"
+  log record "lua-request"  attribute lua.area "service"
+                            body "service /api/v1/users/N"
+
+The log body takes its last part from the converter, so the request path appears
+there with its digits masked.
+
+The fetch returns 'service' only when the complete first path segment is 'api'
+or 'graphql'; names such as '/api2' and '/api-v2' return 'site'.  Requests that
+have no path, such as 'OPTIONS *', also return 'site' without a Lua error.  The
+'lua.tail' attribute is empty, and the path-based log record is not emitted.
+
+
+Running the test
+----------------
+
+The run-lua.sh script (a symlink to run-test-config.sh) runs this configuration.
+It invokes haproxy with -f haproxy-common.cfg -f lua/haproxy.cfg.  The origin
+server must be running on 127.0.0.1:8000.  From the test/ directory:
+
+  % ./run-lua.sh [/path/to/haproxy] [pidfile] [logfile]
+
+Or run it manually:
+
+  % /path/to/haproxy -f haproxy-common.cfg -f lua/haproxy.cfg

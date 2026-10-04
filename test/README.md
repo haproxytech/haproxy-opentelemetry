@@ -49,15 +49,17 @@ rest of the directory:
 | `optctx` | A root span picked from the request: the session span continues the trace the client sent, or opens one of its own when no usable context arrived | [README-optctx](README-optctx) |
 | `empty` | The filter loaded with an instrumentation section and no scopes, to prove it starts and stops cleanly | [README-empty](README-empty) |
 | `err` | The runtime error path: hard-error episodes, swallowed soft errors and the counters that tally them | [README-err](README-err) |
+| `lua` | Values computed by a Lua script: a registered fetch, converter and action supply span attributes, a log record and a transaction variable read by a later scope | [README-lua](README-lua) |
 
 Each single-instance scenario listens on port 10080, expects an origin server
 already running on 127.0.0.1:8000, and opens `/tmp/haproxy.sock` as its admin
 CLI socket; the `fe-be` pair chains 10080 to 11080 in front of the same origin
 server.  The `ctx` scenario keeps its contexts in HAProxy variables, so it needs
 an executable built with `OTEL_USE_VARS=1`; a build without that option refuses
-its configuration.  Every runner takes an optional HAProxy binary, a pidfile and
-a log name, falls back to `../../haproxy/haproxy` and writes what the instance
-printed under `_logs/`:
+its configuration.  The `lua` scenario likewise needs an executable built with
+`USE_LUA=1`.  Every runner takes an optional HAProxy binary, a pidfile and a log
+name, falls back to `../../haproxy/haproxy` and writes what the instance printed
+under `_logs/`:
 
 ```
 % ./run-sa.sh

@@ -1,7 +1,7 @@
                    -----------------------------------------
                     HAProxy OTel filter configuration guide
                                Version 2.3.0
-                        ( Last update: 2026-09-16 )
+                        ( Last update: 2026-10-04 )
                    -----------------------------------------
                          Author : Miroslav Zagorac
                    Contact : mzagorac at haproxy dot com
@@ -25,6 +25,7 @@ SUMMARY
   4.5.    Providers
   4.6.    Signals
   5.    HAProxy rule integration
+  5.1.    Lua integration
   6.    Complete examples
   6.1.    Standalone example (sa)
   6.2.    Frontend / backend example (fe/be)
@@ -34,6 +35,8 @@ SUMMARY
   6.6.    Up-down counter example (updown)
   6.7.    Error-logging example (err)
   6.8.    Empty / minimal example (empty)
+  6.9.    Optional upstream context example (optctx)
+  6.10.   Lua script example (lua)
 
 
 1. Overview
@@ -1531,6 +1534,115 @@ Example (record the transferred volume on a TCP connection span):
       otel-event on-client-session-end
 
 
+5.1. Lua integration
+----------------------
+
+The filter has no Lua binding of its own.  Lua values reach it the same way as
+any other HAProxy rule: through sample fetches, converters and variables, the
+pieces the OTel keywords already evaluate.
+
+The Lua keywords exist only in an HAProxy executable compiled with the USE_LUA=1
+option, which also needs Lua 5.3 or later with its include files; the INSTALL
+file of HAProxy describes the LUA_INC and LUA_LIB variables for a Lua installed
+outside the system paths.  An executable built without that option refuses as
+unknown keywords the 'lua-load' and 'tune.lua.*' lines and every 'lua.*' fetch,
+converter and action.  A build with Lua support shows a "Built with Lua version"
+line and +LUA in the feature list of 'haproxy -vv'.
+
+  % PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 TARGET=linux-glibc USE_LUA=1 EXTRA_MAKE="../haproxy-opentelemetry"
+
+The script registers its pieces in the body context.  A fetch and a converter
+are then usable as 'lua.otel_area' and 'lua.otel_tail', like any HAProxy fetch
+or converter, and an action as 'lua.otel_tag', like any http-request keyword.
+
+The fetch takes the transaction and the converter takes its input string, and
+each of them also takes up to five string arguments from the configuration; both
+return a string.  Neither may block: the filter evaluates both when it runs the
+scope, on the stream's own HAProxy thread.
+
+--- otel-lua.lua (example) --------------------------------------------
+
+  -- A path segment is turned into an area name no fetch can derive.
+  core.register_fetches("otel_area", function(txn)
+      local path, seg = txn.f:path(), nil
+
+      if (path ~= nil) then
+          seg = path:match("^/([^/]+)")
+      end
+
+      if ((seg == "api") or (seg == "graphql")) then
+          return "service"
+      end
+      return "site"
+  end)
+
+  -- The digits of the last path segment are masked.
+  core.register_converters("otel_tail", function(value)
+      local head, tail = value:match("^(.*/)([^/]*)$")
+
+      if ((head == nil) or (tail == nil)) then
+          return value
+      end
+      return head .. tail:gsub("%d+", "N")
+  end)
+
+  -- The request method goes into a transaction variable.
+  core.register_action("otel_tag", { "http-req" }, function(txn)
+      txn:set_var("txn.otel_method", txn.f:method())
+  end)
+
+--- haproxy.cfg (excerpt) ----------------------------------------------
+
+  global
+      tune.lua.bool-sample-conversion normal
+      lua-load otel-lua.lua
+
+  frontend example
+      bind *:10080
+      filter opentelemetry id otel-lua config otel.cfg otel-lua-test
+      http-request lua.otel_tag
+      default_backend servers-backend
+
+--- otel.cfg (excerpt) ------------------------------------------------
+
+  [otel-lua-test]
+      otel-instrumentation otel-lua-instrumentation
+          config otel.yml default
+          scopes on_stream_start
+          scopes frontend_http_request
+          scopes switching_rules_request
+
+      otel-scope on_stream_start
+          span "HAProxy session" root
+          otel-event on-stream-start
+
+      otel-scope frontend_http_request
+          span "HTTP request" parent "HAProxy session"
+              attribute "lua.area" lua.otel_area
+              attribute "lua.tail" path,lua.otel_tail
+          otel-event on-frontend-http-request
+
+      otel-scope switching_rules_request
+          span "Switching rules request" parent "HTTP request"
+              attribute "lua.method" var(txn.otel_method)
+          otel-event on-switching-rules-request
+
+A request to /api/v1/users/42 then gives the "HTTP request" span the attributes
+lua.area = "service" and lua.tail = "/api/v1/users/N", and the "Switching rules
+request" span the attribute lua.method = "GET".
+
+One rule decides where a value is readable: a scope evaluates its samples at the
+event it binds to, so a Lua action has to have run by then.  A scope bound to
+on-frontend-http-request cannot see a variable that such an action sets, since
+that event fires before the http-request rules; the variable is readable from
+on-switching-rules-request, on-http-process-request and on-http-response onward,
+the events that fire after those rules.  A fetch needs no such care: the scope
+evaluates it when it runs.
+
+The 'lua' scenario under test/ carries this example as a runnable configuration;
+section 6.10 shows its OTel scopes.
+
+
 6. Complete examples
 ---------------------
 
@@ -1864,3 +1976,39 @@ The fetch reports the validity of the context rather than its presence, so a
 malformed 'traceparent' takes the second branch as well.  The 'require-context'
 option has to stay off, since it suppresses the telemetry of every stream that
 brings no context.
+
+
+6.10. Lua script example (lua)
+-------------------------------
+
+A Lua script supplies values the configuration cannot compute on its own.  The
+script registers a sample fetch, a converter and an action: the fetch maps the
+first path segment to an area name, the converter masks the digits of the last
+segment, and the action puts the request method into a variable.  The scopes
+read them as 'lua.otel_area', 'path,lua.otel_tail' and 'var(txn.otel_method)',
+and a log record carries the area as an attribute:
+
+--- test/lua/otel.cfg (excerpt) ---------------------------------------
+
+    otel-scope on_stream_start
+        span "HAProxy session" root
+        otel-event on-stream-start
+
+    otel-scope frontend_http_request
+        span "HTTP request" parent "HAProxy session"
+            attribute "lua.area" lua.otel_area
+            attribute "lua.tail" path,lua.otel_tail
+        log-record info id 4000 event "lua-request" span "HTTP request" attr "lua.area" lua.otel_area lua.otel_area str(" ") path,lua.otel_tail
+        otel-event on-frontend-http-request
+
+    otel-scope switching_rules_request
+        span "Switching rules request" parent "HTTP request"
+            attribute "lua.method" var(txn.otel_method)
+        otel-event on-switching-rules-request
+
+---------------------------------------------------------------------
+
+The variable also shows the ordering rule: the on-frontend-http-request event
+fires before the http-request rules; a scope bound to on-switching-rules-request
+or any later event sees 'txn.otel_method'.  The scenario runs the example of
+section 5.1 and needs an HAProxy build with USE_LUA=1.
