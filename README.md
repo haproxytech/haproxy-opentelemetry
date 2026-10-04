@@ -353,6 +353,9 @@ The `test/` directory contains ready-to-run example configurations:
 - **err** -- runtime error logging; span creation deliberately fails on every
   response to drive the rate-limited error/warning logs and CLI counters.
 - **empty** -- filter initialized with no active telemetry.
+- **lua** -- values from a Lua script: a registered fetch, converter and action
+  supply span attributes, a log record and a transaction variable read by a
+  later scope; needs a build with `USE_LUA=1`.
 
 All of them need a real wrapper build to produce anything.  Against the `dummy/`
 stand-in they still pass `haproxy -c` and start normally, which makes them into

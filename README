@@ -1,7 +1,7 @@
                    -----------------------------------------
                       The HAProxy OpenTelemetry filter (OTel)
                                  Version 2.3.0
-                          ( Last update: 2026-09-16 )
+                          ( Last update: 2026-10-04 )
                    -----------------------------------------
                            Author : Miroslav Zagorac
                      Contact : mzagorac at haproxy dot com
@@ -141,6 +141,12 @@ To enable OpenTelemetry context propagation via HAProxy variables (in addition
 to HTTP headers), add the OTEL_USE_VARS=1 option:
 
   % PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_USE_VARS=1
+
+The 'lua' test scenario and the Lua integration described in section 5.1 of
+README-configuration need an HAProxy executable with Lua support, which the
+HAProxy USE_LUA=1 option enables:
+
+  % PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 TARGET=linux-glibc USE_LUA=1 EXTRA_MAKE="../haproxy-opentelemetry"
 
 If the library we want to use is not installed on a unix system, then a locally
 installed library can be used (say, which is compiled and installed in the user
@@ -1903,6 +1909,12 @@ empty - an empty configuration in which the OTel filter is initialized but no
         event is triggered.  It is not very usable, except to check the behavior
         of the OTel filter in the case of a similar configuration.
 
+lua   - a configuration in which a Lua script supplies values to the filter: a
+        registered sample fetch and converter supply span attributes and a log
+        record body, and a registered action then stores the request method in
+        a transaction variable that a later scope reads.  It needs an executable
+        built with USE_LUA=1.
+
 
 The OTel filter does not use tracer plugins.  Instead, telemetry data is
 exported using the OpenTelemetry protocol (OTLP) directly to any compatible
@@ -1974,6 +1986,7 @@ resolve the HAProxy binary and their configuration files relative to it):
   % ./run-err.sh
   % ./run-empty.sh
   % ./run-optctx.sh
+  % ./run-lua.sh
 
 The parser test runs the same way but starts no proxy.  It checks a series of
 generated configuration files with 'haproxy -c' against the keyword rules of
