@@ -404,7 +404,7 @@ struct flt_otel_conf_instr {
 	uint                 flag_started;  /* Atomic claim so the OTel SDK is started once. */
 	uint                 kw_used;       /* Once-only keywords already seen (FLT_OTEL_INSTR_KW_*). */
 	struct flt_otel_log  log;           /* Runtime-log emission and flood-control state. */
-	uint64_t             n_harderr;     /* Hard-error episodes (filter disabled), for the CLI. */
+	uint64_t             n_harderr;     /* Streams disabled by a hard error, for the CLI. */
 	uint64_t             n_softerr;     /* Soft-error occurrences (error swallowed), for the CLI. */
 	uint                 analyzers;     /* Defined channel analyzers. */
 	uint                 idle_timeout;  /* Minimum idle timeout across scopes (ms, 0 = off). */
@@ -422,10 +422,8 @@ struct flt_otel_counters {
 	} event[FLT_OTEL_EVENT_MAX];
 #endif
 
-#ifdef FLT_OTEL_USE_COUNTERS
 	uint64_t attached[4];       /* [run rate-limit disabled error] */
 	uint64_t disabled[2];       /* How many times stream processing is disabled. */
-#endif
 };
 
 /* The OpenTelemetry filter configuration. */

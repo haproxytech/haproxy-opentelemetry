@@ -74,6 +74,7 @@ OPTIONS_OBJS += \
 	$(OTEL_DIR)/src/pool.o   \
 	$(OTEL_DIR)/src/sample.o \
 	$(OTEL_DIR)/src/scope.o  \
+	$(OTEL_DIR)/src/stats.o  \
 	$(OTEL_DIR)/src/util.o   \
 	$(OTEL_DIR)/src/vars.o
 
@@ -95,6 +96,13 @@ endif
 OTEL_HAS_MAIN_PROXIES := $(shell grep -q 'extern struct list main_proxies' include/haproxy/proxy.h 2>/dev/null && echo 1)
 ifneq ($(OTEL_HAS_MAIN_PROXIES),)
 OTEL_DEFINE += -DUSE_OTEL_MAIN_PROXIES
+endif
+
+# HAProxy 3.4 gives statistics modules native thread-group aggregation and a
+# new fill_stats callback.  Earlier versions keep one shared counter block.
+OTEL_HAS_STATS_AGGR := $(shell grep -q '^\#define EXTRA_COUNTERS_AGGR' include/haproxy/counters.h 2>/dev/null && echo 1)
+ifneq ($(OTEL_HAS_STATS_AGGR),)
+OTEL_DEFINE += -DUSE_OTEL_STATS_AGGR
 endif
 
 # Auto-detect the calling convention of warnif_cond_conflicts().  HAProxy 3.4

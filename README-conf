@@ -157,7 +157,7 @@ list -- it is the unique root, owned by the filter instance.
   flag_started           Atomic claim so the OTel SDK is started once.
   kw_used                Once-only keywords already seen (FLT_OTEL_INSTR_KW_*).
   log                    Runtime-log emission state (struct flt_otel_log).
-  n_harderr              Hard-error episodes (filter disabled), for the CLI.
+  n_harderr              Streams disabled by a hard error, for the CLI.
   n_softerr              Soft-error occurrences (error swallowed), for the CLI.
   analyzers              Defined channel analyzers bitmask.
   idle_timeout           Minimum idle timeout across scopes (ms, 0 = off).

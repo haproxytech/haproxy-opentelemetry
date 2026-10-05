@@ -310,6 +310,30 @@ except `debug`, restricts a command to the single filter instance whose id
 matches; without it, a command operates on every configured instance at once.
 Surplus arguments are rejected.
 
+### Proxy statistics
+
+The filter registers the `otel` proxy statistics module in release and debug
+builds.  The `show stat` CLI command includes its `otel_*` counter fields, with
+totals for accepted and skipped attachments, scope stops, runtime errors and
+suppressed logs.  Filters on the same proxy contribute to the same row.
+
+To display counters on an HTTP statistics page, enable `stats show-modules` on
+the proxy serving the `stats uri`.  Hover over its `otel` column to see the
+counter values:
+
+```
+listen statistics
+    bind :8404
+    mode http
+    stats uri /stats
+    stats show-modules
+```
+
+Frontend and backend rows count only their own filter attachments.  The `clear
+counters all` command resets the module totals without changing per-instance
+counters or error handling.  Bare `clear counters` leaves the totals unchanged.
+See [README-design](README-design) for the field names and their meanings.
+
 ### Performance
 
 Benchmark results from the standalone (`sa`) configuration, the heaviest of the

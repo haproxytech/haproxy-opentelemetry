@@ -23,8 +23,8 @@ const struct flt_otel_event_data flt_otel_event_data[FLT_OTEL_EVENT_MAX] = { FLT
  *
  * DESCRIPTION
  *   Sets the disabled flag of <rt_ctx>, so the stream produces no further
- *   telemetry and the following scopes are skipped.  The debug build logs
- *   <msg> and counts the disabling in <conf>.
+ *   telemetry and the following scopes are skipped.  Counts the disabling in
+ *   <conf> and proxy statistics.  The debug build also logs <msg>.
  *
  * RETURN VALUE
  *   This function does not return a value.
@@ -37,9 +37,8 @@ static void flt_otel_session_disable(struct flt_otel_runtime_context *rt_ctx, st
 
 	rt_ctx->flag_disabled = 1;
 
-#ifdef FLT_OTEL_USE_COUNTERS
 	_HA_ATOMIC_ADD(conf->cnt.disabled + 0, 1);
-#endif
+	flt_otel_stats_inc(flt_otel_stats_get(conf, rt_ctx->filter->flags & FLT_FL_IS_BACKEND_FILTER), FLT_OTEL_STATS_DISABLED_SCOPE);
 
 	OTELC_RETURN();
 }
@@ -337,10 +336,10 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
  *   flt_otel_scope_instrument_create - lazy metric instrument creation
  *
  * SYNOPSIS
- *   static int flt_otel_scope_instrument_create(struct flt_otel_conf *conf, struct otelc_meter *meter, struct flt_otel_conf_instrument *conf_instr, struct flt_otel_conf_scope *scope, char **err)
+ *   static int flt_otel_scope_instrument_create(struct filter *f, struct otelc_meter *meter, struct flt_otel_conf_instrument *conf_instr, struct flt_otel_conf_scope *scope, char **err)
  *
  * ARGUMENTS
- *   conf       - the OTel filter configuration
+ *   f          - the filter instance
  *   meter      - the OTel meter instance
  *   conf_instr - the create-form instrument configuration entry
  *   scope      - the scope that owns <conf_instr>
@@ -370,13 +369,15 @@ static int flt_otel_scope_run_instrument_record(struct stream *s, uint dir, stru
  * RETURN VALUE
  *   Returns FLT_OTEL_RET_OK on success, FLT_OTEL_RET_ERROR on failure.
  */
-static int flt_otel_scope_instrument_create(struct flt_otel_conf *conf, struct otelc_meter *meter, struct flt_otel_conf_instrument *conf_instr, struct flt_otel_conf_scope *scope, char **err)
+static int flt_otel_scope_instrument_create(struct filter *f, struct otelc_meter *meter, struct flt_otel_conf_instrument *conf_instr, struct flt_otel_conf_scope *scope, char **err)
 {
+	struct flt_otel_conf            *conf = FLT_OTEL_CONF(f);
+	struct flt_otel_stats_counters  *counters = flt_otel_stats_get(conf, f->flags & FLT_FL_IS_BACKEND_FILTER);
 	struct flt_otel_conf_instrument *owner = conf_instr->ref;
 	int64_t                          expected = OTELC_METRIC_INSTRUMENT_UNSET, rc;
 	int                              retval = FLT_OTEL_RET_OK;
 
-	OTELC_FUNC("%p, %p, %p, %p, %p:%p", conf, meter, conf_instr, scope, OTELC_DPTR_ARGS(err));
+	OTELC_FUNC("%p, %p, %p, %p, %p:%p", f, meter, conf_instr, scope, OTELC_DPTR_ARGS(err));
 
 	/*
 	 * The instrument is created once; a create line of another scope that
@@ -407,7 +408,7 @@ static int flt_otel_scope_instrument_create(struct flt_otel_conf *conf, struct o
 	 */
 	if ((conf_instr->bounds != NULL) && (conf_instr->bounds_num > 0))
 		if (OTELC_OPS(meter, add_view, conf_instr->id, conf_instr->description, conf_instr->id, conf_instr->unit, conf_instr->type, conf_instr->aggr_type, conf_instr->bounds, conf_instr->bounds_num) == OTELC_RET_ERROR)
-			FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, "failed to add view for instrument '%s'", conf_instr->id);
+			FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, counters, "failed to add view for instrument '%s'", conf_instr->id);
 
 	rc = OTELC_OPS(meter, create_instrument, conf_instr->id, conf_instr->description, conf_instr->unit, conf_instr->type, NULL);
 	if (rc != OTELC_RET_ERROR) {
@@ -415,7 +416,7 @@ static int flt_otel_scope_instrument_create(struct flt_otel_conf *conf, struct o
 		HA_ATOMIC_STORE(&(owner->idx), rc);
 	}
 	else if (HA_ATOMIC_ADD_FETCH(&(owner->fail_num), 1) < FLT_OTEL_INSTR_FAIL_MAX) {
-		FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, "failed to create instrument '%s'", conf_instr->id);
+		FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, counters, "failed to create instrument '%s'", conf_instr->id);
 
 		HA_ATOMIC_STORE(&(owner->idx), OTELC_METRIC_INSTRUMENT_UNSET);
 
@@ -426,7 +427,7 @@ static int flt_otel_scope_instrument_create(struct flt_otel_conf *conf, struct o
 		 * A definition the SDK keeps rejecting must not be retried by
 		 * every stream: each attempt takes a process-wide lock.
 		 */
-		FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, "failed to create instrument '%s', no longer retried", conf_instr->id);
+		FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, counters, "failed to create instrument '%s', no longer retried", conf_instr->id);
 
 		HA_ATOMIC_STORE(&(owner->idx), OTELC_METRIC_INSTRUMENT_FAILED);
 
@@ -474,7 +475,6 @@ static int flt_otel_scope_instrument_create(struct flt_otel_conf *conf, struct o
  */
 static int flt_otel_scope_run_instrument(struct stream *s, struct filter *f, uint dir, struct flt_otel_conf_scope *scope, struct otelc_meter *meter, char **err)
 {
-	struct flt_otel_conf            *conf = FLT_OTEL_CONF(f);
 	struct flt_otel_conf_instrument *conf_instr;
 	int                              retval = FLT_OTEL_RET_OK;
 
@@ -502,7 +502,7 @@ static int flt_otel_scope_run_instrument(struct stream *s, struct filter *f, uin
 			 * created on first use.  The call also enforces that
 			 * only one scope creates it.
 			 */
-			if (flt_otel_scope_instrument_create(conf, meter, conf_instr, scope, err) == FLT_OTEL_RET_ERROR)
+			if (flt_otel_scope_instrument_create(f, meter, conf_instr, scope, err) == FLT_OTEL_RET_ERROR)
 				retval = FLT_OTEL_RET_ERROR;
 		}
 	}
@@ -576,7 +576,7 @@ static int flt_otel_scope_run_instrument(struct stream *s, struct filter *f, uin
 			 * that defines it, not to the one running the update.
 			 */
 			if (HA_ATOMIC_LOAD(&(instr->ref->idx)) == OTELC_METRIC_INSTRUMENT_UNSET)
-				if (flt_otel_scope_instrument_create(conf, meter, instr, chain, err) == FLT_OTEL_RET_ERROR)
+				if (flt_otel_scope_instrument_create(f, meter, instr, chain, err) == FLT_OTEL_RET_ERROR)
 					retval = FLT_OTEL_RET_ERROR;
 
 			/*
