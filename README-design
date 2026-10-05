@@ -892,3 +892,59 @@ the 'update' type, its create-only columns left blank.
 The "flt-otel scopes" command likewise builds a per-instance report, printing
 each scope with its bound event and used flag, each group with its scope count
 and, in a debug build, the per-event dispatch counts held in conf->cnt.event[].
+
+
+13  Native runtime tracing
+----------------------------------------------------------------------
+
+HAProxy's native 'otel' trace source is separate from wrapper debug logging
+and OpenTelemetry export.  Operators select events, levels and sinks with the
+'trace' CLI or startup '-dt' option.  Native tracing works in release and debug
+builds whenever HAProxy enables it.
+
+The FLT_OTEL_EV_DEFINES list supplies bit positions, event symbols, names and
+descriptions.  It generates FLT_OTEL_EV_enum masks as UINT64_C(1) << position
+and builds the native event table from the same entries.  Independent bits let
+event selection and decoder dispatch distinguish events; an error mask may be
+combined with the event that owns the detail argument.
+
+The trace.h header binds TRACE_SOURCE to flt_otel_trace_source.  It defines
+FLT_OTEL_TRACE_ERROR, FLT_OTEL_TRACE_USER and FLT_OTEL_TRACE_STATE for selecting
+native levels.  Call sites use the pointer positions below for decoding and
+locking:
+
+  arg1  HAProxy stream, or NULL.
+  arg2  Filter configuration (struct flt_conf), or NULL.
+  arg3  Scope configuration (struct flt_otel_conf_scope), or NULL.
+  arg4  Event-specific detail, or NULL.
+
+The detail argument points to a filter for attach/skip/detach, an event index
+for event dispatch, a configured identifier string for actions, a runtime span
+for span events, or a runtime context for context events.
+
+Scope and error events alone have no detail argument.  Adding the error bit to
+another event does not change that event's detail type.
+
+The stream argument supports HAProxy's generic locking criteria.  Named filter
+and scope arguments also let a trace follow a configuration object.  The 'clean'
+decoder runs synchronously while the supplied objects are alive and formats
+identifiers and runtime state without headers, sample values or baggage.  Raw
+error text is not passed to the decoder because it can contain telemetry values.
+
+Attachment decisions, scope skips and executed scopes have distinct records.  A
+'running scope' trace appears only after disabled-stream and ACL checks pass.
+A signal that fails is not a HAProxy fault: it keeps the level of the activity
+it belongs to and stays below the error level; the error event bit still marks
+it, so event selection finds every failure at any level.  Only hard failures and
+faults on the HAProxy side are traced at the error level.
+
+Configuration parsing and filter initialization emit no runtime trace records.
+HAProxy calls flt_otel_ops_init() before its poller and descriptor table are
+initialized.  File-descriptor sinks depend on that table.
+
+Configuration-time trace points could access uninitialized sink state.  Keep
+trace points in stream processing; configuration checks report startup errors.
+
+With USE_OTEL_TRACE absent, wrappers discard their arguments and emit no trace
+records.  Proxy statistics and normal filter processing continue unchanged.
+Makefile.mk enables tracing for older HAProxy versions that always provide it.

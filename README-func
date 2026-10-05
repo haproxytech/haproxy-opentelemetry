@@ -1237,3 +1237,21 @@ Native proxy statistics module and its inline helpers in include/stats.h.
       Registers the 'otel' proxy statistics module with its column table and
       initial counters.  Applies to frontend and backend rows.  Its cumulative
       totals reset only on 'clear counters all'.
+
+
+src/trace.c
+----------------------------------------------------------------------
+
+Native HAProxy runtime trace source, compiled when USE_OTEL_TRACE is defined.
+
+  flt_otel_trace_source
+      Registers the 'otel' trace source at STG_REGISTER with its event table,
+      named locking arguments and 'clean' decoder.  Supports stream, filter and
+      scope locking independently of OTEL_DEBUG.
+
+  flt_otel_default_cb
+      Synchronous decoder for trace records.  Formats stream, proxy, filter and
+      scope identifiers, plus event-specific runtime state from the supplied
+      arguments.  It prints no telemetry values and retains no object pointers.
+      Its wrapper entry trace prints the event mask in hexadecimal and uses
+      bounded strings for the location and function names.

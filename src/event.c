@@ -39,6 +39,7 @@ static void flt_otel_session_disable(struct flt_otel_runtime_context *rt_ctx, st
 
 	_HA_ATOMIC_ADD(conf->cnt.disabled + 0, 1);
 	flt_otel_stats_inc(flt_otel_stats_get(conf, rt_ctx->filter->flags & FLT_FL_IS_BACKEND_FILTER), FLT_OTEL_STATS_DISABLED_SCOPE);
+	FLT_OTEL_TRACE_USER(msg, FLT_OTEL_EV_SCOPE, rt_ctx->stream, rt_ctx->filter->config);
 
 	OTELC_RETURN();
 }
@@ -388,6 +389,7 @@ static int flt_otel_scope_instrument_create(struct filter *f, struct otelc_meter
 
 		if (owner_scope != scope) {
 			FLT_OTEL_ERR("instrument '%s' is already created by " FLT_OTEL_PARSE_SECTION_SCOPE_ID " '%s', a create line cannot create it again", owner->id, owner_scope->id);
+			FLT_OTEL_TRACE_STATE("instrument already created by another scope", FLT_OTEL_EV_ACTION | FLT_OTEL_EV_ERROR, FLT_OTEL_RT_CTX(f->ctx)->stream, f->config, scope, conf_instr->id);
 
 			retval = FLT_OTEL_RET_ERROR;
 		}
@@ -407,16 +409,20 @@ static int flt_otel_scope_instrument_create(struct filter *f, struct otelc_meter
 	 * otherwise bucket boundaries cannot be set.
 	 */
 	if ((conf_instr->bounds != NULL) && (conf_instr->bounds_num > 0))
-		if (OTELC_OPS(meter, add_view, conf_instr->id, conf_instr->description, conf_instr->id, conf_instr->unit, conf_instr->type, conf_instr->aggr_type, conf_instr->bounds, conf_instr->bounds_num) == OTELC_RET_ERROR)
+		if (OTELC_OPS(meter, add_view, conf_instr->id, conf_instr->description, conf_instr->id, conf_instr->unit, conf_instr->type, conf_instr->aggr_type, conf_instr->bounds, conf_instr->bounds_num) == OTELC_RET_ERROR) {
 			FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, counters, "failed to add view for instrument '%s'", conf_instr->id);
+			FLT_OTEL_TRACE_STATE("metric view creation failed", FLT_OTEL_EV_ACTION | FLT_OTEL_EV_ERROR, FLT_OTEL_RT_CTX(f->ctx)->stream, f->config, scope, conf_instr->id);
+		}
 
 	rc = OTELC_OPS(meter, create_instrument, conf_instr->id, conf_instr->description, conf_instr->unit, conf_instr->type, NULL);
 	if (rc != OTELC_RET_ERROR) {
 		HA_ATOMIC_STORE(&(owner->scope), scope);
 		HA_ATOMIC_STORE(&(owner->idx), rc);
+		FLT_OTEL_TRACE_STATE("instrument created", FLT_OTEL_EV_ACTION, FLT_OTEL_RT_CTX(f->ctx)->stream, f->config, scope, conf_instr->id);
 	}
 	else if (HA_ATOMIC_ADD_FETCH(&(owner->fail_num), 1) < FLT_OTEL_INSTR_FAIL_MAX) {
 		FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, counters, "failed to create instrument '%s'", conf_instr->id);
+		FLT_OTEL_TRACE_STATE("instrument creation failed", FLT_OTEL_EV_ACTION | FLT_OTEL_EV_ERROR, FLT_OTEL_RT_CTX(f->ctx)->stream, f->config, scope, conf_instr->id);
 
 		HA_ATOMIC_STORE(&(owner->idx), OTELC_METRIC_INSTRUMENT_UNSET);
 
@@ -428,6 +434,7 @@ static int flt_otel_scope_instrument_create(struct filter *f, struct otelc_meter
 		 * every stream: each attempt takes a process-wide lock.
 		 */
 		FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, counters, "failed to create instrument '%s', no longer retried", conf_instr->id);
+		FLT_OTEL_TRACE_STATE("instrument creation failed, retries exhausted", FLT_OTEL_EV_ACTION | FLT_OTEL_EV_ERROR, FLT_OTEL_RT_CTX(f->ctx)->stream, f->config, scope, conf_instr->id);
 
 		HA_ATOMIC_STORE(&(owner->idx), OTELC_METRIC_INSTRUMENT_FAILED);
 
@@ -482,6 +489,7 @@ static int flt_otel_scope_run_instrument(struct stream *s, struct filter *f, uin
 
 	if (meter == NULL) {
 		FLT_OTEL_ERR("scope '%s' uses metric instruments but the metrics signal is not configured", scope->id);
+		FLT_OTEL_TRACE_STATE("metric action failed, signal not configured", FLT_OTEL_EV_SCOPE | FLT_OTEL_EV_ERROR, s, f->config, scope);
 
 		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
 	}
@@ -496,6 +504,7 @@ static int flt_otel_scope_run_instrument(struct stream *s, struct filter *f, uin
 		else if (HA_ATOMIC_LOAD(&(conf_instr->ref->idx)) != OTELC_METRIC_INSTRUMENT_PENDING) {
 			OTELC_DBG(INFO, "create instrument '%s' -> '%s'", scope->id, conf_instr->id);
 			FLT_OTEL_DBG_CONF_INSTRUMENT("", conf_instr);
+			FLT_OTEL_TRACE_STATE("processing instrument creation", FLT_OTEL_EV_ACTION, s, f->config, scope, conf_instr->id);
 
 			/*
 			 * Create form: use this instrument directly, lazily
@@ -515,6 +524,7 @@ static int flt_otel_scope_run_instrument(struct stream *s, struct filter *f, uin
 
 			OTELC_DBG(INFO, "update instrument '%s' -> '%s'", scope->id, conf_instr->id);
 			FLT_OTEL_DBG_CONF_INSTRUMENT("", conf_instr);
+			FLT_OTEL_TRACE_STATE("processing instrument update", FLT_OTEL_EV_ACTION, s, f->config, scope, conf_instr->id);
 
 			/*
 			 * Update form: record a measurement using a create
@@ -522,6 +532,7 @@ static int flt_otel_scope_run_instrument(struct stream *s, struct filter *f, uin
 			 */
 			if (conf_instr->ref == NULL) {
 				OTELC_DBG(WARNING, "WARNING: invalid reference instrument '%s'", conf_instr->id);
+				FLT_OTEL_TRACE_STATE("instrument update failed, invalid reference", FLT_OTEL_EV_ACTION | FLT_OTEL_EV_ERROR, s, f->config, scope, conf_instr->id);
 
 				retval = FLT_OTEL_RET_ERROR;
 
@@ -564,6 +575,7 @@ static int flt_otel_scope_run_instrument(struct stream *s, struct filter *f, uin
 
 			if (instr == NULL) {
 				OTELC_DBG(DEBUG, "no create line of instrument '%s' matched", conf_instr->id);
+				FLT_OTEL_TRACE_STATE("instrument update skipped, no matching definition", FLT_OTEL_EV_ACTION, s, f->config, scope, conf_instr->id);
 
 				continue;
 			}
@@ -591,9 +603,15 @@ static int flt_otel_scope_run_instrument(struct stream *s, struct filter *f, uin
 
 			if (HA_ATOMIC_LOAD(&(instr->ref->idx)) < 0) {
 				OTELC_DBG(WARNING, "WARNING: instrument '%s' not created, skipping", instr->id);
+				FLT_OTEL_TRACE_STATE("instrument update skipped, instrument not created", FLT_OTEL_EV_ACTION, s, f->config, scope, conf_instr->id);
 			}
 			else if (flt_otel_scope_run_instrument_record(s, dir, meter, instr, conf_instr, err) == FLT_OTEL_RET_ERROR) {
+				FLT_OTEL_TRACE_STATE("instrument recording failed", FLT_OTEL_EV_ACTION | FLT_OTEL_EV_ERROR, s, f->config, scope, conf_instr->id);
+
 				retval = FLT_OTEL_RET_ERROR;
+			}
+			else {
+				FLT_OTEL_TRACE_STATE("instrument recording completed", FLT_OTEL_EV_ACTION, s, f->config, scope, conf_instr->id);
 			}
 		}
 
@@ -637,6 +655,7 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 
 	if (logger == NULL) {
 		FLT_OTEL_ERR("scope '%s' uses log records but the logs signal is not configured", scope->id);
+		FLT_OTEL_TRACE_STATE("log action failed, signal not configured", FLT_OTEL_EV_SCOPE | FLT_OTEL_EV_ERROR, s, f->config, scope);
 
 		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
 	}
@@ -662,6 +681,8 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 		/* Skip if the record's if/unless condition does not pass. */
 		if (flt_otel_cond_pass(conf_log->cond, s, dir) == 0)
 			continue;
+
+		FLT_OTEL_TRACE_STATE("processing log record", FLT_OTEL_EV_ACTION, s, f->config, scope, conf_log->id);
 
 		/* Evaluate log record attributes from sample expressions. */
 		(void)memset(&log_attr, 0, sizeof(log_attr));
@@ -787,8 +808,14 @@ static int flt_otel_scope_run_log_record(struct stream *s, struct filter *f, uin
 				ts_ptr = &ts_log;
 		}
 
-		if (OTELC_OPS(logger, log_span, conf_log->severity, conf_log->event_id, conf_log->event_name, otel_span, ts_ptr, ts, log_attr.attr, log_attr.cnt, "%s", buffer->area) == OTELC_RET_ERROR)
+		if (OTELC_OPS(logger, log_span, conf_log->severity, conf_log->event_id, conf_log->event_name, otel_span, ts_ptr, ts, log_attr.attr, log_attr.cnt, "%s", buffer->area) == OTELC_RET_ERROR) {
+			FLT_OTEL_TRACE_STATE("log record emission failed", FLT_OTEL_EV_ACTION | FLT_OTEL_EV_ERROR, s, f->config, scope, conf_log->id);
+
 			retval = FLT_OTEL_RET_ERROR;
+		}
+		else {
+			FLT_OTEL_TRACE_STATE("log record emitted", FLT_OTEL_EV_ACTION, s, f->config, scope, conf_log->id);
+		}
 
 		otelc_kv_destroy(&(log_attr.attr), log_attr.cnt);
 		flt_otel_trash_free(&buffer);
@@ -832,18 +859,25 @@ static int flt_otel_scope_span_start(struct filter *f, struct flt_otel_scope_spa
 	OTELC_FUNC("%p, %p, %p, %p, %p, %p:%p", f, span, conf_span, ts_steady, ts_system, OTELC_DPTR_ARGS(err));
 
 	/* The span may have been created by a scope that ran earlier. */
-	if (span->span != NULL)
+	if (span->span != NULL) {
+		FLT_OTEL_TRACE_STATE("reusing active span", FLT_OTEL_EV_SPAN, FLT_OTEL_RT_CTX(f->ctx)->stream, f->config, NULL, span);
+
 		OTELC_RETURN_INT(retval);
+	}
 
 	if (conf->instr->tracer == NULL) {
 		FLT_OTEL_ERR("span '%s' is used but the traces signal is not configured", span->id);
+		FLT_OTEL_TRACE_STATE("span creation failed, signal not configured", FLT_OTEL_EV_SPAN | FLT_OTEL_EV_ERROR, FLT_OTEL_RT_CTX(f->ctx)->stream, f->config, NULL, span);
 
 		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
 	}
 
 	span->span = OTELC_OPS(conf->instr->tracer, start_span_with_options, span->id, span->ref_span, span->ref_ctx, ts_steady, ts_system, conf_span->kind, NULL, 0);
-	if (span->span == NULL)
+	if (span->span == NULL) {
+		FLT_OTEL_TRACE_STATE("span creation failed", FLT_OTEL_EV_SPAN | FLT_OTEL_EV_ERROR, FLT_OTEL_RT_CTX(f->ctx)->stream, f->config, NULL, span);
+
 		OTELC_RETURN_INT(FLT_OTEL_RET_ERROR);
+	}
 
 	/*
 	 * Everything added to a span the sampler left out is discarded by the
@@ -856,6 +890,8 @@ static int flt_otel_scope_span_start(struct filter *f, struct flt_otel_scope_spa
 
 		span->flag_norec = 1;
 	}
+
+	FLT_OTEL_TRACE_STATE("span started", FLT_OTEL_EV_SPAN, FLT_OTEL_RT_CTX(f->ctx)->stream, f->config, NULL, span);
 
 	OTELC_RETURN_INT(retval);
 }
@@ -970,9 +1006,13 @@ static int flt_otel_scope_span_samples(struct stream *s, uint dir, struct flt_ot
  */
 static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct channel *chn, uint dir, struct flt_otel_scope_span *span, struct flt_otel_scope_data *data, struct flt_otel_conf_span *conf_span, const struct timespec *ts_steady, const struct timespec *ts_system, char **err)
 {
-	int retval = FLT_OTEL_RET_OK;
+	int  retval = FLT_OTEL_RET_OK;
+	bool flag_err;
 
 	OTELC_FUNC("%p, %p, %p, %u, %p, %p, %p, %p, %p, %p:%p", s, f, chn, dir, span, data, conf_span, ts_steady, ts_system, OTELC_DPTR_ARGS(err));
+
+	/* The error message may have been set by an earlier span or scope. */
+	flag_err = ((err != NULL) && (*err != NULL));
 
 	if ((span == NULL) || (span->span == NULL))
 		OTELC_RETURN_INT(retval);
@@ -1078,12 +1118,14 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 		struct otelc_text_map            *text_map = &(writer.text_map);
 		int                               i;
 
+		FLT_OTEL_TRACE_STATE("injecting span context", FLT_OTEL_EV_ACTION, s, f->config, NULL, conf_span->ctx_id);
+
 		/*
 		 * A failed injection may have filled part of the carrier before
 		 * giving up, so the text map is destroyed on both paths.
 		 */
 		if (flt_otel_inject_http_headers(span->span, &writer) == FLT_OTEL_RET_ERROR) {
-			/* Do nothing. */
+			FLT_OTEL_TRACE_STATE("span context injection failed", FLT_OTEL_EV_SPAN | FLT_OTEL_EV_ERROR, s, f->config, NULL, span);
 		}
 		else if (conf_span->ctx_flags & (FLT_OTEL_CTX_USE_VARS | FLT_OTEL_CTX_USE_HEADERS)) {
 			for (i = 0; i < text_map->count; i++) {
@@ -1105,6 +1147,10 @@ static int flt_otel_scope_run_span(struct stream *s, struct filter *f, struct ch
 
 		otelc_text_map_destroy(&text_map);
 	}
+	if ((retval == FLT_OTEL_RET_ERROR) || (!flag_err && (err != NULL) && (*err != NULL)))
+		FLT_OTEL_TRACE_STATE("span processing failed", FLT_OTEL_EV_SPAN | FLT_OTEL_EV_ERROR, s, f->config, NULL, span);
+	else
+		FLT_OTEL_TRACE_STATE("span processing completed", FLT_OTEL_EV_SPAN, s, f->config, NULL, span);
 
 	OTELC_RETURN_INT(retval);
 }
@@ -1302,9 +1348,12 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 	struct flt_otel_conf_unset_var *unset_var;
 	struct timespec                 ts_now_steady, ts_now_system;
 	int                             retval = FLT_OTEL_RET_OK;
-	bool                            flag_stop = 0;
+	bool                            flag_stop = 0, flag_err;
 
 	OTELC_FUNC("%p, %p, %p, %p, %p, %p, %u, %p:%p", s, f, chn, conf_scope, ts_steady, ts_system, dir, OTELC_DPTR_ARGS(err));
+
+	/* The error message may have been set by an earlier scope. */
+	flag_err = ((err != NULL) && (*err != NULL));
 
 	FLT_OTEL_DBG_CHN(chn, s);
 	OTELC_DBG(INFO, "run scope '%s' %d", conf_scope->id, conf_scope->event);
@@ -1315,8 +1364,11 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 	 * same event or group, disables the filter for the rest of the stream.
 	 * Skip this scope so that no further spans are created.
 	 */
-	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, conf_scope->event)))
+	if (flt_otel_is_disabled(f FLT_OTEL_DBG_ARGS(, conf_scope->event))) {
+		FLT_OTEL_TRACE_USER("scope skipped, stream disabled", FLT_OTEL_EV_SCOPE, s, f->config, conf_scope);
+
 		OTELC_RETURN_INT(retval);
+	}
 
 	if (ts_steady == NULL) {
 		(void)clock_gettime(CLOCK_MONOTONIC, &ts_now_steady);
@@ -1336,9 +1388,14 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 		OTELC_DBG(DEBUG, "the ACL rule %s", rc ? "matches" : "does not match");
 
 		/* If the rule does not match, the current scope is skipped. */
-		if (rc == 0)
+		if (rc == 0) {
+			FLT_OTEL_TRACE_USER("scope skipped, ACL mismatch", FLT_OTEL_EV_SCOPE, s, f->config, conf_scope);
+
 			OTELC_RETURN_INT(retval);
+		}
 	}
+
+	FLT_OTEL_TRACE_USER("running scope", FLT_OTEL_EV_SCOPE, s, f->config, conf_scope);
 
 	/* Extract and initialize OpenTelemetry propagation contexts. */
 	list_for_each_entry(conf_ctx, &(conf_scope->contexts), list) {
@@ -1347,6 +1404,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 
 		OTELC_DBG(INFO, "run context '%s' -> '%s'", conf_scope->id, conf_ctx->id);
 		FLT_OTEL_DBG_CONF_CONTEXT("run context ", conf_ctx);
+		FLT_OTEL_TRACE_STATE("processing context extraction", FLT_OTEL_EV_ACTION, s, f->config, conf_scope, conf_ctx->id);
 
 		/*
 		 * The OpenTelemetry context is read from the HTTP header
@@ -1361,8 +1419,11 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 
 		if (text_map != NULL) {
 			scope_ctx = flt_otel_scope_context_init(f->ctx, conf->instr->tracer, conf_ctx->id, conf_ctx->id_len, text_map, dir, err);
-			if (scope_ctx == NULL)
+			if (scope_ctx == NULL) {
+				FLT_OTEL_TRACE_STATE("context extraction failed", FLT_OTEL_EV_ACTION | FLT_OTEL_EV_ERROR, s, f->config, conf_scope, conf_ctx->id);
+
 				retval = FLT_OTEL_RET_ERROR;
+			}
 
 			otelc_text_map_destroy(&text_map);
 
@@ -1377,6 +1438,8 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 				FLT_OTEL_RT_CTX(f->ctx)->flag_ctx_valid = 1;
 		}
 		else if ((err != NULL) && (*err != NULL)) {
+			FLT_OTEL_TRACE_STATE("context carrier retrieval failed", FLT_OTEL_EV_ACTION | FLT_OTEL_EV_ERROR, s, f->config, conf_scope, conf_ctx->id);
+
 			retval = FLT_OTEL_RET_ERROR;
 		}
 		else {
@@ -1387,6 +1450,7 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 			 * parent will then fail to resolve it.
 			 */
 			OTELC_DBG(NOTICE, "no context found for '%s'", conf_ctx->id);
+			FLT_OTEL_TRACE_STATE("context extraction skipped, no carrier", FLT_OTEL_EV_ACTION, s, f->config, conf_scope, conf_ctx->id);
 		}
 	}
 
@@ -1403,13 +1467,18 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 		if (!LIST_ISEMPTY(&(conf_scope->contexts)))
 			flt_otel_session_disable(f->ctx, conf, "session disabled (require-context)");
 
+		FLT_OTEL_TRACE_USER("scope outputs skipped, required context missing", FLT_OTEL_EV_SCOPE, s, f->config, conf_scope);
+
 		OTELC_RETURN_INT(retval);
 	}
 
 	/* Set HAProxy variables from sample expressions. */
-	if (!LIST_ISEMPTY(&(conf_scope->set_vars)))
+	if (!LIST_ISEMPTY(&(conf_scope->set_vars))) {
+		FLT_OTEL_TRACE_STATE("processing set-var actions", FLT_OTEL_EV_SCOPE, s, f->config, conf_scope);
+
 		if (flt_otel_scope_run_set_var(s, dir, conf_scope, err) == FLT_OTEL_RET_ERROR)
 			retval = FLT_OTEL_RET_ERROR;
+	}
 
 	/* Process configured spans: resolve links and collect samples. */
 	list_for_each_entry(conf_span, &(conf_scope->spans), list) {
@@ -1424,6 +1493,8 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 
 		span = flt_otel_scope_span_init(f->ctx, conf_span->id, conf_span->id_len, conf_span->ref_id, conf_span->ref_id_len, dir, conf_span->flag_define, err);
 		if (span == NULL) {
+			FLT_OTEL_TRACE_STATE("span lookup or allocation failed", FLT_OTEL_EV_ACTION | FLT_OTEL_EV_ERROR, s, f->config, conf_scope, conf_span->id);
+
 			retval = FLT_OTEL_RET_ERROR;
 
 			continue;
@@ -1439,6 +1510,8 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 
 			continue;
 		}
+
+		FLT_OTEL_TRACE_STATE("processing scope span", FLT_OTEL_EV_SPAN, s, f->config, conf_scope, span);
 
 		/*
 		 * Resolve configured span links against the runtime context.
@@ -1539,9 +1612,12 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 	}
 
 	/* Set HAProxy variables from referenced span or context fields. */
-	if (!LIST_ISEMPTY(&(conf_scope->set_var_ctxs)))
+	if (!LIST_ISEMPTY(&(conf_scope->set_var_ctxs))) {
+		FLT_OTEL_TRACE_STATE("processing set-var-ctx actions", FLT_OTEL_EV_SCOPE, s, f->config, conf_scope);
+
 		if (flt_otel_scope_run_set_var_ctx(s, f, dir, conf_scope, err) == FLT_OTEL_RET_ERROR)
 			retval = FLT_OTEL_RET_ERROR;
+	}
 
 	/* Process metric instruments. */
 	if (!LIST_ISEMPTY(&(conf_scope->instruments)))
@@ -1564,6 +1640,8 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 			/* First-match per variable: an earlier passing line wins. */
 			if (flt_otel_unset_var_taken(s, dir, &(conf_scope->unset_vars), unset_var, var->str) != 0)
 				continue;
+
+			FLT_OTEL_TRACE_STATE("processing unset-var action", FLT_OTEL_EV_ACTION, s, f->config, conf_scope, var->str);
 
 			if (flt_otel_var_unset_byname(s, var->str, dir, err) == FLT_OTEL_RET_ERROR)
 				retval = FLT_OTEL_RET_ERROR;
@@ -1605,6 +1683,11 @@ int flt_otel_scope_run(struct stream *s, struct filter *f, struct channel *chn, 
 	if (flag_stop)
 		flt_otel_session_disable(f->ctx, conf, "session stopped");
 
+	if ((retval == FLT_OTEL_RET_ERROR) || (!flag_err && (err != NULL) && (*err != NULL)))
+		FLT_OTEL_TRACE_STATE("scope processing failed", FLT_OTEL_EV_SCOPE | FLT_OTEL_EV_ERROR, s, f->config, conf_scope);
+	else
+		FLT_OTEL_TRACE_STATE("scope processing completed", FLT_OTEL_EV_SCOPE, s, f->config, conf_scope);
+
 	OTELC_RETURN_INT(retval);
 }
 
@@ -1643,6 +1726,7 @@ int flt_otel_event_run(struct stream *s, struct filter *f, struct channel *chn, 
 
 	FLT_OTEL_DBG_CHN(chn, s);
 	OTELC_DBG(INFO, "run event '%s' %d %s", flt_otel_event_data[event].name, event, flt_otel_event_data[event].an_name);
+	FLT_OTEL_TRACE_USER("dispatching event", FLT_OTEL_EV_EVENT, s, f->config, NULL, &event);
 
 #ifdef DEBUG_OTEL
 	/* Only an HTX stream's buffer may be interpreted as an HTX structure. */
@@ -1659,12 +1743,16 @@ int flt_otel_event_run(struct stream *s, struct filter *f, struct channel *chn, 
 	 * from the 'for' loop.
 	 */
 	list_for_each_entry(conf_scope, &(conf->scopes), list) {
-		if (conf_scope->event != event)
+		if (conf_scope->event != event) {
 			/* Do nothing. */;
-		else if (!conf_scope->flag_used)
+		}
+		else if (!conf_scope->flag_used) {
 			OTELC_DBG(DEBUG, "scope '%s' %d not used", conf_scope->id, conf_scope->event);
-		else if (flt_otel_scope_run(s, f, chn, conf_scope, &ts_steady, &ts_system, flt_otel_event_data[event].smp_opt_dir, err) == FLT_OTEL_RET_ERROR)
+			FLT_OTEL_TRACE_USER("scope skipped, unused scope", FLT_OTEL_EV_SCOPE, s, f->config, conf_scope);
+		}
+		else if (flt_otel_scope_run(s, f, chn, conf_scope, &ts_steady, &ts_system, flt_otel_event_data[event].smp_opt_dir, err) == FLT_OTEL_RET_ERROR) {
 			retval = FLT_OTEL_RET_ERROR;
+		}
 	}
 
 #ifdef USE_OTEL_VARS
@@ -1673,6 +1761,10 @@ int flt_otel_event_run(struct stream *s, struct filter *f, struct channel *chn, 
 	flt_otel_http_headers_dump(chn);
 
 	OTELC_DBG(DEBUG, "event: %d %s, chn: %p, req: %p, res: %p", event, flt_otel_event_data[event].an_name, chn, &(s->req), &(s->res));
+	if ((retval == FLT_OTEL_RET_ERROR) || ((err != NULL) && (*err != NULL)))
+		FLT_OTEL_TRACE_STATE("event processing failed", FLT_OTEL_EV_EVENT | FLT_OTEL_EV_ERROR, s, f->config, NULL, &event);
+	else
+		FLT_OTEL_TRACE_STATE("event processing completed", FLT_OTEL_EV_EVENT, s, f->config, NULL, &event);
 
 	OTELC_RETURN_INT(retval);
 }

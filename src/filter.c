@@ -396,6 +396,7 @@ static int flt_otel_return_int(const struct filter *f, char **err, int retval)
 			rt_ctx->flag_disabled = 1;
 			_HA_ATOMIC_ADD(&(conf->instr->n_harderr), 1);
 			flt_otel_stats_inc(counters, FLT_OTEL_STATS_HARDERR);
+			FLT_OTEL_TRACE_ERROR("hard runtime error, filter disabled", FLT_OTEL_EV_ERROR, rt_ctx->stream, f->config);
 
 			FLT_OTEL_LOG_LIM(LOG_ERR, FLT_OTEL_LOG_LATCH_ERR, counters, "%s (filter disabled)", msg);
 
@@ -404,6 +405,7 @@ static int flt_otel_return_int(const struct filter *f, char **err, int retval)
 		} else {
 			_HA_ATOMIC_ADD(&(conf->instr->n_softerr), 1);
 			flt_otel_stats_inc(counters, FLT_OTEL_STATS_SOFTERR);
+			FLT_OTEL_TRACE_USER("soft runtime error", FLT_OTEL_EV_ERROR, rt_ctx->stream, f->config);
 
 			FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, counters, "%s", msg);
 		}
@@ -2157,6 +2159,7 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 
 		_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 2, 1);
 		flt_otel_stats_inc(counters, FLT_OTEL_STATS_ATTACH_DISABLED);
+		FLT_OTEL_TRACE_USER("attachment skipped, globally disabled", FLT_OTEL_EV_SKIP, s, f->config, NULL, f);
 
 		OTELC_RETURN_INT(FLT_OTEL_RET_IGNORE);
 	}
@@ -2171,6 +2174,7 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 
 				_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 1, 1);
 				flt_otel_stats_inc(counters, FLT_OTEL_STATS_ATTACH_RATE_LIMIT);
+				FLT_OTEL_TRACE_USER("attachment skipped, rate limited", FLT_OTEL_EV_SKIP, s, f->config, NULL, f);
 
 				OTELC_RETURN_INT(FLT_OTEL_RET_IGNORE);
 			}
@@ -2187,6 +2191,7 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 
 		_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 3, 1);
 		flt_otel_stats_inc(counters, FLT_OTEL_STATS_ATTACH_ERROR);
+		FLT_OTEL_TRACE_ERROR("attachment failed, runtime context allocation", FLT_OTEL_EV_SKIP | FLT_OTEL_EV_ERROR, s, f->config, NULL, f);
 
 		OTELC_RETURN_INT(FLT_OTEL_RET_IGNORE);
 	}
@@ -2217,6 +2222,7 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 	_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 0, 1);
 	flt_otel_stats_inc(counters, FLT_OTEL_STATS_ATTACH_RUN);
 	OTELC_DBG(DEBUG, "analyzers pre %08x post %08x", f->pre_analyzers, f->post_analyzers);
+	FLT_OTEL_TRACE_USER("filter attached", FLT_OTEL_EV_ATTACH, s, f->config, NULL, f);
 
 #ifdef USE_OTEL_VARS
 	flt_otel_vars_dump(s);
@@ -2365,6 +2371,7 @@ static void flt_otel_ops_detach(struct stream *s, struct filter *f)
 	OTELC_FUNC("%p, %p", s, f);
 
 	OTELC_DBG(DEBUG, "filter '%s', type: %s", FLT_OTEL_CONF(f)->id, flt_otel_type(f));
+	FLT_OTEL_TRACE_USER("filter detaching", FLT_OTEL_EV_DETACH, s, f->config, NULL, f);
 
 	flt_otel_runtime_context_free(f);
 

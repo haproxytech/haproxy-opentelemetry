@@ -334,6 +334,49 @@ counters all` command resets the module totals without changing per-instance
 counters or error handling.  Bare `clear counters` leaves the totals unchanged.
 See [README-design](README-design) for the field names and their meanings.
 
+### Runtime tracing
+
+HAProxy exposes filter activity through the `otel` trace source in release and
+debug builds.  It is independent of `OTEL_DEBUG` and the wrapper debug level.
+No rebuild is needed to start or stop tracing on a running instance.
+
+Use the HAProxy CLI to select a sink and level, then start the source.  The
+built-in `buf0` ring stores records that `show events` can read:
+
+```
+trace otel sink buf0 level user verbosity clean start now
+show events buf0
+trace otel stop now
+```
+
+The `user` level reports attachments, event dispatch, scopes and group actions.
+Use `state` for span, context, metric and log details.  A signal that fails
+keeps the level of the activity it belongs to and carries the error event, so
+only hard failures and faults on the HAProxy side reach the `error` level.  The
+`clean` decoder prints identifiers and state without headers, sample values or
+baggage.
+
+Use `show trace otel` to inspect the source.  Its event names are listed below.
+To report only failures, run `trace otel event none` followed by `trace otel
+event error`.  The `lock stream`, `lock filter` and `lock scope` controls focus
+tracing on the first matching stream, filter configuration or scope.
+
+```
+attach skip detach event scope action span context error
+```
+
+To trace from startup, use HAProxy's `-dt` option.  A bare `-dt otel` selects
+the error level; include a level to follow normal activity:
+
+```
+./haproxy -f haproxy.cfg -dt otel:user:clean
+./haproxy -f haproxy.cfg -dt otel:state:clean
+```
+
+HAProxy enables its native trace subsystem by default.  Builds that disable it
+with `USE_TRACE=0` have no trace source, trace CLI or startup `-dt` support.
+The proxy statistics module remains available in those builds.
+
 ### Performance
 
 Benchmark results from the standalone (`sa`) configuration, the heaviest of the
