@@ -38,6 +38,7 @@ scripts.
   |   |-- sample.h       Sample fetch names (otel.context, otel.bytes_*)
   |   |-- util.h         String conversion, sample helpers
   |   |-- group.h        Group action (HAProxy rule integration)
+  |   |-- stats.h        Native proxy statistics interface
   |   `-- cli.h          CLI command interface
   |-- src/
   |   |-- filter.c       Filter lifecycle and channel callbacks
@@ -52,6 +53,7 @@ scripts.
   |   |-- pool.c         Pool alloc/free, trash buffers
   |   |-- util.c         Argument handling, sample conversion
   |   |-- group.c        Group action parsing and execution
+  |   |-- stats.c        Native proxy statistics module
   |   `-- cli.c          CLI command handlers
   |-- dummy/             Build-only wrapper stand-in (see dummy/README)
   `-- test/
@@ -120,7 +122,7 @@ Build options:
 Compiled objects (vars.o is built unconditionally):
 
   cli.o  conf.o  event.o  filter.o  group.o  http.o  otelc.o  parser.o
-  pool.o  sample.o  scope.o  util.o  vars.o
+  pool.o  sample.o  scope.o  stats.o  util.o  vars.o
 
 The dummy/ subtree stands in for the wrapper API so the filter builds and links
 with neither the wrapper nor the OpenTelemetry C++ SDK installed.  Its Makefile
@@ -1939,3 +1941,42 @@ The lifecycle operations fall into the same classes: a repeated start replaces
 the provider, the tracer and the propagator, which is why the filter runs it
 once, under the atomic claim of section 18.2; set_flush_timeout is a last-wins
 setter behind 'option noflush' and force_flush is a per-call action.
+
+
+19  Native proxy statistics
+----------------------------------------------------------------------
+
+At STG_REGISTER, stats.c registers the native 'otel' statistics module with its
+column table, zero-initialized counters and frontend/backend capabilities.
+
+The FLT_OTEL_STATS_DEFINES list in stats.h generates the counter indexes, column
+names and descriptions from the shared definition list.
+
+On HAProxy 3.4 and later, Makefile.mk detects EXTRA_COUNTERS_AGGR and defines
+USE_OTEL_STATS_AGGR.  The fill_stats callback receives the module and native
+extra_counters handle, then sums counter values across thread groups.  Earlier
+versions pass a shared counter block, which the callback reads atomically.
+
+The flt_otel_stats_fill() callback fills all OTel columns if selected_field
+is NULL; otherwise, it fills only the indexed column.  It leaves other fields
+unchanged.  Successful fills return 1; out-of-range indexes return 0 without
+changing the output.
+
+The inline flt_otel_stats_get() helper selects storage for the actual frontend
+or backend attachment.  EXTRA_COUNTERS_GET returns the current thread group's
+OTel counter block.  The helper returns NULL if that side has no counters.
+
+The flt_otel_stats_inc() inline helper increments a native counter atomically
+when its storage is available.  It performs no memory allocation.
+
+The filter counts attachment decisions, scope-driven disables, hard and soft
+runtime errors, and suppressed runtime logs.  Each proxy row accumulates the
+counter updates of its OTel filter instances.
+
+A listen proxy used as another frontend's backend counts those attachments on
+its backend row.  The filter configuration does not cache frontend storage.
+
+The module has clearable set to 0, so 'clear counters all' resets its totals but
+bare 'clear counters' does not.  Native totals do not replace the per-instance
+diagnostics or change runtime error and logging state.  The CLI reports them in
+'show stat'; HTTP pages display the module when 'stats show-modules' is enabled.

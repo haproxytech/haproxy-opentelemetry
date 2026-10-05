@@ -1183,11 +1183,9 @@ static int flt_otel_cli_io_status(struct appctx *appctx)
 		(void)chunk_appendf(&trash, "       suppressed:    pending %u, total %" PRIu64 "\n", _HA_ATOMIC_LOAD(&(conf->instr->log.sup_pending)), _HA_ATOMIC_LOAD(&(conf->instr->log.sup_total)));
 		(void)chunk_appendf(&trash, "       idle timeout:  %u ms\n", conf->instr->idle_timeout);
 		(void)chunk_appendf(&trash, "       analyzers:     %08x\n", conf->instr->analyzers);
-#ifdef FLT_OTEL_USE_COUNTERS
 		(void)chunk_appendf(&trash, "\n     counters:\n");
-		(void)chunk_appendf(&trash, "       attached: run %" PRIu64 ", rate-limit %" PRIu64 ", disabled %" PRIu64 ", error %" PRIu64 "\n", conf->cnt.attached[0], conf->cnt.attached[1], conf->cnt.attached[2], conf->cnt.attached[3]);
-		(void)chunk_appendf(&trash, "       disabled: scope %" PRIu64 ", hard-error %" PRIu64 "\n", conf->cnt.disabled[0], conf->cnt.disabled[1]);
-#endif
+		(void)chunk_appendf(&trash, "       attached: run %" PRIu64 ", rate-limit %" PRIu64 ", disabled %" PRIu64 ", error %" PRIu64 "\n", _HA_ATOMIC_LOAD(&(conf->cnt.attached[0])), _HA_ATOMIC_LOAD(&(conf->cnt.attached[1])), _HA_ATOMIC_LOAD(&(conf->cnt.attached[2])), _HA_ATOMIC_LOAD(&(conf->cnt.attached[3])));
+		(void)chunk_appendf(&trash, "       disabled: scope %" PRIu64 ", hard-error %" PRIu64 "\n", _HA_ATOMIC_LOAD(&(conf->cnt.disabled[0])), _HA_ATOMIC_LOAD(&(conf->cnt.disabled[1])));
 
 		if (applet_putchk(appctx, &trash) == -1)
 			OTELC_RETURN_INT(0);

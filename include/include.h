@@ -28,6 +28,10 @@
 #include <haproxy/tcp_rules.h>
 #include <haproxy/tools.h>
 #include <haproxy/vars.h>
+#include <haproxy/stats.h>
+#ifdef USE_OTEL_STATS_AGGR
+#  include <haproxy/counters.h>
+#endif
 
 #include <opentelemetry-c-wrapper/include.h>
 
@@ -46,6 +50,7 @@
 #include "pool.h"
 #include "sample.h"
 #include "scope.h"
+#include "stats.h"
 #include "util.h"
 #include "vars.h"
 

@@ -56,9 +56,9 @@
  * FLT_OTEL_LOG_RATE_PERIOD per instance.  Lines that are held back are tallied
  * and reported as a suffix on the next line that is emitted, and counted in a
  * lifetime total that is never reset.  Like FLT_OTEL_LOG, it requires an
- * ambient <conf> pointer.
+ * ambient <conf> pointer and native proxy counters <c> for this attachment.
  */
-#define FLT_OTEL_LOG_LIM(l,b,f, ...)                                                                       \
+#define FLT_OTEL_LOG_LIM(l,b,c,f, ...)                                                                     \
 	do {                                                                                               \
 		uint old  = _HA_ATOMIC_BTS(&(conf->instr->log.latch), (b));                                \
 		uint rate = update_freq_ctr_period(&(conf->instr->log.rate), FLT_OTEL_LOG_RATE_PERIOD, 1); \
@@ -73,6 +73,7 @@
 		} else {                                                                                   \
 			_HA_ATOMIC_ADD(&(conf->instr->log.sup_pending), 1);                                \
 			_HA_ATOMIC_ADD(&(conf->instr->log.sup_total), 1);                                  \
+			flt_otel_stats_inc((c), FLT_OTEL_STATS_LOG_SUPPRESSED);                            \
 		}                                                                                          \
 	} while (0)
 

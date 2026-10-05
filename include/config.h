@@ -14,11 +14,6 @@
 #define USE_POOL_OTEL_RUNTIME_CONTEXT
 #define USE_TRASH_CHUNK
 
-/* Enable per-event and per-stream diagnostic counters in debug builds. */
-#if defined(DEBUG_OTEL) && !defined(FLT_OTEL_USE_COUNTERS)
-#  define FLT_OTEL_USE_COUNTERS
-#endif
-
 /* Runtime-log rate ceiling: at most RATE_MAX emitted lines per RATE_PERIOD per instance. */
 #define FLT_OTEL_LOG_RATE_PERIOD  MS_TO_TICKS(10000) /* Sliding window, 10 seconds. */
 #define FLT_OTEL_LOG_RATE_MAX     3                  /* Lines per window before suppression. */

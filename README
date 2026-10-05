@@ -1,7 +1,7 @@
                    -----------------------------------------
                       The HAProxy OpenTelemetry filter (OTel)
                                  Version 2.3.0
-                          ( Last update: 2026-10-04 )
+                          ( Last update: 2026-10-06 )
                    -----------------------------------------
                            Author : Miroslav Zagorac
                      Contact : mzagorac at haproxy dot com
@@ -22,7 +22,8 @@ SUMMARY
   5.    Examples
   5.1.    Benchmarking results
   6.    OTel CLI
-  7.    Known bugs and limitations
+  7.    HAProxy statistics
+  8.    Known bugs and limitations
 
 
 0. Terms
@@ -2090,8 +2091,8 @@ both rejected:
   --- command output ----------
 
 The 'flt-otel status' command prints a report for each configured filter
-instance.  A typical response looks like this (the 'debug level' line and
-the 'counters' block appear only in a debug build):
+instance.  A typical response looks like this (the 'debug level' line appears
+only in a debug build):
 
   % echo "flt-otel status" | socat - UNIX-CONNECT:/tmp/haproxy.sock
   --- command output ----------
@@ -2242,7 +2243,46 @@ Each section is shown as '(no scopes)', '(no groups)' or '(no events)' when it
 has no rows.
 
 
-7. Known bugs and limitations
+7. HAProxy statistics
+----------------------
+
+The filter registers the native HAProxy statistics module 'otel' in release and
+debug builds.  Its counters appear as extra columns in 'show stat' and as module
+details on the HTTP statistics page.
+
+Enable 'stats show-modules' on the proxy serving the statistics URI to display
+the module.  Hover over its 'otel' column to read the counters:
+
+  listen statistics
+      bind :8404
+      mode http
+      stats uri /stats
+      stats show-modules
+
+  otel_attach_run           Accepted filter attachments.
+  otel_attach_rate_limit    Attachments skipped by the sampling rate.
+  otel_attach_disabled      Attachments skipped while disabled.
+  otel_attach_error         Failed runtime-context allocations.
+  otel_disabled_scope       Streams disabled by a scope.
+  otel_disabled_hard_error  Streams disabled by a hard runtime error.
+  otel_hard_errors          Hard runtime error episodes.
+  otel_soft_errors          Soft runtime error occurrences.
+  otel_logs_suppressed      Runtime logs held back by the latch or rate limit.
+
+Each proxy statistics row sums the contributions of its OTel filter instances.
+Attachments increment only their actual frontend or backend side.
+
+A listen proxy counts its own frontend attachments only on its frontend row.
+When selected as another frontend's backend, it counts those attachments on
+its backend row.
+
+Only 'clear counters all' resets these cumulative totals.  Bare 'clear counters'
+leaves them unchanged.  The 'flt-otel status' command retains the per-instance
+diagnostics, and 'flt-otel reset-errors' changes only the per-instance error
+state, not the native proxy counters.
+
+
+8. Known bugs and limitations
 -------------------------------
 
 The name of the span context definition can contain only letters, numbers and

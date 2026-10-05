@@ -379,6 +379,7 @@ static int flt_otel_return_int(const struct filter *f, char **err, int retval)
 {
 	struct flt_otel_runtime_context *rt_ctx = f->ctx;
 	struct flt_otel_conf            *conf   = FLT_OTEL_CONF(f);
+	struct flt_otel_stats_counters  *counters;
 	char                             buffer[FLT_OTEL_LOG_MSG_SIZE];
 	const char                      *msg;
 
@@ -386,22 +387,25 @@ static int flt_otel_return_int(const struct filter *f, char **err, int retval)
 
 	/* Disable the filter on hard errors; ignore on soft errors. */
 	if ((retval == FLT_OTEL_RET_ERROR) || ((err != NULL) && (*err != NULL))) {
+		counters = flt_otel_stats_get(conf, f->flags & FLT_FL_IS_BACKEND_FILTER);
+
 		/* A message may quote a sample value, so it is escaped here. */
 		msg = ((err != NULL) && (*err != NULL)) ? flt_otel_str_escape(buffer, sizeof(buffer), *err) : "unspecified runtime error";
 
 		if (rt_ctx->flag_harderr) {
 			rt_ctx->flag_disabled = 1;
 			_HA_ATOMIC_ADD(&(conf->instr->n_harderr), 1);
+			flt_otel_stats_inc(counters, FLT_OTEL_STATS_HARDERR);
 
-			FLT_OTEL_LOG_LIM(LOG_ERR, FLT_OTEL_LOG_LATCH_ERR, "%s (filter disabled)", msg);
+			FLT_OTEL_LOG_LIM(LOG_ERR, FLT_OTEL_LOG_LATCH_ERR, counters, "%s (filter disabled)", msg);
 
-#ifdef FLT_OTEL_USE_COUNTERS
-			_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.disabled + 1, 1);
-#endif
+			_HA_ATOMIC_ADD(conf->cnt.disabled + 1, 1);
+			flt_otel_stats_inc(counters, FLT_OTEL_STATS_DISABLED_HARDERR);
 		} else {
 			_HA_ATOMIC_ADD(&(conf->instr->n_softerr), 1);
+			flt_otel_stats_inc(counters, FLT_OTEL_STATS_SOFTERR);
 
-			FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, "%s", msg);
+			FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, counters, "%s", msg);
 		}
 
 		retval = FLT_OTEL_RET_OK;
@@ -559,9 +563,7 @@ static void flt_otel_ops_deinit(struct proxy *p, struct flt_conf *fconf)
 	otelc_statistics(((*conf)->instr != NULL) ? (*conf)->instr->meter : NULL, buffer, sizeof(buffer));
 	OTELC_DBG(INFO, "%s", buffer);
 
-#  ifdef FLT_OTEL_USE_COUNTERS
-	OTELC_DBG(INFO, "attach counters: %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, (*conf)->cnt.attached[0], (*conf)->cnt.attached[1], (*conf)->cnt.attached[2], (*conf)->cnt.attached[3]);
-#  endif
+	OTELC_DBG(INFO, "attach counters: %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, _HA_ATOMIC_LOAD(&((*conf)->cnt.attached[0])), _HA_ATOMIC_LOAD(&((*conf)->cnt.attached[1])), _HA_ATOMIC_LOAD(&((*conf)->cnt.attached[2])), _HA_ATOMIC_LOAD(&((*conf)->cnt.attached[3])));
 
 	OTELC_DBG(INFO, "--- used events ----------");
 	for (i = 0; i < OTELC_TABLESIZE((*conf)->cnt.event); i++)
@@ -2144,6 +2146,7 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 {
 	const struct flt_otel_conf      *conf = FLT_OTEL_CONF(f);
 	struct flt_otel_runtime_context *rt_ctx;
+	struct flt_otel_stats_counters  *counters = flt_otel_stats_get(conf, f->flags & FLT_FL_IS_BACKEND_FILTER);
 	char                            *err = NULL;
 
 	OTELC_FUNC("%p, %p", s, f);
@@ -2152,9 +2155,8 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 	if (_HA_ATOMIC_LOAD(&(conf->instr->flag_disabled))) {
 		OTELC_DBG(DEBUG, "filter '%s', type: %s (disabled)", conf->id, flt_otel_type(f));
 
-#ifdef FLT_OTEL_USE_COUNTERS
 		_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 2, 1);
-#endif
+		flt_otel_stats_inc(counters, FLT_OTEL_STATS_ATTACH_DISABLED);
 
 		OTELC_RETURN_INT(FLT_OTEL_RET_IGNORE);
 	}
@@ -2167,9 +2169,8 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 			if (rate <= rnd) {
 				OTELC_DBG(DEBUG, "filter '%s', type: %s (ignored: %u <= %u)", conf->id, flt_otel_type(f), rate, rnd);
 
-#ifdef FLT_OTEL_USE_COUNTERS
 				_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 1, 1);
-#endif
+				flt_otel_stats_inc(counters, FLT_OTEL_STATS_ATTACH_RATE_LIMIT);
 
 				OTELC_RETURN_INT(FLT_OTEL_RET_IGNORE);
 			}
@@ -2182,11 +2183,10 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 	f->ctx = flt_otel_runtime_context_init(s, f, &err);
 	FLT_OTEL_ERR_FREE(err);
 	if (f->ctx == NULL) {
-		FLT_OTEL_LOG_LIM(LOG_ERR, FLT_OTEL_LOG_LATCH_ERR, "failed to create runtime context");
+		FLT_OTEL_LOG_LIM(LOG_ERR, FLT_OTEL_LOG_LATCH_ERR, counters, "failed to create runtime context");
 
-#ifdef FLT_OTEL_USE_COUNTERS
 		_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 3, 1);
-#endif
+		flt_otel_stats_inc(counters, FLT_OTEL_STATS_ATTACH_ERROR);
 
 		OTELC_RETURN_INT(FLT_OTEL_RET_IGNORE);
 	}
@@ -2214,9 +2214,8 @@ static int flt_otel_ops_attach(struct stream *s, struct filter *f)
 		flt_otel_idle_expire_set(s, rt_ctx->idle_exp);
 	}
 
-#ifdef FLT_OTEL_USE_COUNTERS
 	_HA_ATOMIC_ADD(FLT_OTEL_CONF(f)->cnt.attached + 0, 1);
-#endif
+	flt_otel_stats_inc(counters, FLT_OTEL_STATS_ATTACH_RUN);
 	OTELC_DBG(DEBUG, "analyzers pre %08x post %08x", f->pre_analyzers, f->post_analyzers);
 
 #ifdef USE_OTEL_VARS

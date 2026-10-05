@@ -645,10 +645,8 @@ flags.  This enables:
   - Additional flt_ops callbacks: deinit_per_thread, http_payload and
     http_reset.  In non-debug builds these are NULL.
 
-  - FLT_OTEL_USE_COUNTERS (config.h), which activates the attach and disable
-    outcome counters in flt_otel_counters, ie the attached[] and disabled[]
-    arrays.  The per-event dispatch counters (cnt.event[]) are switched directly
-    by DEBUG_OTEL.
+  - Per-event HTX diagnostics in cnt.event[].  Attachment and disable outcome
+    counters are present in all builds.
 
   - Debug-only functions throughout the codebase, marked with [D] in
     README-func: flt_otel_scope_data_dump, flt_otel_http_headers_dump,
@@ -687,8 +685,8 @@ limit of section 3.3, so a recurring fault cannot flood the log servers.
 
 9.4  Counter System
 
-When FLT_OTEL_USE_COUNTERS is defined, the flt_otel_counters structure (conf.h)
-maintains:
+The flt_otel_counters structure in conf.h maintains these per-instance counters
+in all builds:
 
   attached[4]   Counters for attach outcomes, incremented atomically in
                 flt_otel_ops_attach().
@@ -699,6 +697,35 @@ maintains:
 
 The counters are reported by the "flt-otel status" CLI command and dumped at
 deinit time in debug builds.
+
+The native HAProxy statistics module "otel" also reports proxy totals in "show
+stat" and on the HTTP statistics page.  Enable "stats show-modules" on the proxy
+serving the statistics URI to display its module column.  Its fields are:
+
+  otel_attach_run            Accepted filter attachments.
+  otel_attach_rate_limit     Attachments skipped by the sampling rate.
+  otel_attach_disabled       Attachments skipped while disabled.
+  otel_attach_error          Failed runtime-context allocations.
+  otel_disabled_scope        Streams disabled by a scope.
+  otel_disabled_hard_error   Streams disabled by a hard runtime error.
+  otel_hard_errors           Hard runtime error episodes.
+  otel_soft_errors           Soft runtime error occurrences.
+  otel_logs_suppressed       Runtime logs held back by the latch or rate limit.
+
+Multiple filter instances contribute to the same proxy row.  Each attachment
+updates only its actual frontend or backend side.  A listen proxy serving its
+own frontend attaches its filters once, so its backend row does not duplicate
+the frontend counts.  When another frontend selects that listen as a backend,
+those attachments contribute to the listen's backend row instead.
+
+The module uses HAProxy's extra-counter storage to combine totals across thread
+groups where supported.  Sampling does not scan filters, and updates do not
+allocate memory.  Counter reads and increments are atomic.
+
+The "clear counters all" command resets cumulative proxy counters, but leaves
+per-instance counters and operational error and logging state unchanged.  The
+"flt-otel reset-errors" command resets only per-instance error state.  Bare
+"clear counters" leaves module totals unchanged.
 
 
 10  Idle Timeout Mechanism
@@ -842,7 +869,7 @@ the column-oriented table builder (util.c).  The report contains:
   - Per-proxy: config file, group/scope counts, instrumentation details, rate
     limit, error mode, disabled state, logging state, runtime-error tallies
     (hard, soft), suppressed-line counts (pending, total), the minimum idle
-    timeout, analyzer bitmask, and counters (if FLT_OTEL_USE_COUNTERS).
+    timeout, analyzer bitmask, and attach/disable outcome counters.
 
 12.4  Introspection and Flush
 

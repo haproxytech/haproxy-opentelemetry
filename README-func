@@ -1210,3 +1210,30 @@ tcp-request / tcp-response rules.
       Parses the "otel-group" action keyword from HAProxy config rules.
       Registered for tcp-request, tcp-response, http-request, http-response and
       http-after-response action contexts.
+
+
+src/stats.c
+----------------------------------------------------------------------
+
+Native proxy statistics module and its inline helpers in include/stats.h.
+
+  flt_otel_stats_fill
+      Fills all OTel fields or only the selected column.  Aggregates native
+      thread-group counters on HAProxy 3.4 and later; older versions read the
+      shared block atomically.  Returns 1 on success, or 0 for an out-of-range
+      column without changing the output.
+
+  flt_otel_stats_get
+      Inline helper in include/stats.h.  Selects frontend or backend storage
+      from the actual attachment side and returns the current thread group's
+      OTel counter block.  Returns NULL when that side has no native counters.
+
+  flt_otel_stats_inc
+      Inline helper in include/stats.h.  Atomically increments the selected
+      counter when its counter block is non-NULL.  The caller supplies a valid
+      counter index.
+
+  flt_otel_stats_module
+      Registers the 'otel' proxy statistics module with its column table and
+      initial counters.  Applies to frontend and backend rows.  Its cumulative
+      totals reset only on 'clear counters all'.
