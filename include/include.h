@@ -32,6 +32,11 @@
 #ifdef USE_OTEL_STATS_AGGR
 #  include <haproxy/counters.h>
 #endif
+#include <haproxy/trace.h>
+#ifdef USE_OTEL_TRACE
+#  include <haproxy/chunk.h>
+#  include <haproxy/stream-t.h>
+#endif
 
 #include <opentelemetry-c-wrapper/include.h>
 
@@ -51,6 +56,7 @@
 #include "sample.h"
 #include "scope.h"
 #include "stats.h"
+#include "trace.h"
 #include "util.h"
 #include "vars.h"
 

@@ -39,6 +39,7 @@ scripts.
   |   |-- util.h         String conversion, sample helpers
   |   |-- group.h        Group action (HAProxy rule integration)
   |   |-- stats.h        Native proxy statistics interface
+  |   |-- trace.h        Runtime trace source, events and trace points
   |   `-- cli.h          CLI command interface
   |-- src/
   |   |-- filter.c       Filter lifecycle and channel callbacks
@@ -54,6 +55,7 @@ scripts.
   |   |-- util.c         Argument handling, sample conversion
   |   |-- group.c        Group action parsing and execution
   |   |-- stats.c        Native proxy statistics module
+  |   |-- trace.c        HAProxy runtime trace source
   |   `-- cli.c          CLI command handlers
   |-- dummy/             Build-only wrapper stand-in (see dummy/README)
   `-- test/
@@ -119,10 +121,14 @@ Build options:
   OTEL_STATIC=1     Pass --static to pkg-config so OTEL_LDFLAGS picks up the
                     full Libs.private chain; needed for static linking.
 
-Compiled objects (vars.o is built unconditionally):
+Core objects (vars.o is built unconditionally):
 
   cli.o  conf.o  event.o  filter.o  group.o  http.o  otelc.o  parser.o
   pool.o  sample.o  scope.o  stats.o  util.o  vars.o
+
+Makefile.mk adds trace.o only when native tracing is enabled.  USE_TRACE=0 omits
+the object and leaves the wrappers disabled.  Older HAProxy versions that always
+provide tracing still build trace.c even though they do not define USE_TRACE.
 
 The dummy/ subtree stands in for the wrapper API so the filter builds and links
 with neither the wrapper nor the OpenTelemetry C++ SDK installed.  Its Makefile
@@ -1980,3 +1986,42 @@ The module has clearable set to 0, so 'clear counters all' resets its totals but
 bare 'clear counters' does not.  Native totals do not replace the per-instance
 diagnostics or change runtime error and logging state.  The CLI reports them in
 'show stat'; HTTP pages display the module when 'stats show-modules' is enabled.
+
+
+20  Runtime trace source
+----------------------------------------------------------------------
+
+The flt_otel_trace_source definition in trace.c registers the native 'otel'
+source at STG_REGISTER.  Its event table describes attachment, skip, detach,
+event, scope, action, span, context and error activity.  The source supplies
+named locking arguments and the 'clean' verbosity decoder.
+
+Makefile.mk defines USE_OTEL_TRACE when native tracing is enabled, including
+older HAProxy versions that always provide tracing.
+
+The wrappers in trace.h select the native level through FLT_OTEL_TRACE_ERROR,
+FLT_OTEL_TRACE_USER and FLT_OTEL_TRACE_STATE.  Without USE_OTEL_TRACE, they
+discard arguments without emitting records.  Proxy statistics remain available.
+
+The trace points in filter.c report attachments and runtime error handling.  The
+event.c points report event and scope processing.  The group.c points report
+rule actions, and scope.c reports span and context lifetime changes.
+
+Scope execution is traced only after the disabled-stream and ACL checks pass.
+Rejected scopes produce distinct skip records instead.
+
+Trace arguments are ordered as stream, filter configuration, scope configuration
+and event-specific detail.  HAProxy derives generic locking criteria from the
+stream; named filter and scope arguments support 'lock filter' and 'lock scope'.
+The decoder reads the supplied objects synchronously while they are alive.
+
+The 'clean' decoder prints configuration identifiers and runtime state without
+telemetry values.  Trace points pass fixed failure messages rather than raw
+error text, which can contain sample values.
+
+Native tracing is absent from configuration-time callbacks.  File-descriptor
+sinks require initialization after the filter configuration checks.
+
+HAProxy's 'trace otel' CLI and startup '-dt' option control tracing without a
+rebuild.  The source is independent of OTEL_DEBUG and the wrapper debug level.
+It does not export OpenTelemetry spans, metrics or logs.

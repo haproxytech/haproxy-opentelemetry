@@ -23,7 +23,8 @@ SUMMARY
   5.1.    Benchmarking results
   6.    OTel CLI
   7.    HAProxy statistics
-  8.    Known bugs and limitations
+  8.    Runtime tracing
+  9.    Known bugs and limitations
 
 
 0. Terms
@@ -2282,7 +2283,62 @@ diagnostics, and 'flt-otel reset-errors' changes only the per-instance error
 state, not the native proxy counters.
 
 
-8. Known bugs and limitations
+8. Runtime tracing
+-------------------
+
+The native HAProxy trace source 'otel' reports filter activity in release and
+debug builds.  It is independent of OTEL_DEBUG, the wrapper debug level and
+telemetry exporters.  Select a sink and a level, then start the source through
+the HAProxy CLI:
+
+  trace otel sink buf0 level user verbosity clean start now
+  show events buf0
+  trace otel stop now
+
+The built-in 'buf0' ring stores trace records for 'show events'.  The 'user'
+level reports attachment decisions, event dispatch, scopes and group actions.
+The 'state' level adds span, context, metric and log activity.  A signal that
+fails keeps the level of the activity it belongs to and carries the error event,
+so only hard failures and faults on the HAProxy side reach the 'error' level.
+The 'clean' decoder prints identifiers and runtime state without sample values,
+headers or baggage.
+
+  attach   Filter attached to a stream.
+  skip     Filter attachment skipped.
+  detach   Filter detached from a stream.
+  event    Filter event dispatched.
+  scope    Scope executed or skipped.
+  action   Group or scope action processed.
+  span     Span created, updated or finished.
+  context  Propagation context extracted or finished.
+  error    Runtime processing failed.
+
+Use 'show trace otel' to inspect the source.  To select only failures, clear the
+selected events and enable the error event:
+
+  trace otel event none
+  trace otel event error
+
+The 'trace otel lock stream', 'trace otel lock filter' and 'trace otel lock
+scope' controls follow the first matching stream, filter configuration or scope.
+A 'running scope' record appears only after its disabled-stream and ACL checks
+pass; skipped scopes produce separate skip records.
+
+Use '-dt' to enable tracing at startup.  A bare '-dt otel' selects the error
+level; specify a level to follow normal activity:
+
+  haproxy -f haproxy.cfg -dt otel:user:clean
+
+The native trace source reports stream processing, not configuration parsing or
+filter initialization.  Use configuration checks for startup failures and the
+'flt-otel' CLI to inspect loaded settings.
+
+Builds that disable native tracing with USE_TRACE=0 omit the trace source and
+its CLI controls.  Proxy statistics remain available.  Older HAProxy versions
+always build native tracing and need no USE_TRACE setting.
+
+
+9. Known bugs and limitations
 -------------------------------
 
 The name of the span context definition can contain only letters, numbers and

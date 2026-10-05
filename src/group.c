@@ -57,6 +57,7 @@ static enum act_return flt_otel_group_action(struct act_rule *rule, struct proxy
 
 	if ((fconf == NULL) || (conf == NULL) || (conf_group == NULL)) {
 		FLT_OTEL_LOG(LOG_ERR, FLT_OTEL_ACTION_GROUP ": internal error, invalid group action");
+		FLT_OTEL_TRACE_ERROR("invalid group action", FLT_OTEL_EV_ERROR, s, fconf);
 
 		OTELC_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
 	}
@@ -66,12 +67,14 @@ static enum act_return flt_otel_group_action(struct act_rule *rule, struct proxy
 
 	if (!conf_group->flag_used) {
 		OTELC_DBG(DEBUG, "group '%s' not used", conf_group->id);
+		FLT_OTEL_TRACE_USER("group action skipped, unused group", FLT_OTEL_EV_ACTION, s, fconf, NULL, conf_group->id);
 
 		OTELC_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
 	}
 
 	if (_HA_ATOMIC_LOAD(&(conf->instr->flag_disabled))) {
 		OTELC_DBG(INFO, "filter '%s' disabled, group action '%s' ignored", conf->id, conf_group->id);
+		FLT_OTEL_TRACE_USER("group action skipped, globally disabled", FLT_OTEL_EV_ACTION, s, fconf, NULL, conf_group->id);
 
 		OTELC_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
 	}
@@ -87,15 +90,19 @@ static enum act_return flt_otel_group_action(struct act_rule *rule, struct proxy
 
 	if (rt_ctx == NULL) {
 		FLT_OTEL_LOG_LIM(LOG_WARNING, FLT_OTEL_LOG_LATCH_WARN, counters, FLT_OTEL_ACTION_GROUP ": filter not attached to the stream");
+		FLT_OTEL_TRACE_USER("group action skipped, filter not attached", FLT_OTEL_EV_ACTION, s, fconf, NULL, conf_group->id);
 
 		OTELC_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
 	}
 	else if (flt_otel_is_disabled(filter FLT_OTEL_DBG_ARGS(, -1))) {
+		FLT_OTEL_TRACE_USER("group action skipped, stream disabled", FLT_OTEL_EV_ACTION, s, fconf, NULL, conf_group->id);
+
 		OTELC_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
 	}
 	else {
 		OTELC_DBG(INFO, "run group '%s'", conf_group->id);
 		FLT_OTEL_DBG_CONF_GROUP("run group ", conf_group);
+		FLT_OTEL_TRACE_USER("dispatching group action", FLT_OTEL_EV_ACTION, s, fconf, NULL, conf_group->id);
 	}
 
 	/*
@@ -108,6 +115,7 @@ static enum act_return flt_otel_group_action(struct act_rule *rule, struct proxy
 
 	if (i >= OTELC_TABLESIZE(flt_otel_group_data)) {
 		FLT_OTEL_LOG(LOG_ERR, FLT_OTEL_ACTION_GROUP ": internal error, unexpected rule->from=%d", rule->from);
+		FLT_OTEL_TRACE_ERROR("group action failed, invalid rule origin", FLT_OTEL_EV_ACTION | FLT_OTEL_EV_ERROR, s, fconf, NULL, conf_group->id);
 
 		OTELC_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
 	}
@@ -117,9 +125,13 @@ static enum act_return flt_otel_group_action(struct act_rule *rule, struct proxy
 		rc = flt_otel_scope_run(s, rt_ctx->filter, (flt_otel_group_data[i].smp_opt_dir == SMP_OPT_DIR_REQ) ? &(s->req) : &(s->res), ph_scope->ptr, NULL, NULL, flt_otel_group_data[i].smp_opt_dir, &err);
 		if ((rc == FLT_OTEL_RET_ERROR) && (opts & ACT_OPT_FINAL))
 			FLT_OTEL_LOG_LIM(LOG_ERR, FLT_OTEL_LOG_LATCH_ERR, counters, FLT_OTEL_ACTION_GROUP ": scope '%s' failed in group '%s'", ph_scope->id, conf_group->id);
+		if ((rc == FLT_OTEL_RET_ERROR) || (err != NULL))
+			FLT_OTEL_TRACE_STATE("group scope failed", FLT_OTEL_EV_SCOPE | FLT_OTEL_EV_ERROR, s, fconf, ph_scope->ptr);
 
 		OTELC_SFREE_CLEAR(err);
 	}
+
+	FLT_OTEL_TRACE_STATE("group action completed", FLT_OTEL_EV_ACTION, s, fconf, NULL, conf_group->id);
 
 	OTELC_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
 }

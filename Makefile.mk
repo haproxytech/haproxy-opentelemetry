@@ -22,6 +22,13 @@ OTEL_DEBUG_EXT = _dbg
 OTEL_DEFINE    = -DDEBUG_OTEL
 endif
 
+# Older HAProxy versions always build tracing and do not define USE_TRACE.
+ifeq ($(origin USE_TRACE),undefined)
+OTEL_DEFINE += -DUSE_OTEL_TRACE
+else ifneq ($(USE_TRACE:0=),)
+OTEL_DEFINE += -DUSE_OTEL_TRACE
+endif
+
 ifeq ($(OTEL_INC),)
 OTEL_PKGSTAT = $(shell pkg-config --exists $(OTELC_WRAPPER)$(OTEL_DEBUG_EXT); echo $$?)
 OTEL_CFLAGS  = $(shell pkg-config --silence-errors --cflags $(OTELC_WRAPPER)$(OTEL_DEBUG_EXT))
@@ -77,6 +84,10 @@ OPTIONS_OBJS += \
 	$(OTEL_DIR)/src/stats.o  \
 	$(OTEL_DIR)/src/util.o   \
 	$(OTEL_DIR)/src/vars.o
+
+ifneq ($(filter -DUSE_OTEL_TRACE,$(OTEL_DEFINE)),)
+OPTIONS_OBJS += $(OTEL_DIR)/src/trace.o
+endif
 
 ifneq ($(OTEL_USE_VARS:0=),)
 OTEL_DEFINE  += -DUSE_OTEL_VARS

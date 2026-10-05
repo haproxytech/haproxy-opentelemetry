@@ -106,6 +106,7 @@ void flt_otel_runtime_context_free(struct filter *f)
 
 		list_for_each_entry_safe(span, span_back, &(rt_ctx->spans), list) {
 			FLT_OTEL_DBG_SCOPE_SPAN("finishing span ", span);
+			FLT_OTEL_TRACE_STATE("finishing span on detach", FLT_OTEL_EV_SPAN, rt_ctx->stream, f->config, NULL, span);
 
 			/* A span whose creation failed is only an empty entry. */
 			if (span->span != NULL)
@@ -120,6 +121,7 @@ void flt_otel_runtime_context_free(struct filter *f)
 
 		list_for_each_entry_safe(ctx, ctx_back, &(rt_ctx->contexts), list) {
 			FLT_OTEL_DBG_SCOPE_CONTEXT("finishing context ", ctx);
+			FLT_OTEL_TRACE_STATE("destroying context on detach", FLT_OTEL_EV_CONTEXT, rt_ctx->stream, f->config, NULL, ctx);
 
 			flt_otel_scope_context_free(&ctx);
 		}
@@ -190,11 +192,13 @@ struct flt_otel_scope_span *flt_otel_scope_span_init(struct flt_otel_runtime_con
 			 */
 			if (flag_define && (span->id != id)) {
 				FLT_OTEL_ERR("span '%s' is already created, a defining line cannot create it again", id);
+				FLT_OTEL_TRACE_STATE("span already defined by another scope", FLT_OTEL_EV_SPAN | FLT_OTEL_EV_ERROR, rt_ctx->stream, rt_ctx->filter->config, NULL, span);
 
 				OTELC_RETURN_PTR(retptr);
 			}
 
 			OTELC_DBG(DEBUG, "found span '%s' %p", span->id, span);
+			FLT_OTEL_TRACE_STATE("found runtime span", FLT_OTEL_EV_SPAN, rt_ctx->stream, rt_ctx->filter->config, NULL, span);
 
 			OTELC_RETURN_PTR(span);
 		}
@@ -228,6 +232,7 @@ struct flt_otel_scope_span *flt_otel_scope_span_init(struct flt_otel_runtime_con
 				 * root, which is meaningless.
 				 */
 				FLT_OTEL_ERR("cannot find referenced span/context '%s'", ref_id);
+				FLT_OTEL_TRACE_STATE("span parent resolution failed", FLT_OTEL_EV_ACTION | FLT_OTEL_EV_ERROR, rt_ctx->stream, rt_ctx->filter->config, NULL, id);
 
 				OTELC_RETURN_PTR(retptr);
 			}
@@ -247,6 +252,7 @@ struct flt_otel_scope_span *flt_otel_scope_span_init(struct flt_otel_runtime_con
 	LIST_INSERT(&(rt_ctx->spans), &(retptr->list));
 
 	FLT_OTEL_DBG_SCOPE_SPAN("new span ", retptr);
+	FLT_OTEL_TRACE_STATE("allocated runtime span", FLT_OTEL_EV_SPAN, rt_ctx->stream, rt_ctx->filter->config, NULL, retptr);
 
 	OTELC_RETURN_PTR(retptr);
 }
@@ -335,6 +341,7 @@ struct flt_otel_scope_context *flt_otel_scope_context_init(struct flt_otel_runti
 	list_for_each_entry(retptr, &(rt_ctx->contexts), list)
 		if (FLT_OTEL_CONF_STR_CMP(retptr->id, id)) {
 			OTELC_DBG(DEBUG, "found context '%s' %p", id, retptr);
+			FLT_OTEL_TRACE_STATE("reusing extracted context", FLT_OTEL_EV_CONTEXT, rt_ctx->stream, rt_ctx->filter->config, NULL, retptr);
 
 			OTELC_RETURN_PTR(retptr);
 		}
@@ -373,6 +380,7 @@ struct flt_otel_scope_context *flt_otel_scope_context_init(struct flt_otel_runti
 	LIST_INSERT(&(rt_ctx->contexts), &(retptr->list));
 
 	FLT_OTEL_DBG_SCOPE_CONTEXT("new context ", retptr);
+	FLT_OTEL_TRACE_STATE("context extracted", FLT_OTEL_EV_CONTEXT, rt_ctx->stream, rt_ctx->filter->config, NULL, retptr);
 
 	OTELC_RETURN_PTR(retptr);
 }
@@ -720,6 +728,7 @@ void flt_otel_scope_finish_marked(const struct flt_otel_runtime_context *rt_ctx,
 	list_for_each_entry(span, &(rt_ctx->spans), list)
 		if (span->flag_finish) {
 			FLT_OTEL_DBG_SCOPE_SPAN("finishing span ", span);
+			FLT_OTEL_TRACE_STATE("finishing marked span", FLT_OTEL_EV_SPAN, rt_ctx->stream, rt_ctx->filter->config, NULL, span);
 
 			/* A span whose creation failed is only an empty entry. */
 			if (span->span != NULL)
@@ -732,6 +741,7 @@ void flt_otel_scope_finish_marked(const struct flt_otel_runtime_context *rt_ctx,
 	list_for_each_entry(ctx, &(rt_ctx->contexts), list)
 		if (ctx->flag_finish) {
 			FLT_OTEL_DBG_SCOPE_CONTEXT("finishing context ", ctx);
+			FLT_OTEL_TRACE_STATE("destroying marked context", FLT_OTEL_EV_CONTEXT, rt_ctx->stream, rt_ctx->filter->config, NULL, ctx);
 
 			if (ctx->context != NULL)
 				OTELC_OPSR(ctx->context, destroy);
@@ -775,8 +785,11 @@ void flt_otel_scope_free_unused(struct flt_otel_runtime_context *rt_ctx, struct 
 		struct flt_otel_scope_span *span, *span_back;
 
 		list_for_each_entry_safe(span, span_back, &(rt_ctx->spans), list)
-			if (span->span == NULL)
+			if (span->span == NULL) {
+				FLT_OTEL_TRACE_STATE("releasing finished runtime span", FLT_OTEL_EV_SPAN, rt_ctx->stream, rt_ctx->filter->config, NULL, span);
+
 				flt_otel_scope_span_free(&span);
+			}
 	}
 
 	/* Remove contexts that failed extraction and clean up their traces. */
@@ -785,6 +798,8 @@ void flt_otel_scope_free_unused(struct flt_otel_runtime_context *rt_ctx, struct 
 
 		list_for_each_entry_safe(ctx, ctx_back, &(rt_ctx->contexts), list)
 			if (ctx->context == NULL) {
+				FLT_OTEL_TRACE_STATE("releasing finished context", FLT_OTEL_EV_CONTEXT, rt_ctx->stream, rt_ctx->filter->config, NULL, ctx);
+
 				/*
 				 * All headers and variables associated with
 				 * the context in question should be deleted.
