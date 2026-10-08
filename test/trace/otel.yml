@@ -1,0 +1,83 @@
+exporters:
+  exporter_traces_dev_null:
+    type:     ostream
+    filename: /dev/null
+
+  exporter_metrics_dev_null:
+    type:     ostream
+    filename: /dev/null
+
+  exporter_logs_dev_null:
+    type:     ostream
+    filename: /dev/null
+
+readers:
+  reader_metrics:
+    thread_name:     "reader metr"
+    export_interval: 10000
+    export_timeout:  5000
+
+samplers:
+  sampler_traces:
+    type:     parent_based
+    delegate: always_on
+
+processors:
+  processor_traces_batch:
+    type:                  batch
+    thread_name:           "proc/batch trac"
+    max_queue_size:        2048
+    schedule_delay:        5000
+    max_export_batch_size: 512
+
+  processor_logs_batch:
+    type:                  batch
+    thread_name:           "proc/batch logs"
+    max_queue_size:        2048
+    schedule_delay:        5000
+    max_export_batch_size: 512
+
+providers:
+  provider_traces:
+    resources:
+      - service.version:     "1.0.0"
+      - service.instance.id: "id-trace"
+      - service.name:        "trace"
+      - service.namespace:   "HAProxy traces test"
+
+  provider_metrics:
+    resources:
+      - service.version:     "1.0.0"
+      - service.instance.id: "id-trace"
+      - service.name:        "trace"
+      - service.namespace:   "HAProxy metrics test"
+
+  provider_logs:
+    resources:
+      - service.version:     "1.0.0"
+      - service.instance.id: "id-trace"
+      - service.name:        "trace"
+      - service.namespace:   "HAProxy logs test"
+
+signals:
+  traces:
+    default:
+      scope_name: "HAProxy OTEL - traces"
+      exporters:  exporter_traces_dev_null
+      samplers:   sampler_traces
+      processors: processor_traces_batch
+      providers:  provider_traces
+
+  metrics:
+    default:
+      scope_name: "HAProxy OTEL - metrics"
+      exporters:  exporter_metrics_dev_null
+      readers:    reader_metrics
+      providers:  provider_metrics
+
+  logs:
+    default:
+      scope_name: "HAProxy OTEL - logs"
+      exporters:  exporter_logs_dev_null
+      processors: processor_logs_batch
+      providers:  provider_logs

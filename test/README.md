@@ -24,6 +24,7 @@ rest of the directory:
 | `run-test-config.sh` | The single-instance runner behind every `run-<name>.sh` symlink |
 | `run-fe-be.sh` | Starts the frontend on port 10080 and the backend on port 11080 |
 | `run-parser.sh` | Runs the parser cases and the coverage reports |
+| `run-trace.sh` | Runs the `trace` scenario with the native trace source started |
 | `test-speed.sh` | Runs the benchmark for one scenario or for all of them |
 | `copy-yml.sh` | Rewrites a template `otel.yml` for one scenario |
 | `otlp_http-recorder.py` | Captures the OTLP/HTTP traffic the filter exports |
@@ -50,6 +51,7 @@ rest of the directory:
 | `empty` | The filter loaded with an instrumentation section and no scopes, to prove it starts and stops cleanly | [README-empty](README-empty) |
 | `err` | The runtime error path: hard-error episodes, swallowed soft errors and the counters that tally them | [README-err](README-err) |
 | `lua` | Values computed by a Lua script: a registered fetch, converter and action supply span attributes, a log record and a transaction variable read by a later scope | [README-lua](README-lua) |
+| `trace` | The native `otel` trace source: attachment, event, scope, action, span, context and error records at the user and state levels | [README-trace](README-trace) |
 
 Each single-instance scenario listens on port 10080, expects an origin server
 already running on 127.0.0.1:8000, and opens `/tmp/haproxy.sock` as its admin
@@ -57,9 +59,10 @@ CLI socket; the `fe-be` pair chains 10080 to 11080 in front of the same origin
 server.  The `ctx` scenario keeps its contexts in HAProxy variables, so it needs
 an executable built with `OTEL_USE_VARS=1`; a build without that option refuses
 its configuration.  The `lua` scenario likewise needs an executable built with
-`USE_LUA=1`.  Every runner takes an optional HAProxy binary, a pidfile and a log
-name, falls back to `../../haproxy/haproxy` and writes what the instance printed
-under `_logs/`:
+`USE_LUA=1`, and the `trace` scenario one that carries HAProxy's native trace
+subsystem, which a `USE_TRACE=0` build drops.  Every runner takes an optional
+HAProxy binary, a pidfile and a log name, falls back to `../../haproxy/haproxy`
+and writes what the instance printed under `_logs/`:
 
 ```
 % ./run-sa.sh
@@ -70,8 +73,10 @@ The exporters post to an OTLP/HTTP endpoint on `localhost:4318`, so reading the
 telemetry needs a collector there, or the OTLP/HTTP traffic recorder described
 in [README-tools](README-tools), which captures the payloads and replays them
 without a collector in the way.  The `updown` scenario is the exception and
-writes its metrics to a file.  Stop an instance with `kill -USR1`: the soft stop
-lets the exporters flush what they still hold, an abrupt kill throws it away.
+writes its metrics to a file; the `trace` scenario is another one, exporting to
+`/dev/null` because a run is read for its native trace records rather than for
+the exported telemetry.  Stop an instance with `kill -USR1`: the soft stop lets
+the exporters flush what they still hold, an abrupt kill throws it away.
 
 ### Parser test
 
