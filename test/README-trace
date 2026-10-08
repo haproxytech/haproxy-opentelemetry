@@ -1,0 +1,91 @@
+Native runtime tracing test (trace/)
+====================================
+
+The 'trace' test exercises the native HAProxy trace source 'otel' while the
+filter serves traffic.  It is the only scenario that starts the source itself:
+run-trace.sh passes '-dt otel:state:clean' to the instance, so the records land
+in the log beside the instance output.  The exporters of this scenario write to
+/dev/null, which makes the test independent of a collector.
+
+The configuration drives ordinary traffic through the frontend and produces one
+error per response: a scope parents its span under 'orphan span', a span that
+the server-unavailable scope alone creates and that never appears while the
+backend is alive.  Span creation therefore fails, and the filter reports the
+failure through the trace source and through its error counters.
+
+
+Files
+-----
+
+  trace/otel.cfg    OTel filter configuration (the traced scopes)
+  trace/haproxy.cfg HAProxy frontend/backend configuration
+  trace/otel.yml    Exporter, processor, reader and provider definitions
+
+
+Records
+-------
+
+The source reports at the user and state levels.  A run over the driven traffic
+leaves these records in the log:
+
+  attach   filter attached
+  detach   filter detaching
+  event    dispatching event, event processing completed or failed
+  scope    running scope, scope processing completed
+  scope    scope skipped, ACL mismatch (the scope of the /other path)
+  span     allocated runtime span, processing scope span, span started
+  span     finishing marked span, span processing completed
+  span     releasing finished runtime span
+  context  context extracted, destroying marked context, releasing finished context
+  action   processing instrument creation, instrument created
+  action   processing instrument update, instrument recording completed
+  action   processing log record, log record emitted
+  action   processing context extraction
+  scope    processing set-var actions, processing unset-var action
+  error    span parent resolution failed, span lookup or allocation failed,
+           scope processing failed, soft runtime error
+
+Other records need a running instance and its admin CLI:
+
+  % echo "flt-otel rate 0"                   | socat - UNIX-CONNECT:/tmp/haproxy.sock
+  % echo "flt-otel disable @otel-test-trace" | socat - UNIX-CONNECT:/tmp/haproxy.sock
+  % echo "flt-otel hard-errors"              | socat - UNIX-CONNECT:/tmp/haproxy.sock
+
+The first two make the next stream skip attachment, the record naming the rate
+limit or the globally disabled filter.  The third switches the soft error of
+the response scope to its hard form, logged at the error level with the filter
+disabled for that stream; the detach that follows closes the span and the
+context left open, adding 'finishing span on detach' and 'destroying context on
+detach' to the log.  Restore the instance afterwards with 'flt-otel rate 100',
+'flt-otel enable @otel-test-trace' and 'flt-otel soft-errors'.
+
+
+Running the test
+----------------
+
+The run-trace.sh script runs this configuration.  From the test/ directory:
+
+  % ./run-trace.sh
+
+Then drive a few requests and read the records:
+
+  % curl -sS http://127.0.0.1:10080/ >/dev/null
+  % curl -sS http://127.0.0.1:10080/other >/dev/null
+  % grep '|otel|' _logs/_log-run-trace-*
+
+The runner takes the same optional arguments as the other runners, plus a fourth
+that replaces the trace specification:
+
+  % ./run-trace.sh ../../haproxy/haproxy haproxy.pid "" otel:user:clean
+
+The trace source itself is controlled through the HAProxy CLI.  To keep only
+failures, clear the selected events and enable the error event:
+
+  % echo "trace otel event none"  | socat - UNIX-CONNECT:/tmp/haproxy.sock
+  % echo "trace otel event error" | socat - UNIX-CONNECT:/tmp/haproxy.sock
+
+A trace can also follow one filter configuration or one scope; 'trace otel lock
+filter' and 'trace otel lock scope' take the identifiers used in otel.cfg.  The
+source needs a build with the native trace subsystem, which HAProxy enables by
+default and a USE_TRACE=0 build drops.  Section 8 of README describes the source
+and its levels.
