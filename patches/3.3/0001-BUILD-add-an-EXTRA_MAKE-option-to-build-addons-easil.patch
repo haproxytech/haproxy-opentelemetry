@@ -1,0 +1,49 @@
+From 30beb40e782978dafa67a546d6d965939c4e7db2 Mon Sep 17 00:00:00 2001
+From: Miroslav Zagorac <mzagorac@haproxy.com>
+Date: Sat, 10 Oct 2026 00:56:10 +0200
+Subject: [PATCH 1/2] BUILD: add an EXTRA_MAKE option to build addons easily
+
+Allow to call an external Makefile called Makefile.inc in order to build
+complex addons.
+
+make TARGET=linux-glibc ... EXTRA_MAKE="/path/to/addon1" \
+     EXTRA_MAKE+="/path/to/addon2"
+---
+ Makefile | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index 0997126..fb78c19 100644
+--- a/Makefile
++++ b/Makefile
+@@ -93,6 +93,7 @@
+ #   SILENT_DEFINE may be used to specify other defines which will not be
+ #     reported by "haproxy -vv".
+ #   EXTRA   is used to force building or not building some extra tools.
++#   EXTRA_MAKE space-separated list of external addons using a Makefile.inc
+ #   DESTDIR is not set by default and is used for installation only.
+ #           It might be useful to set DESTDIR if you want to install haproxy
+ #           in a sandbox.
+@@ -858,6 +859,10 @@ ifneq ($(USE_LINUX_CAP:0=),)
+   OPTIONS_OBJS   += src/linuxcap.o
+ endif
+ 
++ifneq ($(EXTRA_MAKE),)
++  include $(addsuffix /Makefile.mk,$(EXTRA_MAKE))
++endif
++
+ ifneq ($(USE_OT:0=),)
+   include addons/ot/Makefile
+ endif
+@@ -1043,7 +1048,7 @@ IGNORE_OPTS=help install install-man install-doc install-bin \
+ 
+ ifneq ($(TARGET),)
+ ifeq ($(filter $(firstword $(MAKECMDGOALS)),$(IGNORE_OPTS)),)
+-build_opts = $(shell rm -f .build_opts.new; echo \'$(TARGET) $(BUILD_OPTIONS) $(VERBOSE_CFLAGS) $(WARN_CFLAGS) $(NOWARN_CFLAGS) $(DEBUG)\' > .build_opts.new; if cmp -s .build_opts .build_opts.new; then rm -f .build_opts.new; else mv -f .build_opts.new .build_opts; fi)
++build_opts = $(shell rm -f .build_opts.new; echo \'$(TARGET) $(BUILD_OPTIONS) $(EXTRA_MAKE) $(VERBOSE_CFLAGS) $(WARN_CFLAGS) $(NOWARN_CFLAGS) $(DEBUG)\' > .build_opts.new; if cmp -s .build_opts .build_opts.new; then rm -f .build_opts.new; else mv -f .build_opts.new .build_opts; fi)
+ .build_opts: $(build_opts)
+ else
+ .build_opts:
+-- 
+2.43.0
+

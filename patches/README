@@ -1,0 +1,42 @@
+HAProxy patches
+===============
+
+This directory holds the patches that must be applied to a stock HAProxy source
+tree before the OTel filter can be built into it.  Every subdirectory carries
+the series for one HAProxy branch, applied in order.
+
+These patches are not officially supported.  They are meant only for users who
+still need the filter on an older HAProxy branch.
+
+Layout:
+
+  3.2/  series for the HAProxy 3.2 branch
+  3.3/  series for the HAProxy 3.3 branch
+
+Each file is a mailbox patch produced by git format-patch.  The From and index
+lines in its header name a commit and blobs of the tree the patch was made in,
+not the HAProxy tar file it is made for, so these hashes mean nothing here and
+a three way merge against them is not possible.  Apply a series with the patch
+tool from the directory where the tar was unpacked, in order:
+
+  % cd haproxy-3.2.*
+  % patch -p1 < /path/to/patches/3.2/0*.patch
+
+On a HAProxy git checkout the same files can go in as commits, since they are
+git format patches:
+
+  % git am /path/to/patches/3.2/0*.patch
+
+Take the series that matches the branch you build; both patches of a series are
+required, the addon will not build without them.
+
+  0001-BUILD-add-an-EXTRA_MAKE-option-to-build-addons-easil.patch
+      Adds the EXTRA_MAKE make variable.  The top level Makefile includes the
+      Makefile.mk fragment of every directory listed there, which is how the
+      OTel addon, living outside the HAProxy tree, is plugged into the build.
+
+  0002-MINOR-otel-added-ARGC_OTEL-enum.patch
+      Adds the ARGC_OTEL argument context to arg-t.h and sample.c.  The addon
+      sets it on the otel-scope arguments, so without this patch the filter
+      fails to compile; it also names the otel-scope directive in the error
+      message when a fetch keyword inside it fails.

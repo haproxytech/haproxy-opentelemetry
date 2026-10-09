@@ -1,0 +1,46 @@
+From 5ccef69c1bcac1947084de99095a12d5535a88cd Mon Sep 17 00:00:00 2001
+From: Miroslav Zagorac <mzagorac@haproxy.com>
+Date: Sat, 10 Oct 2026 01:03:48 +0200
+Subject: [PATCH 2/2] MINOR: otel: added ARGC_OTEL enum
+
+Added an argument context identifier covering sample expressions that are
+resolved inside an otel-scope directive, so a failing fetch keyword is
+reported as coming from there.
+
+The new value mirrors ARGC_OT, which does the same for the OpenTracing
+ot-scope directive.
+
+Nothing sets ARGC_OTEL yet; it is in place for the OpenTelemetry support
+that will use it.
+---
+ include/haproxy/arg-t.h | 1 +
+ src/sample.c            | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/include/haproxy/arg-t.h b/include/haproxy/arg-t.h
+index 708a90e..fc3de3c 100644
+--- a/include/haproxy/arg-t.h
++++ b/include/haproxy/arg-t.h
+@@ -92,6 +92,7 @@ enum {
+ 	ARGC_TCK,      /* tcp-check expression */
+ 	ARGC_CFG,      /* configuration expression */
+ 	ARGC_CLI,      /* CLI expression*/
++	ARGC_OTEL,     /* opentelemetry scope args */
+ };
+ 
+ /* flags used when compiling and executing regex */
+diff --git a/src/sample.c b/src/sample.c
+index d03f732..096a990 100644
+--- a/src/sample.c
++++ b/src/sample.c
+@@ -1441,6 +1441,7 @@ int smp_resolve_args(struct proxy *p, char **err)
+ 		case ARGC_TCK:   where = "in tcp-check expression in"; break;
+ 		case ARGC_CFG:   where = "in configuration expression in"; break;
+ 		case ARGC_CLI:   where = "in CLI expression in"; break;
++		case ARGC_OTEL:  where = "in otel-scope directive in"; break;
+ 		}
+ 
+ 		/* set a few default settings */
+-- 
+2.43.0
+
