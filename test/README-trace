@@ -54,10 +54,10 @@ Other records need a running instance and its admin CLI:
 The first two make the next stream skip attachment, the record naming the rate
 limit or the globally disabled filter.  The third switches the soft error of
 the response scope to its hard form, logged at the error level with the filter
-disabled for that stream; the detach that then follows closes the span and the
-context left open, adding 'finishing span on detach' and 'destroying context on
-detach' to the log.  Restore the instance afterwards with 'flt-otel rate 100',
-'flt-otel enable @otel-test-trace' and 'flt-otel soft-errors'.
+disabled for that stream; the detach that follows then closes the span and the
+context left open, adding 'finishing span on detach' and 'destroying context
+on detach' to the log.  Restore the instance afterwards with 'flt-otel rate
+100', 'flt-otel enable @otel-test-trace' and 'flt-otel soft-errors'.
 
 
 Running the test

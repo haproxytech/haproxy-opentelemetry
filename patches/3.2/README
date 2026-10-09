@@ -1,0 +1,16 @@
+HAProxy 3.2 patch series
+========================
+
+Apply this series in order to a HAProxy 3.2 source tree before the OTel filter
+can be built into it.  The shared notes in ../README describe the patches and
+the way to apply them; the commands for this branch are:
+
+  % cd haproxy-3.2.*
+  % cat /path/to/patches/3.2/*.patch | patch -p1
+
+From a git checkout:
+
+  % git am /path/to/patches/3.2/*.patch
+
+Both files are needed.  The first adds the EXTRA_MAKE variable to the top-level
+Makefile, the second adds the ARGC_OTEL value the addon uses.

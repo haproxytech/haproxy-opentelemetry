@@ -84,6 +84,11 @@ OTel is the HAProxy filter and as such is compiled together with HAProxy.  It
 supports all HAProxy versions from 3.2 onward; the sources are available at
 https://github.com/haproxy/haproxy/ .
 
+HAProxy 3.2 and 3.3 need the patch series kept in the patches directory before
+the addon can be built; patches/README describes the series of each branch and
+how to apply it.  Without those patches the build ignores EXTRA_MAKE and the
+resulting executable carries no OTel filter.
+
 To communicate with an OpenTelemetry compatible backend, the OTel filter uses
 version 3.4.0 of the OpenTelemetry C Wrapper library (which in turn uses the
 OpenTelemetry C++ SDK version 1.26.0 or newer).  This means that we must have

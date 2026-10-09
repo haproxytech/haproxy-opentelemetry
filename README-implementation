@@ -20,6 +20,7 @@ scripts.
 
   haproxy-opentelemetry/
   |-- Makefile.mk        Build integration (loaded via EXTRA_MAKE)
+  |-- patches/           Patch series for HAProxy 3.2 and 3.3
   |-- include/
   |   |-- include.h      Master include (pulls all headers)
   |   |-- config.h       Build-time tunables (pool sizes, limits)
@@ -102,6 +103,10 @@ The Makefile.mk fragment is pulled in by the HAProxy top-level Makefile via the
 EXTRA_MAKE variable, which lists addon directories whose Makefile.mk fragments
 are included unconditionally.  The fragment detects the opentelemetry-c-wrapper
 library via pkg-config or manual OTEL_INC/OTEL_LIB paths.
+
+HAProxy 3.2 and 3.3 do not know EXTRA_MAKE, so they need the patch series in the
+patches directory first; patches/README describes it.  Without those patches the
+variable has no effect and the build leaves the filter out.
 
 Build options:
 
