@@ -99,6 +99,15 @@ OTEL_VAR_HAS_NAME := $(shell awk '/^struct var \{/,/^\}/' include/haproxy/vars-t
 ifneq ($(OTEL_VAR_HAS_NAME),)
 OTEL_DEFINE += -DUSE_OTEL_VARS_NAME
 endif
+
+# Auto-detect the variable name tree layout.  HAProxy 3.3 changed the root
+# type from 'struct ceb_node *' to 'struct ceb_root *', moved the iterators
+# to the "imm" names, and renamed the embedded node from 'node' to
+# 'name_node'.
+OTEL_VARS_TREE_IMM := $(shell grep -q 'struct ceb_root[[:space:]]*\*name_root' include/haproxy/vars-t.h 2>/dev/null && echo 1)
+ifneq ($(OTEL_VARS_TREE_IMM),)
+OTEL_DEFINE += -DUSE_OTEL_VARS_IMM_TREE
+endif
 endif
 
 # Auto-detect the type of the global proxy list.  HAProxy 3.5 converted the

@@ -209,10 +209,10 @@ static void flt_otel_vars_scope_dump(struct vars *vars, const char *scope)
 	/* Lock the variable store for safe iteration. */
 	vars_rdlock(vars);
 	for (i = 0; i < VAR_NAME_ROOTS; i++) {
-		struct ceb_node *node = cebu64_imm_first(&(vars->name_root[i]));
+		struct ceb_node *node = FLT_OTEL_VARS_TREE_FIRST(vars, i);
 
-		for ( ; node != NULL; node = cebu64_imm_next(&(vars->name_root[i]), node)) {
-			struct var *var = container_of(node, struct var, name_node);
+		for ( ; node != NULL; node = FLT_OTEL_VARS_TREE_NEXT(vars, i, node)) {
+			struct var *var = FLT_OTEL_VARS_TREE_VAR(node);
 
 			/* Only a string or binary variable keeps its value in the buffer. */
 			if ((var->data.type == SMP_T_STR) || (var->data.type == SMP_T_BIN))
@@ -1155,11 +1155,11 @@ int flt_otel_vars_unset(struct stream *s, const char *scope, const char *prefix,
 	/* Lock and iterate all variables, clearing those matching the prefix. */
 	vars_wrlock(vars);
 	for (i = 0; i < VAR_NAME_ROOTS; i++) {
-		struct ceb_node *node = cebu64_imm_first(&(vars->name_root[i]));
+		struct ceb_node *node = FLT_OTEL_VARS_TREE_FIRST(vars, i);
 
 		while (node != NULL) {
-			struct var      *var = container_of(node, struct var, name_node);
-			struct ceb_node *next = cebu64_imm_next(&(vars->name_root[i]), node);
+			struct var      *var = FLT_OTEL_VARS_TREE_VAR(node);
+			struct ceb_node *next = FLT_OTEL_VARS_TREE_NEXT(vars, i, node);
 
 			if ((var->name != NULL) &&
 			    (strncmp(var->name, norm_prefix, prefix_len) == 0) &&
@@ -1227,10 +1227,10 @@ struct otelc_text_map *flt_otel_vars_get(struct stream *s, const char *scope, co
 	/* Read-lock and collect all variables matching the prefix into a text map. */
 	vars_rdlock(vars);
 	for (i = 0; (i < VAR_NAME_ROOTS) && !flag_abort; i++) {
-		struct ceb_node *node = cebu64_imm_first(&(vars->name_root[i]));
+		struct ceb_node *node = FLT_OTEL_VARS_TREE_FIRST(vars, i);
 
-		for ( ; node != NULL; node = cebu64_imm_next(&(vars->name_root[i]), node)) {
-			struct var *var = container_of(node, struct var, name_node);
+		for ( ; node != NULL; node = FLT_OTEL_VARS_TREE_NEXT(vars, i, node)) {
+			struct var *var = FLT_OTEL_VARS_TREE_VAR(node);
 			const char *key, *value;
 			int         otel_name_len;
 

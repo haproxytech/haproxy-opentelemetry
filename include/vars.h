@@ -16,6 +16,21 @@
 
 #ifdef USE_OTEL_VARS
 
+/*
+ * The variable name tree changes its root type and iterator names in HAProxy
+ * 3.3: 'struct ceb_root *' with cebu64_imm_first/next and the embedded node
+ * 'name_node', against 'struct ceb_node *' with cebu64_first/next and 'node'.
+ */
+#ifdef USE_OTEL_VARS_IMM_TREE
+#  define FLT_OTEL_VARS_TREE_FIRST(v,i)   cebu64_imm_first(&((v)->name_root[i]))
+#  define FLT_OTEL_VARS_TREE_NEXT(v,i,n)  cebu64_imm_next(&((v)->name_root[i]), (n))
+#  define FLT_OTEL_VARS_TREE_VAR(n)       container_of((n), struct var, name_node)
+#else
+#  define FLT_OTEL_VARS_TREE_FIRST(v,i)   cebu64_first(&((v)->name_root[i]))
+#  define FLT_OTEL_VARS_TREE_NEXT(v,i,n)  cebu64_next(&((v)->name_root[i]), (n))
+#  define FLT_OTEL_VARS_TREE_VAR(n)       container_of((n), struct var, node)
+#endif
+
 #ifndef USE_OTEL_VARS_NAME
 #  define FLT_OTEL_VAR_CTX_SIZE   int8_t
 
