@@ -69,7 +69,7 @@ ifeq ($(OTEL_LDFLAGS),)
 $(if $(OTEL_CLEANING),,$(error OpenTelemetry C wrapper : can't find library))
 endif
 
-OPTIONS_OBJS += \
+OTEL_OBJS += \
 	$(OTEL_DIR)/src/cli.o    \
 	$(OTEL_DIR)/src/conf.o   \
 	$(OTEL_DIR)/src/event.o  \
@@ -86,8 +86,10 @@ OPTIONS_OBJS += \
 	$(OTEL_DIR)/src/vars.o
 
 ifneq ($(filter -DUSE_OTEL_TRACE,$(OTEL_DEFINE)),)
-OPTIONS_OBJS += $(OTEL_DIR)/src/trace.o
+OTEL_OBJS += $(OTEL_DIR)/src/trace.o
 endif
+
+OPTIONS_OBJS += $(OTEL_OBJS)
 
 ifneq ($(OTEL_USE_VARS:0=),)
 OTEL_DEFINE  += -DUSE_OTEL_VARS
@@ -144,6 +146,24 @@ endif
 
 OTEL_CFLAGS := $(OTEL_CFLAGS) -I$(OTEL_DIR)/include $(OTEL_DEFINE)
 
+# The wrapper headers and flags select the ABI the addon objects are built
+# against.  Switching between the installed wrapper and the stand-in reuses the
+# same header names, so keep the selection in a stamp and make the objects and
+# the stand-in archive depend on it.  A changed selection then rebuilds both.
+OTEL_CFG_STAMP  = $(OTEL_DIR)/src/_build_flags
+OTEL_BUILD_CFG  = $(OTEL_CFLAGS)|$(OTEL_LDFLAGS)|$(TARGET)|$(USE_THREAD)|$(DEFINE)
+ifeq ($(OTEL_CLEANING),)
+OTEL_OLDCFG    := $(shell cat $(OTEL_CFG_STAMP) 2>/dev/null)
+ifneq ($(OTEL_BUILD_CFG),$(OTEL_OLDCFG))
+OTEL_RESTAMP   := $(shell echo '$(OTEL_BUILD_CFG)' > $(OTEL_CFG_STAMP))
+endif
+endif
+
+$(OTEL_CFG_STAMP):
+	$(Q)echo '$(OTEL_BUILD_CFG)' > $@
+
+$(OTEL_OBJS): $(OTEL_CFG_STAMP)
+
 # OTEL is no longer part of haproxy's use_opts list, so $(collect_opts_flags)
 # would not pick these up automatically.  Inject them ourselves; this include
 # runs before COPTS / LDOPTS are assembled.
@@ -163,6 +183,7 @@ clean: otel-clean
 .PHONY: otel-clean
 otel-clean:
 	$(Q)rm -f $(OTEL_DIR)/src/*.[oas]
+	$(Q)rm -f $(OTEL_CFG_STAMP)
 	$(Q)rm -f $(OTEL_DIR)/src/*~ $(OTEL_DIR)/src/*.rej
 	$(Q)rm -f $(OTEL_DIR)/include/*~ $(OTEL_DIR)/include/*.rej
 	$(Q)rm -f $(OTEL_DIR)/core $(OTEL_DIR)/test/core
@@ -170,8 +191,7 @@ otel-clean:
 
 # One-pass build of the bundled stand-in: a missing archive is bootstrapped
 # at include time (the other tools of the default goal link it too), and a
-# changed dummy source rebuilds it before the haproxy link.  A USE_THREAD or
-# DEFINE change alone does not re-trigger this; rebuild the archive by hand.
+# changed dummy source or build selection rebuilds it before the haproxy link.
 ifneq ($(OTEL_DUMMY),)
 OTEL_DUMMY_LIB = $(OTEL_DIR)/dummy/lib$(OTELC_WRAPPER)$(OTEL_DEBUG_EXT).a
 
@@ -183,8 +203,8 @@ endif
 
 haproxy: $(OTEL_DUMMY_LIB)
 
-$(OTEL_DUMMY_LIB): $(wildcard $(OTEL_DIR)/dummy/src/*.c) $(wildcard $(OTEL_DIR)/dummy/include/$(OTELC_WRAPPER)/*.h) $(OTEL_DIR)/dummy/Makefile
-	$(Q)$(MAKE) -C $(OTEL_DIR)/dummy OTEL_DEBUG=$(OTEL_DEBUG)
+$(OTEL_DUMMY_LIB): $(wildcard $(OTEL_DIR)/dummy/src/*.c) $(wildcard $(OTEL_DIR)/dummy/include/$(OTELC_WRAPPER)/*.h) $(OTEL_DIR)/dummy/Makefile $(OTEL_CFG_STAMP)
+	$(Q)$(MAKE) -C $(OTEL_DIR)/dummy OTEL_DEBUG=$(OTEL_DEBUG) && touch $@
 endif
 
 .DEFAULT_GOAL :=

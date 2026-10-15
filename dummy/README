@@ -67,15 +67,13 @@ them.  The archive can still be built by hand too, with 'make -C dummy' and
 the optional OTEL_DEBUG=1, which is useful for a quick compile check of the
 stand-in alone; the same OTEL_DEBUG must then be given to both makes.
 
-Whenever the sub-make runs, this side needs no extra care about the options:
-the two build modes keep their object files apart, and a stamp holding all the
-recorded compiler flags recompiles them whenever any of the options changes.
-The one-pass rule starts the sub-make when a dummy source or the Makefile here
-has changed or the archive of the requested flavor does not exist yet, so a
-change of USE_THREAD or DEFINE alone needs a by-hand rebuild of the archive.
-The filter objects on the HAProxy side do not rebuild by themselves either,
-so remove them there before switching modes; a 'make clean' in the HAProxy tree
-removes them together with the dummy artifacts.
+The two build modes keep their object files apart, and the stand-in records
+its compiler flags in a stamp that recompiles the archive whenever any of them
+changes.  Makefile.mk keeps a matching stamp for the filter objects and the
+selected wrapper headers and flags, so switching between the installed wrapper
+and this stand-in rebuilds both sides on the next make.  The same stamp also
+covers TARGET, USE_THREAD, DEFINE and the OTel build options, so no by-hand
+cleanup is needed after changing them.
 
 The defines that HAProxy's Makefile derives from TARGET are not visible in the
 sub-make, but they can be handed over: USE_THREAD=1 builds the archive the way
