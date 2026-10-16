@@ -154,14 +154,32 @@ HAProxy configuration with:
 
   filter opentelemetry [id <id>] config <file> [<name>]
 
+or, from HAProxy 3.5 on, as an instance of the "otel" filter class:
+
+  filter-config otel id <id> [enabled] config <file> [<name>]
+
 The flt_otel_parse() function (parser.c) handles the "filter" line, creates an
 flt_otel_conf structure, and delegates to parse_cfg() which loads the referenced
-YAML/CFG file.  That file is parsed using temporary section registrations for
-the section types:
+YAML/CFG file.  The class callback and the legacy keyword share that function:
+flt_otel_parse_instance() writes the instance id as the filter id and hands the
+instance arguments over as the legacy line flt_otel_parse() reads.  The class is
+declared from the register stage when HAProxy has initialized its own classes
+already, and from the init stage otherwise, where "haproxy -vv" no longer lists
+it, the class list of that command being filled before the init stage.  HAProxy
+3.5 and later are in the former case, their classes being initialized before
+the register stage.  The file is parsed using temporary section registrations
+for the section types:
 
   otel-instrumentation   ->  flt_otel_parse_cfg_instr()
   otel-group             ->  flt_otel_parse_cfg_group()
   otel-scope             ->  flt_otel_parse_cfg_scope()
+
+Before parsing a runtime instance, flt_otel_parse_instance() refuses creation
+while HAProxy restricts new threads through RLIMIT_NPROC, in a worker without
+'insecure-fork-wanted' set.  SDK providers may start export threads, so runtime
+creation needs that option in the global section or '-dI' on the command line.
+The check leaves startup parsing unchanged and rejects unsafe creation before
+allocating SDK providers.
 
 After each section is fully parsed, a post-parse function validates the section
 (e.g., flt_otel_post_parse_cfg_scope() checks that context injection is only
@@ -1130,7 +1148,8 @@ http-after-response rules:
 
   group.c implements:
     flt_otel_group_parse():   Parses the action arguments.
-    flt_otel_group_check():   Resolves filter and group references.
+    flt_otel_group_check():   Resolves filter and group references, for each
+                              proxy inheriting a shared defaults action.
     flt_otel_group_action():  At runtime, finds the OTel filter in the stream,
                               iterates all scopes in the group, and calls
                               flt_otel_scope_run() for each.
