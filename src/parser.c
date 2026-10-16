@@ -1,6 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 
 #include "../include/include.h"
+#ifdef USE_OTEL_FILTER_CLASS
+#  include <sys/resource.h>
+#endif
 
 
 #ifdef OTELC_DBG_MEM
@@ -3985,6 +3988,210 @@ static struct flt_kw_list flt_kws = { FLT_OTEL_SCOPE, { }, {
 };
 
 INITCALL1(STG_REGISTER, flt_register_keywords, &flt_kws);
+
+
+#ifdef USE_OTEL_FILTER_CLASS
+
+/***
+ * NAME
+ *   flt_otel_parse_instance - OTel filter instance parser
+ *
+ * SYNOPSIS
+ *   static int flt_otel_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err)
+ *
+ * ARGUMENTS
+ *   args - filter instance arguments array
+ *   px   - proxy instance owning the filter
+ *   inst - filter instance to fill
+ *   err  - indirect pointer to error message string
+ *
+ * DESCRIPTION
+ *   Parses one "filter-config" line of the "otel" filter class, in which the
+ *   instance id stands for the filter ID of the legacy declaration.  The
+ *   arguments are handed to flt_otel_parse() as the line
+ *   "filter-config otel id <id> <args>", the instance id taking the place of
+ *   the legacy filter ID option and the directive the place of the legacy
+ *   filter keyword, so one parser serves both declaration modes and the
+ *   messages of a class instance name its own directive.
+ *   HAProxy's flt_parse_instance_legacy() helper does not serve here:
+ *   it passes the instance arguments on as they were written, with no room
+ *   for the id, and a legacy parse without an 'id' option falls back to the
+ *   default filter ID and to the OTel scope of that ID.
+ *   Runtime creation is refused while HAProxy restricts thread creation, in a
+ *   worker without 'insecure-fork-wanted', since SDK providers may need export
+ *   threads.  Startup instances are unaffected.
+ *
+ * RETURN VALUE
+ *   Returns 0 in case of success, or -1 if an error is encountered.
+ */
+static int flt_otel_parse_instance(char **args, struct proxy *px, struct filter_instance *inst, char **err)
+{
+	/*
+	 * The legacy parser expects the filter keyword, the filter ID and
+	 * then the filter options, terminated by an empty string.  The
+	 * keyword is the directive this instance was declared with, so the
+	 * messages of a class instance name 'filter-config otel' and not the
+	 * legacy line.  The array starts with the directive, the id option
+	 * and the instance id, then carries the whole instance line and the
+	 * terminator; the cells past it are cleared, as the debug dump reads
+	 * the arguments up to the end of a line.
+	 */
+	char *fargs[MAX_LINE_ARGS + 4] = { FLT_OTEL_OPT_CLASS, FLT_OTEL_OPT_FILTER_ID, (char *)(inst->id) };
+	int   cur_arg = 0, i, retval;
+
+	OTELC_FUNC("%p, %p, %p, %p:%p", args, px, inst, OTELC_DPTR_ARGS(err));
+
+#ifdef RLIMIT_NPROC
+	if (((global.mode & MODE_STARTING) == 0) && ((global.tune.options & GTUNE_INSECURE_FORK) == 0) && (master == 0)) {
+		(void)memprintf(err, "'filter-config %s' : runtime creation requires 'insecure-fork-wanted' in the global section",
+		                inst->class->name);
+
+		OTELC_RETURN_INT(-1);
+	}
+#endif
+
+	for (i = 0; (i < MAX_LINE_ARGS) && OTELC_STR_IS_VALID(args[i]); i++)
+		fargs[i + 3] = args[i];
+	if (OTELC_STR_IS_VALID(args[i])) {
+		(void)memprintf(err, "'filter-config %s' : too many arguments", inst->class->name);
+
+		OTELC_RETURN_INT(-1);
+	}
+	fargs[i + 3] = "";
+
+	retval = flt_otel_parse(fargs, &cur_arg, px, inst->fconf, err, NULL);
+	if ((retval == ERR_NONE) && (*(fargs[cur_arg]) != '\0')) {
+		(void)memprintf(err, "'filter-config %s' : unknown keyword '%s'", inst->class->name, fargs[cur_arg]);
+
+		retval = ERR_ALERT | ERR_FATAL;
+	}
+	else if ((retval != ERR_NONE) && (*err == NULL)) {
+		/*
+		 * The configuration file parser reports its errors with its own
+		 * alerts and leaves <err> empty.
+		 */
+		(void)memprintf(err, "the configuration parser reported the error above");
+	}
+
+	OTELC_RETURN_INT((retval == ERR_NONE) ? 0 : -1);
+}
+
+
+/*
+ * The OTel filter class, declared for the "filter-config" directive.  The
+ * filter is placed right after the trace filter on both sides, a position the
+ * "filter-sequence" directive may change per proxy.
+ */
+static struct filter_class flt_otel_cls;
+
+
+/***
+ * NAME
+ *   flt_otel_class_init - OTel filter class declaration
+ *
+ * SYNOPSIS
+ *   static int flt_otel_class_init(void)
+ *
+ * ARGUMENTS
+ *   This function takes no arguments.
+ *
+ * DESCRIPTION
+ *   Declares the OTel filter class, places it after the trace filter on both
+ *   sides, and allows several instances of it in one proxy, each with its own
+ *   id and configuration.  If the class cannot be placed, HAProxy removes it
+ *   from the list of filter classes again.
+ *
+ * RETURN VALUE
+ *   Returns 0 in case of success, or -1 if an error is encountered.
+ */
+static int flt_otel_class_init(void)
+{
+	int retval;
+
+	OTELC_FUNC("");
+
+	retval = filter_register_class_full(&flt_otel_cls, FLT_OTEL_CLASS_NAME, flt_otel_parse_instance,
+	                                    trace_filter_cls_name, FLT_POS_AFTER);
+	if (retval < 0)
+		OTELC_RETURN_INT(retval);
+
+	/*
+	 * Several OTel filters may run in one proxy.  The registration above
+	 * initializes the class flags to none, as the internal classes are
+	 * the only ones that name theirs there.
+	 */
+	flt_otel_cls.flags |= FLT_CLS_FL_MULTI;
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_register_class - early OTel filter class registration
+ *
+ * SYNOPSIS
+ *   static int flt_otel_register_class(void)
+ *
+ * ARGUMENTS
+ *   This function takes no arguments.
+ *
+ * DESCRIPTION
+ *   Runs at STG_REGISTER and calls flt_otel_class_init() only if the trace
+ *   filter class is already registered.  Otherwise, leaves registration to
+ *   flt_otel_register_class_late().  This callback registers OTel in time for
+ *   the "haproxy -vv" class list only where HAProxy initializes its own filter
+ *   classes at STG_PREPARE.
+ *
+ * RETURN VALUE
+ *   Returns 0 if registration is deferred or succeeds, or -1 on failure.
+ */
+static int flt_otel_register_class(void)
+{
+	OTELC_FUNC("");
+
+	if (filter_find_class(trace_filter_cls_name) == NULL)
+		OTELC_RETURN_INT(0);
+
+	OTELC_RETURN_INT(flt_otel_class_init());
+}
+
+
+/***
+ * NAME
+ *   flt_otel_register_class_late - deferred OTel filter class registration
+ *
+ * SYNOPSIS
+ *   static int flt_otel_register_class_late(void)
+ *
+ * ARGUMENTS
+ *   This function takes no arguments.
+ *
+ * DESCRIPTION
+ *   Runs at STG_INIT and registers the OTel filter class unless it is already
+ *   registered.  This handles HAProxy trees that initialize their own filter
+ *   classes at STG_REGISTER, after the addon's early callback.  The class is
+ *   available for configuration parsing and the CLI, but this stage is too late
+ *   for "haproxy -vv" to list it.
+ *
+ * RETURN VALUE
+ *   Returns 0 if the class is already registered or added, or -1 on failure.
+ */
+static int flt_otel_register_class_late(void)
+{
+	OTELC_FUNC("");
+
+	if (filter_find_class(FLT_OTEL_CLASS_NAME) != NULL)
+		OTELC_RETURN_INT(0);
+
+	OTELC_RETURN_INT(flt_otel_class_init());
+}
+
+
+INITCALL0(STG_REGISTER, flt_otel_register_class);
+INITCALL0(STG_INIT, flt_otel_register_class_late);
+
+#endif /* USE_OTEL_FILTER_CLASS */
 
 /*
  * Local variables:

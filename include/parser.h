@@ -15,6 +15,9 @@
 #define FLT_OTEL_OPT_FILTER_ID_DEFAULT        "otel-filter"
 #define FLT_OTEL_OPT_CONFIG                   "config"
 
+/* The directive that declares an instance of the "otel" filter class. */
+#define FLT_OTEL_OPT_CLASS                    "filter-config " FLT_OTEL_CLASS_NAME
+
 #define FLT_OTEL_PARSE_SECTION_INSTR_ID       "otel-instrumentation"
 #define FLT_OTEL_PARSE_SECTION_GROUP_ID       "otel-group"
 #define FLT_OTEL_PARSE_SECTION_SCOPE_ID       "otel-scope"
