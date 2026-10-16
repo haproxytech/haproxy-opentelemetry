@@ -788,8 +788,11 @@ Each registration points to flt_otel_group_parse() as the parse function.
     Sets the check, action and release callbacks.
 
   Check (flt_otel_group_check):
-    Resolves the string IDs to configuration pointers by scanning the proxy's
-    filter list.  Replaces the string pointers with resolved flt_conf,
+    Resolves the string IDs to configuration pointers by walking the filter
+    configurations of the proxy, the filter instances of a proxy declared with
+    the new mode and the proxy filter list of one declared with the legacy
+    'filter' directive (flt_otel_conf_first() and flt_otel_conf_next(), see
+    src/util.c).  Replaces the string pointers with resolved flt_conf,
     flt_otel_conf and flt_otel_conf_ph pointers.  Frees the original string
     duplicates.
 

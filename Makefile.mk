@@ -120,6 +120,15 @@ ifneq ($(OTEL_HAS_MAIN_PROXIES),)
 OTEL_DEFINE += -DUSE_OTEL_MAIN_PROXIES
 endif
 
+# HAProxy 3.5 added filter classes beside the legacy filter declaration: an
+# instance is declared with the "filter-config" directive and the filter
+# configurations of a proxy are reached through the proxy filter instances
+# instead of the proxy filter list.
+OTEL_HAS_FILTER_CLASS := $(shell grep -q 'filter_register_class' include/haproxy/filters.h 2>/dev/null && echo 1)
+ifneq ($(OTEL_HAS_FILTER_CLASS),)
+OTEL_DEFINE += -DUSE_OTEL_FILTER_CLASS
+endif
+
 # HAProxy 3.4 gives statistics modules native thread-group aggregation and a
 # new fill_stats callback.  Earlier versions keep one shared counter block.
 OTEL_HAS_STATS_AGGR := $(shell grep -q '^\#define EXTRA_COUNTERS_AGGR' include/haproxy/counters.h 2>/dev/null && echo 1)

@@ -250,7 +250,7 @@ static int flt_otel_group_check(struct act_rule *rule, struct proxy *px, char **
 	 * Try to find the OpenTelemetry filter by checking all filters for the
 	 * proxy <px>.
 	 */
-	list_for_each_entry(fconf_tmp, &(px->filter_configs), list) {
+	FLT_OTEL_CONF_FOREACH(fconf_tmp, px) {
 		conf = fconf_tmp->conf;
 
 		if (fconf_tmp->id != otel_flt_id) {

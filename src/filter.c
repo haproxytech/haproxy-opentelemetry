@@ -1112,7 +1112,7 @@ static int flt_otel_check_inject_foreign(const struct proxy *p, const struct flt
 
 	OTELC_FUNC("%p, %p, %p, %p", p, fconf, conf_scope, conf_span);
 
-	list_for_each_entry(fconf_tmp, &(p->filter_configs), list) {
+	FLT_OTEL_CONF_FOREACH(fconf_tmp, p) {
 		struct flt_otel_conf       *conf_tmp;
 		struct flt_otel_conf_scope *scope;
 		struct flt_otel_conf_span  *span2;
@@ -1231,7 +1231,7 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 		 * The names of all OTEL filters (filter ID) should be checked,
 		 * they must be unique.
 		 */
-		list_for_each_entry(fconf_tmp, &(px->filter_configs), list)
+		FLT_OTEL_CONF_FOREACH(fconf_tmp, px)
 			if ((fconf_tmp != fconf) && (fconf_tmp->id == otel_flt_id)) {
 				struct flt_otel_conf *conf_tmp = fconf_tmp->conf;
 

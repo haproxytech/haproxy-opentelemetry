@@ -1057,6 +1057,16 @@ src/util.c
 
 Utility and conversion functions.
 
+  flt_otel_conf_first
+      Returns the first filter configuration of a proxy: the filter instances of
+      a proxy declared with the new filter mode, the proxy filter list of one
+      declared with the legacy 'filter' directive.
+
+  flt_otel_conf_next
+      Returns the filter configuration following another one in a proxy, from
+      the same list flt_otel_conf_first() reads; a filter instance that produced
+      no configuration is skipped.
+
   flt_otel_args_dump [D]
       Dumps configuration arguments array to stderr.
 

@@ -3,6 +3,112 @@
 #include "../include/include.h"
 
 
+/***
+ * NAME
+ *   flt_otel_conf_first - first filter configuration of a proxy
+ *
+ * SYNOPSIS
+ *   struct flt_conf *flt_otel_conf_first(const struct proxy *px)
+ *
+ * ARGUMENTS
+ *   px - proxy whose filter configurations are walked
+ *
+ * DESCRIPTION
+ *   Returns the first filter configuration of the proxy <px>, whatever its
+ *   filter class.  In the new filter mode, configurations belong to the proxy's
+ *   filter instances; in legacy mode, they belong to its filter list.  Reads
+ *   only the list for the proxy's active filter mode, leaving the caller to
+ *   select the filter it needs.
+ *
+ * RETURN VALUE
+ *   Returns the first filter configuration of <px>, or NULL when the proxy
+ *   holds no filter.
+ */
+struct flt_conf *flt_otel_conf_first(const struct proxy *px)
+{
+#ifdef USE_OTEL_FILTER_CLASS
+	struct filter_instance *inst;
+#endif
+	struct flt_conf        *retptr = NULL;
+
+	OTELC_FUNC("%p", px);
+
+#ifdef USE_OTEL_FILTER_CLASS
+	if (flt_use_legacy_filter(px) != 0) {
+		if (!LIST_ISEMPTY(&(px->filter_configs)))
+			retptr = LIST_ELEM(px->filter_configs.n, struct flt_conf *, list);
+	} else {
+		list_for_each_entry(inst, &(px->filter_instances), global.list)
+			if (inst->fconf != NULL) {
+				retptr = inst->fconf;
+
+				break;
+			}
+	}
+#else
+	if (!LIST_ISEMPTY(&(px->filter_configs)))
+		retptr = LIST_ELEM(px->filter_configs.n, struct flt_conf *, list);
+#endif
+
+	OTELC_RETURN_PTR(retptr);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_conf_next - next filter configuration of a proxy
+ *
+ * SYNOPSIS
+ *   struct flt_conf *flt_otel_conf_next(const struct proxy *px, const struct flt_conf *fconf)
+ *
+ * ARGUMENTS
+ *   px    - proxy whose filter configurations are walked
+ *   fconf - filter configuration of <px> to step from, never NULL
+ *
+ * DESCRIPTION
+ *   Returns the filter configuration following <fconf> in the proxy <px>,
+ *   whatever the filter class, from the list flt_otel_conf_first() reads.
+ *   A filter instance that produced no configuration is skipped.
+ *
+ * RETURN VALUE
+ *   Returns the following filter configuration of <px>, or NULL when the end
+ *   of the list is reached.
+ */
+struct flt_conf *flt_otel_conf_next(const struct proxy *px, const struct flt_conf *fconf)
+{
+#ifdef USE_OTEL_FILTER_CLASS
+	struct filter_instance *inst;
+	bool                    flag_found = false;
+#endif
+	struct flt_conf        *retptr = NULL;
+
+	OTELC_FUNC("%p, %p", px, fconf);
+
+#ifdef USE_OTEL_FILTER_CLASS
+	if (flt_use_legacy_filter(px) != 0) {
+		if (fconf->list.n != &(px->filter_configs))
+			retptr = LIST_ELEM(fconf->list.n, struct flt_conf *, list);
+	} else {
+		list_for_each_entry(inst, &(px->filter_instances), global.list) {
+			if (inst->fconf == fconf) {
+				flag_found = true;
+			}
+			else if (flag_found && (inst->fconf != NULL)) {
+				retptr = inst->fconf;
+
+				break;
+			}
+		}
+	}
+#else
+	if (fconf->list.n != &(px->filter_configs))
+		retptr = LIST_ELEM(fconf->list.n, struct flt_conf *, list);
+#endif
+
+	OTELC_RETURN_PTR(retptr);
+}
+
+
 #ifdef DEBUG_OTEL
 
 /***
@@ -65,7 +171,7 @@ void flt_otel_filters_dump(void)
 	FLT_OTEL_PROXIES_LIST_FOREACH(px) {
 		OTELC_DBG(DEBUG, "proxy '%s'", px->id);
 
-		list_for_each_entry(fconf, &(px->filter_configs), list)
+		FLT_OTEL_CONF_FOREACH(fconf, px)
 			if (fconf->id == otel_flt_id) {
 				struct flt_otel_conf *conf = fconf->conf;
 

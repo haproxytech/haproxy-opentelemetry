@@ -751,7 +751,6 @@ static struct flt_otel_conf *flt_otel_cli_conf_next(struct flt_otel_cli_dump_ctx
 {
 	struct flt_conf      *fconf;
 	struct flt_otel_conf *retptr;
-	struct list          *node;
 
 	OTELC_FUNC("%p", ctx);
 
@@ -759,20 +758,21 @@ static struct flt_otel_conf *flt_otel_cli_conf_next(struct flt_otel_cli_dump_ctx
 		(void)flt_otel_cli_px_first(ctx);
 
 	while (ctx->px != NULL) {
-		node = (ctx->fconf != NULL) ? ctx->fconf->list.n : ctx->px->filter_configs.n;
+		/*
+		 * A NULL cursor starts at the first configuration of the
+		 * proxy, a set one resumes after the configuration it holds.
+		 */
+		fconf = (ctx->fconf != NULL) ? flt_otel_conf_next(ctx->px, ctx->fconf) : flt_otel_conf_first(ctx->px);
+		for ( ; fconf != NULL; fconf = flt_otel_conf_next(ctx->px, fconf)) {
+			if (fconf->id != otel_flt_id)
+				continue;
 
-		while (node != &(ctx->px->filter_configs)) {
-			fconf = LIST_ELEM(node, struct flt_conf *, list);
-			if (fconf->id == otel_flt_id) {
-				retptr = fconf->conf;
+			retptr = fconf->conf;
+			if ((ctx->id == NULL) || (strcmp(retptr->id, ctx->id) == 0)) {
+				ctx->fconf = fconf;
 
-				if ((ctx->id == NULL) || (strcmp(retptr->id, ctx->id) == 0)) {
-					ctx->fconf = fconf;
-
-					OTELC_RETURN_PTR(retptr);
-				}
+				OTELC_RETURN_PTR(retptr);
 			}
-			node = node->n;
 		}
 
 		ctx->fconf = NULL;

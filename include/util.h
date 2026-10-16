@@ -26,13 +26,23 @@
 #endif
 
 /*
+ * Iterate over the filter configurations of the proxy <px>.  A proxy is
+ * declared either with the new filter mode, where the configurations belong to
+ * its filter instances, or with the legacy "filter" directive, where they stay
+ * in the proxy filter list; the cursors of util.c read the list the proxy mode
+ * uses.
+ */
+#define FLT_OTEL_CONF_FOREACH(fconf, px) \
+	for ((fconf) = flt_otel_conf_first(px); (fconf) != NULL; (fconf) = flt_otel_conf_next(px, fconf))
+
+/*
  * Iterate over OTel filter configurations across all proxies, optionally
- * restricted to the single instance whose filter id matches <arg_id>.
- *
- * When <arg_id> is non-NULL, only the filter whose id matches enters the body;
- * passing NULL iterates every instance.  The post-parse configuration check
- * guarantees that filter ids are unique across all proxies, so an id-only
- * match resolves to at most one filter.
+ * restricted to the filters whose filter id matches <arg_id>.  When <arg_id>
+ * is non-NULL, only the filters whose id matches enter the body; passing NULL
+ * iterates every instance.  The post-parse configuration check keeps a filter
+ * id unique across the written declarations, so a target names one filter per
+ * proxy, and several when a defaults section declares the filter and several
+ * proxies inherit that section.
  */
 #define FLT_OTEL_PROXIES_LIST_START(arg_id)                                                          \
 	do {                                                                                         \
@@ -40,7 +50,7 @@
 		struct proxy    *px;                                                                 \
 		                                                                                     \
 		FLT_OTEL_PROXIES_LIST_FOREACH(px)                                                    \
-			list_for_each_entry(fconf, &(px->filter_configs), list)                      \
+			FLT_OTEL_CONF_FOREACH(fconf, px)                                             \
 				if (fconf->id == otel_flt_id) {                                      \
 					struct flt_otel_conf *conf = fconf->conf;                    \
 					                                                             \
@@ -100,6 +110,12 @@ const char *flt_otel_analyzer(uint an_bit);
 /* Dump a linked list of configuration items as a string. */
 const char *flt_otel_list_dump(const struct list *head);
 #endif
+
+/* Return the first filter configuration of the proxy <px>, or NULL. */
+struct flt_conf *flt_otel_conf_first(const struct proxy *px);
+
+/* Return the configuration following <fconf> in the proxy <px>, or NULL. */
+struct flt_conf *flt_otel_conf_next(const struct proxy *px, const struct flt_conf *fconf);
 
 /* Count the number of non-NULL arguments in an argument array. */
 int         flt_otel_args_count(const char **args);
