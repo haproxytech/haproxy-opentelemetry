@@ -405,10 +405,11 @@ alert: the references to names defined elsewhere in the file, the 'groups' line
 that every otel-group needs, the 'root' rules, the resolved 'inject' names, the
 'extract' prefix no span may carry and the agreement of the create lines of one
 'instrument'.  Rules this section does not state are checked there too: the
-filter id that no other OTel filter of any proxy carries, the 'extract' context
-'require-context' needs, the event a scope may carry while that option is set,
-the HTTP-mode proxy that a header operation needs, and the filter, the group and
-the instrumentation an 'otel-group' action names.
+filter id that no other declaration carries, the copies a named defaults section
+leaves in the proxies that inherit it counting as one declaration, the 'extract'
+context 'require-context' needs, the event a scope may carry while that option
+is set, the HTTP-mode proxy that a header operation needs, and the filter, the
+group and the instrumentation an 'otel-group' action names.
 
 Some checks only warn.  Beside the ones that the 'span' entry names, they break
 no rule stated here: an otel-scope no 'scopes' line names, an HTTP event on a
@@ -602,7 +603,9 @@ and the keyword parser via INITCALL1 (parser.c).
       parsed, with the frontend and the backend capabilities combined so that a
       backend-only fetch passes on a frontend proxy; an argument that does not
       resolve is rejected.
-    - Validates that filter IDs are unique across all proxies.
+    - Validates that filter IDs are unique across all proxies, where the copies
+      a named defaults section leaves in the proxies that inherit it count as
+      one declaration.
     - Resolves group->scope and instrumentation->scope/group placeholder
       references to actual configuration structures (setting the ptr field
       and flag_used).

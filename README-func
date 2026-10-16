@@ -69,6 +69,17 @@ Filter lifecycle callbacks and helpers registered in flt_otel_ops.
       only in case included, or a second nameless-header context is rejected
       from both sides, the way a duplicated filter ID is.
 
+  flt_otel_conf_instance
+      Returns the filter instance of a proxy whose configuration is the given
+      filter configuration; the instance keeps the file and the line the filter
+      was declared at.
+
+  flt_otel_conf_same_decl
+      Compares the sites two filter instances were declared at.  The copies a
+      named defaults section leaves in the proxies that inherit it carry the
+      file and the line of the section, so they are one declaration, and the
+      duplicate filter ID check lets them share an id.
+
   flt_otel_check_cond_loc
       Warns when a scope's 'if'/'unless' condition can never match at the
       processing point where the scope runs; a NULL condition is ignored.

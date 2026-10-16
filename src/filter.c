@@ -1146,6 +1146,79 @@ static int flt_otel_check_inject_foreign(const struct proxy *p, const struct flt
 }
 
 
+#ifdef USE_OTEL_FILTER_CLASS
+
+/***
+ * NAME
+ *   flt_otel_conf_instance - filter instance owning a filter configuration
+ *
+ * SYNOPSIS
+ *   static const struct filter_instance *flt_otel_conf_instance(const struct proxy *px, const struct flt_conf *fconf)
+ *
+ * ARGUMENTS
+ *   px    - proxy holding the filter configuration
+ *   fconf - filter configuration to look for
+ *
+ * DESCRIPTION
+ *   Returns the filter instance of the proxy <px> whose configuration is
+ *   <fconf>, which is where the site the filter was declared at is kept.
+ *
+ * RETURN VALUE
+ *   Returns the filter instance owning <fconf>, or NULL when <px> holds none,
+ *   as a proxy of the legacy declaration mode does.
+ */
+static const struct filter_instance *flt_otel_conf_instance(const struct proxy *px, const struct flt_conf *fconf)
+{
+	const struct filter_instance *retptr = NULL;
+	struct filter_instance       *inst;
+
+	OTELC_FUNC("%p, %p", px, fconf);
+
+	list_for_each_entry(inst, &(px->filter_instances), global.list)
+		if (inst->fconf == fconf) {
+			retptr = inst;
+
+			break;
+		}
+
+	OTELC_RETURN_PTR(retptr);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_conf_same_decl - one-declaration test of two filter instances
+ *
+ * SYNOPSIS
+ *   static bool flt_otel_conf_same_decl(const struct filter_instance *inst, const struct filter_instance *inst_tmp)
+ *
+ * ARGUMENTS
+ *   inst     - instance of the filter configuration being checked
+ *   inst_tmp - instance of the filter configuration to compare
+ *
+ * DESCRIPTION
+ *   Compares the sites the two filter instances were declared at.  The
+ *   instances of a defaults section are copied into every proxy that inherits
+ *   the section, and every copy keeps the file and the line of the section
+ *   that declares it, so the copies of one declaration name one filter while
+ *   two written lines name two.
+ *
+ * RETURN VALUE
+ *   Returns true when both instances come from one declaration, or false
+ *   otherwise, a NULL instance included.
+ */
+static bool flt_otel_conf_same_decl(const struct filter_instance *inst, const struct filter_instance *inst_tmp)
+{
+	OTELC_FUNC("%p, %p", inst, inst_tmp);
+
+	OTELC_RETURN_EX((inst != NULL) && (inst_tmp != NULL) && (inst->conf.line == inst_tmp->conf.line) &&
+	                (inst->conf.file != NULL) && (inst_tmp->conf.file != NULL) &&
+	                (strcmp(inst->conf.file, inst_tmp->conf.file) == 0), bool, "%hhu");
+}
+
+#endif /* USE_OTEL_FILTER_CLASS */
+
+
 /***
  * NAME
  *   flt_otel_ops_check - filter check callback (flt_ops.check)
@@ -1160,10 +1233,12 @@ static int flt_otel_check_inject_foreign(const struct proxy *p, const struct flt
  * DESCRIPTION
  *   Validates the internal configuration of the OTel filter after the parsing
  *   phase, when the HAProxy configuration is fully defined.  The following
- *   checks are performed: duplicate filter IDs across all proxies, presence of
- *   an instrumentation section and its configuration file, duplicate group and
- *   scope names, empty groups, group-to-scope and instrumentation-to-group/scope
- *   cross-references, a group that no 'groups' line names, unused scopes,
+ *   checks are performed: duplicate filter IDs across all proxies, a filter
+ *   written in a defaults section counting once wherever it is inherited,
+ *   presence of an instrumentation section and its configuration file,
+ *   duplicate group and scope names, empty groups, group-to-scope and
+ *   instrumentation-to-group/scope cross-references, a group that no 'groups'
+ *   line names, unused scopes,
  *   the events the proxy's mode or the filter's placement keeps from firing,
  *   require-context event eligibility, the root span rules, analyzer bits,
  *   create-form instrument type consistency and definition agreement,
@@ -1185,6 +1260,10 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	struct flt_otel_conf_span  *root_span = NULL, *root_dup = NULL;
 	struct flt_otel_conf_ph    *ph_group, *ph_scope;
 	int                         retval = 0, scope_unused_cnt = 0, span_root_cnt = 0, span_cnt = 0, ctx_extract_cnt = 0;
+
+#ifdef USE_OTEL_FILTER_CLASS
+	const struct filter_instance *inst;
+#endif
 
 	OTELC_FUNC("%p, %p", p, fconf);
 
@@ -1218,10 +1297,15 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 	}
 
 	/*
-	 * If only the proxy specified with the <p> parameter is checked, then
-	 * no duplicate filters can be found that are not defined in the same
-	 * configuration sections.
+	 * A filter ID must stay unique across the written declarations, so
+	 * every proxy is visited and its filters are compared with the one
+	 * being checked.
 	 */
+#ifdef USE_OTEL_FILTER_CLASS
+	/* The site the checked filter was declared at, looked up once. */
+	inst = flt_otel_conf_instance(p, fconf);
+#endif
+
 	FLT_OTEL_PROXIES_LIST_FOREACH(px) {
 		struct flt_conf *fconf_tmp;
 
@@ -1229,7 +1313,8 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 
 		/*
 		 * The names of all OTEL filters (filter ID) should be checked,
-		 * they must be unique.
+		 * they must be unique.  One declaration serves every proxy that
+		 * inherits it, so the copies it leaves in them count as one.
 		 */
 		FLT_OTEL_CONF_FOREACH(fconf_tmp, px)
 			if ((fconf_tmp != fconf) && (fconf_tmp->id == otel_flt_id)) {
@@ -1237,11 +1322,22 @@ static int flt_otel_ops_check(struct proxy *p, struct flt_conf *fconf)
 
 				OTELC_DBG(DEBUG, "  check OTEL filter '%s'", conf_tmp->id);
 
-				if (strcmp(conf_tmp->id, conf->id) == 0) {
-					FLT_OTEL_ALERT("'%s' : duplicated filter ID", conf_tmp->id);
+				if (strcmp(conf_tmp->id, conf->id) != 0)
+					continue;
+#ifdef USE_OTEL_FILTER_CLASS
+				/*
+				 * A filter written in a defaults section is
+				 * declared once and runs in every proxy that
+				 * inherits the section, so the copies are not
+				 * two filters sharing an id.
+				 */
+				if (flt_otel_conf_same_decl(inst, flt_otel_conf_instance(px, fconf_tmp)))
+					continue;
+#endif
 
-					retval++;
-				}
+				FLT_OTEL_ALERT("'%s' : duplicated filter ID", conf_tmp->id);
+
+				retval++;
 			}
 	}
 

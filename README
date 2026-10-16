@@ -313,9 +313,11 @@ variable among them; the same name may still stand in two lists of one line, as
 a span's 'parent' and its inline 'link'.
 
 Note: the parser does not limit the number of OTel filters; it only requires
-each filter id to be unique.  Since the wrapper version 3.0.0, every filter
-instance holds its own library context, so several filters, each with its own
-configuration, may operate simultaneously in one HAProxy process.
+a filter id to be unique among the written declarations, with the copies that an
+inherited section leaves in the proxies counting as one, and accepts an override
+once no other proxy keeps that copy.  Since the wrapper version 3.0.0, every
+filter instance holds its own library context, so several filters, each with
+its own configuration, may operate simultaneously in one HAProxy process.
 
 
 4.1. OTel scope
