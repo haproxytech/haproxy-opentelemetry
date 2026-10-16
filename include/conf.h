@@ -437,6 +437,9 @@ struct flt_otel_conf {
 	struct list                 scopes;   /* List of all available scopes. */
 	struct flt_otel_counters    cnt;      /* Various counters related to filter operation. */
 	struct list                 smp_args; /* Deferred OTEL sample fetch args to resolve. */
+#ifdef USE_OTEL_FILTER_CLASS
+	struct list                 group_rules; /* Bindings of inherited actions. */
+#endif
 };
 
 
