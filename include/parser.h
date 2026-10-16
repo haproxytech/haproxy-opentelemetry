@@ -4,9 +4,11 @@
 #define _OTEL_PARSER_H_
 
 #define FLT_OTEL_SCOPE                        "OTEL"
+#define FLT_OTEL_CLASS_NAME                   "otel"
 
 /*
  * filter FLT_OTEL_OPT_NAME FLT_OTEL_OPT_FILTER_ID <FLT_OTEL_OPT_FILTER_ID_DEFAULT> FLT_OTEL_OPT_CONFIG <file> [<name>]
+ * filter-config FLT_OTEL_CLASS_NAME FLT_OTEL_OPT_FILTER_ID <id> [enabled] FLT_OTEL_OPT_CONFIG <file> [<name>]
  */
 #define FLT_OTEL_OPT_NAME                     "opentelemetry"
 #define FLT_OTEL_OPT_FILTER_ID                "id"
@@ -270,11 +272,11 @@ struct flt_otel_kw_map {
 #define FLT_OTEL_ARG_ISCOND(n)                (FLT_OTEL_PARSE_KEYWORD(n, FLT_OTEL_CONDITION_IF) || FLT_OTEL_PARSE_KEYWORD(n, FLT_OTEL_CONDITION_UNLESS))
 
 #define FLT_OTEL_PARSE_WARNING(f, ...) \
-	ha_warning("parsing [%s:%d] : " FLT_OTEL_FMT_TYPE FLT_OTEL_FMT_NAME "'" f "'\n", ##__VA_ARGS__);
+	ha_warning("parsing [%s:%d] : " FLT_OTEL_FMT_PFX f "\n", ##__VA_ARGS__);
 
 #define FLT_OTEL_PARSE_ALERT(f, ...)                                                                           \
 	do {                                                                                                   \
-		ha_alert("parsing [%s:%d] : " FLT_OTEL_FMT_TYPE FLT_OTEL_FMT_NAME "'" f "'\n", ##__VA_ARGS__); \
+		ha_alert("parsing [%s:%d] : " FLT_OTEL_FMT_PFX f "\n", ##__VA_ARGS__);                         \
 		                                                                                               \
 		retval |= ERR_ABORT | ERR_ALERT;                                                               \
 	} while (0)
