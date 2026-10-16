@@ -75,12 +75,22 @@ scripts.
       |-- run-optctx.sh  Optional upstream context test runner (symlink)
       |-- run-lua.sh     Lua script test runner (symlink)
       |-- run-parser.sh  Configuration parser test driver (real file)
+      |-- run-trace.sh   Trace source test runner (real file)
+      |-- run-class.sh   Filter class test runner (real file)
+      |-- run-backend.py Runtime backend test driver
       |-- otlp_http-recorder.py  OTLP/HTTP traffic recorder
       |-- otlp_http-replay.py    OTLP/HTTP traffic replayer
       |-- haproxy-common.cfg     Shared HAProxy configuration part
       |-- index.html     Static page served by the origin server
       |-- README.md      Test overview, coverage and speed results
       |-- README-parser  Configuration parser test description
+      |-- README-backend Runtime backend test description
+      |-- README-class   Filter class test description
+      |-- README-tools   OTLP/HTTP recorder and replayer description
+      |-- README-test-speed  Benchmark method, parameters and results
+      |-- README-speed-<name>  Published benchmark result of one scenario
+      |-- README-<name>  Guide of the matching test directory
+      |-- _logs/         Where a run leaves its HAProxy output
       |-- sa/            Standalone test configs
       |-- full/          Full event-coverage test configs
       |-- fe/            Frontend-only test configs
@@ -93,6 +103,9 @@ scripts.
       |-- empty/         Minimal/empty configuration test
       |-- optctx/        Optional upstream context test configs
       |-- lua/           Lua script test configs
+      |-- backend/       Runtime backend test configs
+      |-- class/         Filter class test configs
+      |-- trace/         Trace source test configs
       `-- parser/        Parser test cases, tables and generators
 
 
@@ -1262,6 +1275,23 @@ The debug level is a bitmask that can be adjusted at runtime via the CLI.
   empty Minimal: validates that an empty configuration (only the
         instrumentation block, no scopes) does not crash.
 
+  optctx Optional context: the root span continues the trace the client sent
+         when a usable extracted context arrives, and opens one of its own when
+         it does not.
+
+  lua   Lua script: a registered fetch, converter and an action supply span
+        attributes, a log record and a transaction variable read by a later
+        scope.  Needs an executable built with USE_LUA=1.
+
+  trace Native trace source: attachment, event, scope, action, span, context
+        and error records at the user and state levels, read from the native
+        'otel' trace source instead of from exported telemetry.
+
+  class Filter class declaration: one instance declared enabled, one instance
+        left disabled, and one instance inherited from a named defaults section
+        together with a group action.  Needs an executable that carries a filter
+        class.  See test/README-class.
+
   parser Configuration parser: a table-driven set of 'haproxy -c' runs that
          checks the keyword definition rules of section 4.5; each case is one
          generated configuration file that has to be accepted or refused with
@@ -1273,13 +1303,18 @@ The debug level is a bitmask that can be adjusted at runtime via the CLI.
 
 16.2  Test Runners
 
-All runners are POSIX shell scripts (/bin/sh) meant to be run from the test/
-directory.  The run-*.sh runners accept an optional HAProxy binary path, a
-pidfile and a log file that replaces their timestamped default name under
-test/_logs/ (run-fe-be.sh appends the -fe and -be suffixes to the given
-name); test-speed.sh takes [-b backend] [-d duration] [-r rate-limits] and
-a configuration name instead, and run-parser.sh takes [-k pattern] [-x] [-X]
-[-v] followed by the same optional binary path.
+All the runners run from the test/ directory.  They are POSIX shell scripts
+(/bin/sh), except run-backend.py, which is Python.
+
+The shell scenario runners accept a HAProxy binary path, a pidfile and a log
+file that replaces their timestamped default name in the test/_logs/ directory.
+run-parser.sh takes its own options instead.  The binary path is required by
+run-class.sh and run-trace.sh, optional for the remaining shell runners, and
+run-fe-be.sh appends -fe and -be to a supplied log name.
+
+The test-speed.sh runner takes [-b backend] [-d duration] [-r rate-limits] and a
+configuration name.  The run-parser.sh runner takes [-k pattern] [-x] [-X] [-v]
+followed by the optional HAProxy binary path.
 
   run-test-config.sh  Single-instance runner: derives the configuration
                 directory from the name it is invoked under (run-<dir>.sh).
@@ -1294,6 +1329,17 @@ a configuration name instead, and run-parser.sh takes [-k pattern] [-x] [-X]
   run-parser.sh Runs the configuration parser cases of parser/, one 'haproxy
                 -c' per case over a generated configuration file.  It starts
                 no proxy, and the cases are described in test/README-parser.
+  run-trace.sh  Runs the 'trace' scenario with the native 'otel' trace source
+                started at a chosen level, so its records land in the log beside
+                the instance output.  It takes the executable path and is a
+                separate script, not a symlink.
+  run-class.sh  Runs the class scenario after reading back that the executable
+                carries a filter class, since 'filter-config' is unknown to
+                an earlier HAProxy.  A separate script, not a symlink.
+  run-backend.py  Checks the startup and CLI creation of inherited OTel filter
+                instances of a defaults section: the class listing, the state
+                of an enabled and a disabled instance, and 'add backend' with
+                and without 'insecure-fork-wanted'.  Python, not a shell.
   test-speed.sh Runs performance benchmarks for one or all configurations.
 
   copy-yml.sh   Transforms a template YAML configuration by replacing

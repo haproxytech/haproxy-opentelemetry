@@ -31,6 +31,10 @@
 #   @warn <text>     warning text the run has to print
 #   @nowarn <text>   warning text the run must not print
 #   @noalert <text>  alert text the run must not print
+#   @need <name>     the build the case asks for, when no other field of the
+#                    case tells it: 'class' for one whose proxy declares the
+#                    filter as an instance of the "otel" class, which an
+#                    HAProxy before 3.5 knows no keyword for
 #
 # In every template a body line holding the 'otel-event' keyword suppresses
 # the event line the template would add by itself.  '@YML@' in a body line is
@@ -65,6 +69,7 @@ function sh_reset()
 	warn  = ""
 	nowarn = ""
 	noalert = ""
+	need  = ""
 	nbody = 0
 	nout  = 0
 }
@@ -111,6 +116,9 @@ function sh_add_event(   i)
 
 function sh_needs(   i)
 {
+	if (need != "")
+		return need
+
 	for (i = 1; i <= nout; i++)
 		if (out[i] ~ /(^|[ \t])use-vars([ \t]|$)/)
 			return "vars"
@@ -208,6 +216,7 @@ function sh_write()
 /^@warn /  { warn  = sh_value($0); next }
 /^@nowarn / { nowarn = sh_value($0); next }
 /^@noalert / { noalert = sh_value($0); next }
+/^@need /  { need  = sh_value($0); next }
 /^@body$/  { nbody = 0; inbody = 1; next }
 
 /^@end$/ {

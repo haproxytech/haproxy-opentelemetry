@@ -21,6 +21,7 @@ SH_OPT_KEEP_ALL=
 SH_OPT_VERBOSE=
     SH_HAS_VARS=
     SH_HAS_YAML=
+    SH_HAS_CLASS=
       SH_TMPDIR=
          SH_LOG=
         SH_PASS=0
@@ -95,6 +96,26 @@ sh_probe_yaml ()
 
 	# The stand-in of dummy/ reports this C++ version and reads no YAML.
 	grep -q "C++ version none" "${_var_out}" || SH_HAS_YAML="true"
+
+	return 0
+}
+
+sh_probe_class ()
+{
+	_var_out="${SH_TMPDIR}/_probe-class.log"
+
+	# HAProxy 3.4 and earlier declare their filters with the "filter"
+	# keyword alone; the class list exists from 3.5 on, where the addon
+	# registers the "otel" class and 'filter-config' declares an
+	# instance of it.
+	if ! "${SH_ARG_HAPROXY}" -vv >"${_var_out}" 2>&1; then
+		echo "${SH_NAME}: cannot read the build options of the executable" >&2
+		sed -e 's/^/       /' "${_var_out}" >&2
+
+		return 1
+	fi
+
+	grep -q "Available filter classes" "${_var_out}" && SH_HAS_CLASS="true"
 
 	return 0
 }
@@ -223,7 +244,7 @@ while getopts hk:vxX c; do
 		X)  SH_OPT_KEEP_ALL="true"
 		    ;;
 		\?) sh_usage >&2
-		    exit ${SH_EX_USAGE}
+		    exit "${SH_EX_USAGE}"
 		    ;;
 	esac
 done
@@ -234,22 +255,22 @@ SH_ARG_HAPROXY="${1:-${PWD}/../../haproxy/haproxy}"
 test -d "${SH_CONFDIR}" || {
 	echo "${SH_NAME}: run this script from the test directory" >&2
 
-	exit ${SH_EX_USAGE}
+	exit "${SH_EX_USAGE}"
 }
 test -x "${SH_ARG_HAPROXY}" || {
 	echo "${SH_NAME}: ${SH_ARG_HAPROXY}: not an executable" >&2
 
-	exit ${SH_EX_NOINPUT}
+	exit "${SH_EX_NOINPUT}"
 }
 SH_ARG_HAPROXY="$(realpath -L "${SH_ARG_HAPROXY}")"
-mkdir -p "${SH_LOG_DIR}" || exit ${SH_EX_SOFTWARE}
+mkdir -p "${SH_LOG_DIR}" || exit "${SH_EX_SOFTWARE}"
 
-SH_TMPDIR="$(mktemp -d)" || exit ${SH_EX_SOFTWARE}
+SH_TMPDIR="$(mktemp -d)" || exit "${SH_EX_SOFTWARE}"
 SH_LOG="${SH_LOG_DIR}/_log-${SH_NAME}-$(date +%s)"
 
 trap sh_cleanup EXIT HUP INT TERM
 
-mkdir -p "${SH_TMPDIR}/cases" || exit ${SH_EX_SOFTWARE}
+mkdir -p "${SH_TMPDIR}/cases" || exit "${SH_EX_SOFTWARE}"
 
 #
 # The 'use-vars' context storage exists only in an executable built with
@@ -257,11 +278,12 @@ mkdir -p "${SH_TMPDIR}/cases" || exit ${SH_EX_SOFTWARE}
 # against the wrapper library, so the cases needing either are held against the
 # build at hand.
 #
-sh_probe_vars || exit ${SH_EX_SOFTWARE}
-sh_probe_yaml || exit ${SH_EX_SOFTWARE}
+sh_probe_vars || exit "${SH_EX_SOFTWARE}"
+sh_probe_yaml || exit "${SH_EX_SOFTWARE}"
+sh_probe_class || exit "${SH_EX_SOFTWARE}"
 
 {
-	awk -f "${SH_CONFDIR}/gen.awk" "${SH_CONFDIR}/rules.tab" || exit ${SH_EX_SOFTWARE}
+	awk -f "${SH_CONFDIR}/gen.awk" "${SH_CONFDIR}/rules.tab" || exit "${SH_EX_SOFTWARE}"
 	cat "${SH_CONFDIR}"/cases/*.cases
 } >"${SH_TMPDIR}/records"
 
@@ -270,7 +292,7 @@ awk -f "${SH_CONFDIR}/build.awk" \
 	-v ymlbad="$(realpath -L "${SH_CONFDIR}/otel-invalid.yml")" \
 	-v dir="${SH_TMPDIR}/cases" \
 	-v idxfile="${SH_TMPDIR}/index" \
-	"${SH_TMPDIR}/records" || exit ${SH_EX_SOFTWARE}
+	"${SH_TMPDIR}/records" || exit "${SH_EX_SOFTWARE}"
 
 if test -n "${SH_ARG_FILTER}"; then
 	_var_count="$(cut -d'|' -f1 <"${SH_TMPDIR}/index" | grep -c -- "${SH_ARG_FILTER}")"
@@ -300,6 +322,8 @@ while IFS='|' read -r _var_name _var_want _var_match _var_mode _var_kw _var_rule
 		_var_skip="the executable does not take 'use-vars'"
 	elif test "${_var_need}" = "yaml" -a "${SH_HAS_YAML}" != "true"; then
 		_var_skip="the executable does not read the OTel configuration file"
+	elif test "${_var_need}" = "class" -a "${SH_HAS_CLASS}" != "true"; then
+		_var_skip="the executable declares no filter class"
 	fi
 
 	# The coverage reports count a skipped case, only its run is left out.
@@ -340,6 +364,6 @@ fi
 echo
 echo "PASS ${SH_PASS}, FAIL ${SH_FAIL}, SKIP ${SH_SKIP}, log ${SH_LOG}"
 
-test "${SH_FAIL}" -eq 0 || exit ${SH_EX_SOFTWARE}
+test "${SH_FAIL}" -eq 0 || exit "${SH_EX_SOFTWARE}"
 
 exit 0

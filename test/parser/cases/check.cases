@@ -346,6 +346,46 @@
         span sp1 root
 @end
 
+@case check-group-action-inherited-ok
+@kw group:otel-group
+@tmpl whole
+@mode groupinh
+@need class
+@want ok
+@nowarn so it never runs
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+
+    otel-group parser-group
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+@end
+
+@case check-group-action-inherited-undefined-group
+@kw group:otel-group
+@tmpl whole
+@mode groupinh
+@need class
+@want err
+@match cannot find group 'parser-group'
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups other-group
+
+    otel-group other-group
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+@end
+
 @case check-root-missing-warning
 @kw scope:span
 @tmpl scope
@@ -731,6 +771,36 @@
 @mode proxdup
 @want err
 @match duplicated filter ID
+@body
+        span sp1 root
+@end
+
+@case check-group-action-unused-defaults
+@kw group:otel-group
+@tmpl whole
+@mode grpunused
+@need class
+@want err
+@match cannot find the OpenTelemetry filter
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+
+    otel-group parser-group
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+@end
+
+@case check-filter-id-inherited-ok
+@kw top:scope
+@tmpl scope
+@mode fltinh
+@need class
+@want ok
 @body
         span sp1 root
 @end

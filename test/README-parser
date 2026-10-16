@@ -52,16 +52,24 @@ The HAProxy executable defaults to ../../haproxy/haproxy.  The exit status is 0
 when every case holds, EX_SOFTWARE (70) when one fails, and the full alert and
 warning text of the run is kept in the log file named on the last output line.
 
-Two kinds of case ask for a build of their own.  The 'use-vars' context storage
-word exists only in an executable built with the OTEL_USE_VARS=1 option, and the
+A case might also ask for a build of its own: the 'use-vars' context storage
+word exists only in an executable built with the OTEL_USE_VARS=1 option, the
 OTel configuration file is read only by one linked against the wrapper library,
-so the case that feeds parser/otel-invalid.yml needs such a build.  The driver
-tells the two apart before the run, with one probe configuration for the storage
-word and with the build options for the library, where the stand-in of dummy/
-reports its C++ version as "none".  A case that the build at hand cannot run is
-reported as 'SKIP' and counted on the last output line, while both coverage
-reports count it the way they count any other case, so skipping a case cannot
-hide a keyword or a rule that no case covers.
+so the case that feeds parser/otel-invalid.yml needs such a build.  The "otel"
+filter class exists only from HAProxy 3.5 on, so every case that writes the
+filter as a class instance needs an executable that knows 'filter-config'.  The
+driver tells them apart before the run: with one probe configuration for the
+storage word, with the build options for the library, where the stand-in of
+dummy/ reports its C++ version as "none", and with the build options again for
+the class list.  The class probe reads the header of the list, which tells a 3.5
+build from an older one, so the class cases run on any 3.5 tree, whether or not
+the addon's class is itself named in the list.  That depends on where the tree
+initializes its filter classes, and the filter itself works the same way either
+way.  A case whose build no other field of the case tells, as every case using a
+'filter-config' proxy variant does, names it in its '@need' field.  A case that
+the build at hand cannot run is reported as 'SKIP' and still counted on the last
+output line, while both coverage reports count it the way they count any other
+case, so skipping a case cannot hide a keyword or a rule that no case covers.
 
 The generated configuration files live in a temporary directory that is removed
 when the driver exits; '-x' copies the file of a failed case into _logs, so
