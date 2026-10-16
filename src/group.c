@@ -25,18 +25,20 @@ const struct flt_otel_group_data flt_otel_group_data[] = { FLT_OTEL_GROUP_DEFINE
  *
  * DESCRIPTION
  *   Executes the action_ptr callback for the FLT_OTEL_ACTION_GROUP action.
- *   Retrieves the filter configuration, group definition, and runtime context
- *   from the rule's argument pointers.  If the filter is disabled or not
- *   attached to the stream, processing is skipped.  Otherwise, iterates over
- *   all scopes defined in the group and runs each via flt_otel_scope_run().
- *   Scope execution errors are logged but do not prevent the remaining scopes
- *   from executing.
+ *   Retrieves the filter and group configuration from the rule, selecting the
+ *   current proxy's binding for a shared defaults action.  Finds the filter on
+ *   the stream and runs the group's scopes unless it is disabled or unattached.
+ *   Scope errors are logged without stopping the remaining scopes.
  *
  * RETURN VALUE
  *   Returns ACT_RET_CONT.
  */
 static enum act_return flt_otel_group_action(struct act_rule *rule, struct proxy *px, struct session *sess, struct stream *s, int opts)
 {
+#ifdef USE_OTEL_FILTER_CLASS
+	struct flt_otel_group_binding         *binding;
+	struct ebpt_node                      *node;
+#endif
 	const struct filter                   *filter;
 	const struct flt_conf                 *fconf;
 	const struct flt_otel_conf            *conf;
@@ -49,14 +51,41 @@ static enum act_return flt_otel_group_action(struct act_rule *rule, struct proxy
 
 	OTELC_FUNC("%p, %p, %p, %p, %d", rule, px, sess, s, opts);
 
+#ifdef USE_OTEL_FILTER_CLASS
+	if (rule->arg.act.p[FLT_OTEL_ARG_BINDINGS] != NULL) {
+		node = ebpt_lookup(rule->arg.act.p[FLT_OTEL_ARG_BINDINGS], px);
+		if (node == NULL) {
+			/*
+			 * The filter logging needs the configuration this
+			 * path lacks, so the alert reports it.
+			 */
+			FLT_OTEL_ALERT("'" FLT_OTEL_ACTION_GROUP "' : internal error, unresolved inherited action");
+			FLT_OTEL_TRACE_ERROR("unresolved inherited group action", FLT_OTEL_EV_ERROR, s, NULL);
+
+			OTELC_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
+		}
+		binding    = ebpt_entry(node, struct flt_otel_group_binding, node);
+		fconf      = binding->fconf;
+		conf       = fconf->conf;
+		conf_group = binding->group->ptr;
+	} else {
+#endif
+		fconf      = rule->arg.act.p[FLT_OTEL_ARG_FLT_CONF];
+		conf       = rule->arg.act.p[FLT_OTEL_ARG_CONF];
+		conf_group = ((const struct flt_otel_conf_ph *)(rule->arg.act.p[FLT_OTEL_ARG_GROUP]))->ptr;
+#ifdef USE_OTEL_FILTER_CLASS
+	}
+#endif
+
 	OTELC_DBG(DEBUG, "from: %d, arg.act %p:{ %p %p %p %p }", rule->from, &(rule->arg.act), rule->arg.act.p[0], rule->arg.act.p[1], rule->arg.act.p[2], rule->arg.act.p[3]);
 
-	fconf      = rule->arg.act.p[FLT_OTEL_ARG_FLT_CONF];
-	conf       = rule->arg.act.p[FLT_OTEL_ARG_CONF];
-	conf_group = ((const struct flt_otel_conf_ph *)(rule->arg.act.p[FLT_OTEL_ARG_GROUP]))->ptr;
-
 	if ((fconf == NULL) || (conf == NULL) || (conf_group == NULL)) {
-		FLT_OTEL_LOG(LOG_ERR, FLT_OTEL_ACTION_GROUP ": internal error, invalid group action");
+		/* The log macros read the configuration, which may be absent. */
+		if (conf != NULL)
+			FLT_OTEL_LOG(LOG_ERR, FLT_OTEL_ACTION_GROUP ": internal error, invalid group action");
+		else
+			FLT_OTEL_ALERT("'" FLT_OTEL_ACTION_GROUP "' : internal error, invalid group action");
+
 		FLT_OTEL_TRACE_ERROR("invalid group action", FLT_OTEL_EV_ERROR, s, fconf);
 
 		OTELC_RETURN_EX(ACT_RET_CONT, enum act_return, "%d");
@@ -191,6 +220,44 @@ static int flt_otel_group_check_loc(const struct flt_otel_conf *conf, const char
 }
 
 
+#ifdef USE_OTEL_FILTER_CLASS
+
+/***
+ * NAME
+ *   flt_otel_group_defaults_used - is a defaults section inherited by a proxy
+ *
+ * SYNOPSIS
+ *   static bool flt_otel_group_defaults_used(const struct proxy *defpx)
+ *
+ * ARGUMENTS
+ *   defpx - defaults section to look for
+ *
+ * DESCRIPTION
+ *   Reports whether one of the proxies takes its rules from the defaults
+ *   section <defpx>.  A proxy inheriting such a section keeps it, the group
+ *   actions of the section included, which tells the section apart from one
+ *   no proxy uses.
+ *
+ * RETURN VALUE
+ *   Returns true when at least one proxy inherits the section, or false
+ *   otherwise.
+ */
+static bool flt_otel_group_defaults_used(const struct proxy *defpx)
+{
+	struct proxy *px;
+
+	OTELC_FUNC("%p", defpx);
+
+	FLT_OTEL_PROXIES_LIST_FOREACH(px)
+		if (px->defpx == defpx)
+			OTELC_RETURN_EX(true, bool, "%hhu");
+
+	OTELC_RETURN_EX(false, bool, "%hhu");
+}
+
+#endif /* USE_OTEL_FILTER_CLASS */
+
+
 /***
  * NAME
  *   flt_otel_group_check - group action post-parse check callback
@@ -205,27 +272,43 @@ static int flt_otel_group_check_loc(const struct flt_otel_conf *conf, const char
  *
  * DESCRIPTION
  *   Validates the check_ptr callback for the FLT_OTEL_ACTION_GROUP action.
- *   Resolves the filter ID and group ID string references stored during parsing
- *   into direct pointers to the filter configuration and group configuration
- *   structures.  Searches the proxy's filter list for a matching OTel filter,
- *   then locates the named group within that filter's configuration.  On
- *   success, replaces the string ID pointers in <rule>->arg.act.p with the
- *   resolved configuration pointers.
+ *   Resolves the filter and group names against the configuration of <px>.  A
+ *   local rule replaces its name strings with the resolved pointers.  A shared
+ *   defaults rule keeps its names and defers resolution until each inheriting
+ *   proxy is checked.  A section no proxy inherits has no proxy to resolve the
+ *   names for, so its rule is checked against the section itself, whose filter
+ *   instances are never finalized and leave the rule unresolved.  The shared
+ *   rule stores a separate proxy-keyed binding for each proxy, keeping
+ *   configuration pointers separate.
  *
  * RETURN VALUE
  *   Returns 1 on success, or 0 on failure with <err> filled.
  */
 static int flt_otel_group_check(struct act_rule *rule, struct proxy *px, char **err)
 {
-	struct flt_conf         *fconf_tmp, *fconf = NULL;
-	struct flt_otel_conf    *conf;
-	struct flt_otel_conf_ph *ph_group;
-	const char              *filter_id;
-	const char              *group_id;
-	bool                     flag_found = 0;
-	int                      i;
+#ifdef USE_OTEL_FILTER_CLASS
+	struct flt_otel_group_binding *binding;
+#endif
+	struct flt_conf               *fconf_tmp, *fconf = NULL;
+	struct flt_otel_conf          *conf;
+	struct flt_otel_conf_ph       *ph_group;
+	const char                    *filter_id, *group_id;
+	bool                           flag_found = 0;
+	int                            i;
 
 	OTELC_FUNC("%p, %p, %p:%p", rule, px, OTELC_DPTR_ARGS(err));
+
+#ifdef USE_OTEL_FILTER_CLASS
+	/*
+	 * A shared defaults action is resolved by the post-proxy check of
+	 * every proxy that inherits the section, so it is left to that check
+	 * while one such proxy exists and checked here against the section
+	 * when none does.  A proxy never reaches this callback with the
+	 * section's rules, those not being part of its own rule lists.
+	 */
+	if (((px->cap & PR_CAP_DEF) != 0) && flt_otel_group_defaults_used(px))
+		OTELC_RETURN_INT(1);
+#endif
 
 	filter_id = rule->arg.act.p[FLT_OTEL_ARG_FILTER_ID];
 	group_id  = rule->arg.act.p[FLT_OTEL_ARG_GROUP_ID];
@@ -302,6 +385,32 @@ static int flt_otel_group_check(struct act_rule *rule, struct proxy *px, char **
 	/* Warn about scopes whose fetches cannot be evaluated at this action. */
 	(void)flt_otel_group_check_loc(conf, group_id, px, flt_otel_group_data[i].smp_val);
 
+#ifdef USE_OTEL_FILTER_CLASS
+	if (rule->arg.act.p[FLT_OTEL_ARG_BINDINGS] != NULL) {
+		binding = OTELC_CALLOC(1, sizeof(*binding));
+		if (binding == NULL) {
+			FLT_OTEL_ERR_NOMEM();
+
+			OTELC_RETURN_INT(0);
+		}
+		binding->node.key = px;
+		binding->fconf    = fconf;
+		binding->group    = ph_group;
+
+		/* One binding per proxy, so a repeated check drops its copy. */
+		if (ebpt_lookup(rule->arg.act.p[FLT_OTEL_ARG_BINDINGS], px) != NULL) {
+			OTELC_SFREE(binding);
+
+			OTELC_RETURN_INT(1);
+		}
+
+		(void)ebpt_insert(rule->arg.act.p[FLT_OTEL_ARG_BINDINGS], &(binding->node));
+		LIST_APPEND(&(conf->group_rules), &(binding->list));
+
+		OTELC_RETURN_INT(1);
+	}
+#endif
+
 	OTELC_SFREE_CLEAR(rule->arg.act.p[FLT_OTEL_ARG_FILTER_ID]);
 	OTELC_SFREE_CLEAR(rule->arg.act.p[FLT_OTEL_ARG_GROUP_ID]);
 
@@ -325,19 +434,34 @@ static int flt_otel_group_check(struct act_rule *rule, struct proxy *px, char **
  *   rule - action rule being released
  *
  * DESCRIPTION
- *   Provides the release_ptr callback for the FLT_OTEL_ACTION_GROUP action.
- *   Frees the filter and group ID strings duplicated during parsing when the
- *   rule is released before flt_otel_group_check() has resolved them (e.g. on
- *   a configuration error).  After resolution this is a no-op because the
- *   argument pointers reference shared configuration structures that are
- *   freed separately during filter deinitialization.
+ *   Frees unresolved filter and group ID strings.  A shared defaults action
+ *   also releases its proxy-keyed binding tree and removes the bindings from
+ *   their filter configurations.  A resolved local action owns no configuration
+ *   memory, so its release does nothing.
  *
  * RETURN VALUE
  *   This function does not return a value.
  */
 static void flt_otel_group_release(struct act_rule *rule)
 {
+#ifdef USE_OTEL_FILTER_CLASS
+	struct flt_otel_group_binding *binding;
+	struct ebpt_node              *node;
+#endif
+
 	OTELC_FUNC("%p", rule);
+
+#ifdef USE_OTEL_FILTER_CLASS
+	if (rule->arg.act.p[FLT_OTEL_ARG_BINDINGS] != NULL) {
+		while ((node = ebpt_first(rule->arg.act.p[FLT_OTEL_ARG_BINDINGS])) != NULL) {
+			binding = ebpt_entry(node, struct flt_otel_group_binding, node);
+			ebpt_delete(node);
+			LIST_DELETE(&(binding->list));
+			OTELC_SFREE(binding);
+		}
+		OTELC_SFREE_CLEAR(rule->arg.act.p[FLT_OTEL_ARG_BINDINGS]);
+	}
+#endif
 
 	/*
 	 * The group slot is set only by flt_otel_group_check(); while it is
@@ -368,15 +492,12 @@ static void flt_otel_group_release(struct act_rule *rule)
  *   err     - indirect pointer to error message string
  *
  * DESCRIPTION
- *   Parses the FLT_OTEL_ACTION_GROUP action keyword from HAProxy configuration
- *   rules.  Expects two arguments: a filter ID and a group ID, optionally
- *   followed by "if" or "unless" conditions.  The filter ID and group ID are
- *   duplicated and stored in the <rule>'s argument pointers for later
- *   resolution by flt_otel_group_check().  The <rule>'s callbacks are set to
- *   flt_otel_group_action(), flt_otel_group_check(), and
- *   flt_otel_group_release().  This parser is registered for tcp-request,
- *   tcp-response, http-request, http-response, and http-after-response action
- *   contexts.
+ *   Parses the filter and group names of an FLT_OTEL_ACTION_GROUP action and
+ *   an optional trailing 'if' or 'unless' condition.  Duplicates the names
+ *   for later resolution by flt_otel_group_check() and allocates a binding
+ *   tree when the rule belongs to a named defaults section.  Sets the action,
+ *   check and release callbacks.  Supports TCP request and response rules, HTTP
+ *   request and response rules, and HTTP after-response rules.
  *
  * RETURN VALUE
  *   Returns ACT_RET_PRS_OK on success, or ACT_RET_PRS_ERR on failure.
@@ -414,6 +535,19 @@ static enum act_parse_ret flt_otel_group_parse(const char **args, int *cur_arg, 
 		OTELC_RETURN_EX(ACT_RET_PRS_ERR, enum act_parse_ret, "%d");
 	}
 
+#ifdef USE_OTEL_FILTER_CLASS
+	if ((px->cap & PR_CAP_DEF) != 0) {
+		rule->arg.act.p[FLT_OTEL_ARG_BINDINGS] = OTELC_CALLOC(1, sizeof(struct eb_root));
+		if (rule->arg.act.p[FLT_OTEL_ARG_BINDINGS] == NULL) {
+			FLT_OTEL_ERR_NOMEM();
+			OTELC_SFREE_CLEAR(rule->arg.act.p[FLT_OTEL_ARG_FILTER_ID]);
+			OTELC_SFREE_CLEAR(rule->arg.act.p[FLT_OTEL_ARG_GROUP_ID]);
+
+			OTELC_RETURN_EX(ACT_RET_PRS_ERR, enum act_parse_ret, "%d");
+		}
+	}
+#endif
+
 	/* Wire up the rule callbacks. */
 	rule->action      = ACT_CUSTOM;
 	rule->action_ptr  = flt_otel_group_action;
@@ -424,6 +558,103 @@ static enum act_parse_ret flt_otel_group_parse(const char **args, int *cur_arg, 
 
 	OTELC_RETURN_EX(ACT_RET_PRS_OK, enum act_parse_ret, "%d");
 }
+
+
+#ifdef USE_OTEL_FILTER_CLASS
+
+/***
+ * NAME
+ *   flt_otel_group_check_rules - resolve OTel group actions in a rule list
+ *
+ * SYNOPSIS
+ *   static int flt_otel_group_check_rules(struct list *rules, struct proxy *px)
+ *
+ * ARGUMENTS
+ *   rules - action rule list to check
+ *   px    - proxy instance
+ *
+ * DESCRIPTION
+ *   Resolves the OTel group actions in <rules> against the configuration of
+ *   <px>.  Ignores other actions and reports each failed resolution without
+ *   stopping the checks of the remaining rules.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE on success, or ERR_ALERT | ERR_FATAL on failure.
+ */
+static int flt_otel_group_check_rules(struct list *rules, struct proxy *px)
+{
+	struct act_rule *rule;
+	char            *err = NULL;
+	int              retval = ERR_NONE;
+
+	OTELC_FUNC("%p, %p", rules, px);
+
+	list_for_each_entry(rule, rules, list) {
+		if (rule->check_ptr != flt_otel_group_check)
+			continue;
+		if (flt_otel_group_check(rule, px, &err) == 0) {
+			/*
+			 * A rule of a defaults section is checked here
+			 * instead of by check_action_rules(), so the message
+			 * is formatted as that caller formats its own.
+			 */
+			ha_alert("Proxy '%s': %s.\n", px->id, err);
+			ha_free(&err);
+			retval |= ERR_ALERT | ERR_FATAL;
+		}
+	}
+
+	OTELC_RETURN_INT(retval);
+}
+
+
+/***
+ * NAME
+ *   flt_otel_group_check_inherited - resolve shared group actions for a proxy
+ *
+ * SYNOPSIS
+ *   static int flt_otel_group_check_inherited(struct proxy *px)
+ *
+ * ARGUMENTS
+ *   px - proxy instance
+ *
+ * DESCRIPTION
+ *   Resolves the group actions of the named defaults section used by <px>.
+ *   Each shared action keeps its names and a tree of bindings keyed by proxy,
+ *   so it uses the configuration of the proxy executing the rule.  Bindings are
+ *   removed when either the action or the filter configuration is freed.  This
+ *   check also runs for proxies created through the CLI.
+ *
+ * RETURN VALUE
+ *   Returns ERR_NONE on success, or ERR_ALERT | ERR_FATAL on failure.
+ */
+static int flt_otel_group_check_inherited(struct proxy *px)
+{
+	int retval = ERR_NONE;
+
+	OTELC_FUNC("%p", px);
+
+	if (px->defpx == NULL)
+		OTELC_RETURN_INT(retval);
+
+	/*
+	 * The rule lists the group action keyword is registered for.  The L4
+	 * and L5 request lists of the section are shared with the inheriting
+	 * proxy as well, but no "otel-group" keyword reaches them.
+	 */
+	retval |= flt_otel_group_check_rules(&(px->defpx->tcp_req.inspect_rules), px);
+	if ((px->cap & PR_CAP_BE) != 0)
+		retval |= flt_otel_group_check_rules(&(px->defpx->tcp_rep.inspect_rules), px);
+	retval |= flt_otel_group_check_rules(&(px->defpx->http_req_rules), px);
+	retval |= flt_otel_group_check_rules(&(px->defpx->http_res_rules), px);
+	retval |= flt_otel_group_check_rules(&(px->defpx->http_after_res_rules), px);
+
+	OTELC_RETURN_INT(retval);
+}
+
+REGISTER_POST_PROXY_CHECK(flt_otel_group_check_inherited);
+
+#endif /* USE_OTEL_FILTER_CLASS */
 
 
 /* TCP request content action keywords for the OTel group action. */

@@ -1104,6 +1104,9 @@ struct flt_otel_conf *flt_otel_conf_init(struct proxy *px)
 	LIST_INIT(&(retptr->groups));
 	LIST_INIT(&(retptr->scopes));
 	LIST_INIT(&(retptr->smp_args));
+#ifdef USE_OTEL_FILTER_CLASS
+	LIST_INIT(&(retptr->group_rules));
+#endif
 
 	FLT_OTEL_DBG_CONF("- conf init ", retptr);
 
@@ -1129,7 +1132,11 @@ struct flt_otel_conf *flt_otel_conf_init(struct proxy *px)
  */
 void flt_otel_conf_free(struct flt_otel_conf **ptr)
 {
-	struct arg_list *cur, *back;
+	struct arg_list               *cur, *back;
+#ifdef USE_OTEL_FILTER_CLASS
+	struct flt_otel_group_binding *binding, *binding_back;
+	bool                           flag_isolate = false;
+#endif
 
 	OTELC_FUNC("%p:%p", OTELC_DPTR_ARGS(ptr));
 
@@ -1138,6 +1145,22 @@ void flt_otel_conf_free(struct flt_otel_conf **ptr)
 
 	FLT_OTEL_DBG_CONF("- conf free ", *ptr);
 
+#ifdef USE_OTEL_FILTER_CLASS
+	/* Runtime deletion may reach this cleanup outside thread isolation. */
+	if (!LIST_ISEMPTY(&((*ptr)->group_rules)) && ((global.mode & (MODE_STARTING | MODE_STOPPING)) == 0) && (thread_isolated() == 0)) {
+		thread_isolate();
+
+		flag_isolate = true;
+	}
+
+	list_for_each_entry_safe(binding, binding_back, &((*ptr)->group_rules), list) {
+		ebpt_delete(&(binding->node));
+		LIST_DELETE(&(binding->list));
+		OTELC_SFREE(binding);
+	}
+	if (flag_isolate)
+		thread_release();
+#endif
 	OTELC_SFREE((*ptr)->id);
 	OTELC_SFREE((*ptr)->cfg_file);
 	OTELC_SFREE((*ptr)->sec_name);
