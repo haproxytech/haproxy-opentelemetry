@@ -130,7 +130,7 @@ filter instances' command lists the instances of a proxy.
 A disabled instance is still parsed, checked and initialized like an enabled
 one, and the 'flt-otel' CLI commands list and act on it as well.  It only never
 attaches to a stream, so it produces no telemetry; its 'otel-group' rules still
-run and report the missing attachment when logging is enabled, and then export
+run and report the missing attachment when logging is enabled; they still export
 nothing.
 
 A filter id keeps the rule of the legacy line and has to be unique across the
@@ -164,8 +164,8 @@ addon registers this one.  On a tree that registers its classes at the register
 stage instead, such as a 3.5 tree built before that initialization moved, the
 addon registers the class one stage later: the filter works the same way, and
 only the 'show filter classes' CLI command names the class.  An earlier HAProxy
-names the filter keyword within the 'Available filters' list of 'haproxy -vv'
-instead.
+names the filter keyword in the 'Available filters' list that 'haproxy -vv'
+prints instead.
 
 The filter attaches to both HTTP-mode and TCP-mode proxies.  On an HTTP proxy it
 runs HTX-level analysis, so all events and HTTP sample fetches are available.  A
