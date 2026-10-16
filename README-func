@@ -608,6 +608,30 @@ sections.
       keyword.  Parses the filter ID and configuration file path from the
       HAProxy config line.
 
+  flt_otel_parse_instance
+      Parses an instance of the "otel" filter class by passing its arguments
+      and id to flt_otel_parse(), with the 'filter-config otel' directive as
+      the keyword, so the messages of a class instance name that directive.
+      Rejects a runtime instance while HAProxy restricts thread creation in the
+      worker, before SDK providers can start export threads.
+
+  flt_otel_class_init
+      Declares the "otel" filter class and places it after the trace filter on
+      both sides.  A class that cannot be placed is removed from the class list
+      again, so a half-registered class is never left behind.
+
+  flt_otel_register_class
+      Registers the "otel" filter class at the register stage, but only when
+      the trace filter class is already registered.  Otherwise it leaves the
+      registration to flt_otel_register_class_late().
+
+  flt_otel_register_class_late
+      Registers the "otel" filter class at the init stage, for HAProxy trees
+      that initialize their own filter classes at the register stage.  The class
+      reaches the "haproxy -vv" class list only on a tree that initializes its
+      classes before the register stage, as HAProxy 3.5 and later do; elsewhere
+      it is registered too late for that list.
+
 
 src/conf.c
 ----------------------------------------------------------------------
@@ -1215,9 +1239,24 @@ tcp-request / tcp-response rules.
       Action callback (action_ptr) for the otel-group rule.  Finds the filter
       instance on the current stream and runs all scopes defined in the group.
 
+  flt_otel_group_defaults_used
+      Reports whether any proxy takes its rules from the defaults section
+      <defpx>, which tells such a section apart from one no proxy uses.
+
   flt_otel_group_check
       Check callback (check_ptr) for the otel-group rule.  Resolves filter ID
-      and group ID references against the proxy's filter configuration.
+      and group ID references against the proxy's filter configuration.  An
+      action of a defaults section is left to the proxies that inherit it, and
+      one of a section no proxy inherits is checked against that section.
+
+  flt_otel_group_check_rules
+      Checks OTel group actions from a rule list against the current proxy and
+      reports resolution errors without stopping the remaining checks.
+
+  flt_otel_group_check_inherited
+      Validates and resolves shared defaults actions for each inheriting proxy
+      at the post-proxy check stage, including proxies created through the CLI.
+      Stores bindings in the action tree and the owning filter configuration.
 
   flt_otel_group_check_loc
       Validates every scope of a group against the processing point of the
@@ -1225,12 +1264,16 @@ tcp-request / tcp-response rules.
       flt_otel_check_scope_loc().
 
   flt_otel_group_release
-      Release callback (release_ptr) for the otel-group rule.
+      Release callback (release_ptr) for the otel-group rule.  Frees the name
+      strings it still holds unresolved, and drains the proxy-keyed binding
+      tree of a shared defaults action, unlinking every binding from the filter
+      configuration that owns it.
 
   flt_otel_group_parse
-      Parses the "otel-group" action keyword from HAProxy config rules.
-      Registered for tcp-request, tcp-response, http-request, http-response and
-      http-after-response action contexts.
+      Parses the "otel-group" action keyword from HAProxy config rules, and
+      allocates the proxy-keyed binding tree of an action written in a named
+      defaults section.  Registered for tcp-request, tcp-response, http-request,
+      http-response and http-after-response action contexts.
 
 
 src/stats.c

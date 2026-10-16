@@ -1,7 +1,7 @@
                    -----------------------------------------
                       The HAProxy OpenTelemetry filter (OTel)
                                  Version 2.3.0
-                          ( Last update: 2026-10-06 )
+                          ( Last update: 2026-10-16 )
                    -----------------------------------------
                            Author : Miroslav Zagorac
                      Contact : mzagorac at haproxy dot com
@@ -177,11 +177,28 @@ the library in question.
 
 After HAProxy is compiled, we can check if the OTel filter is enabled:
 
-  % ./haproxy -vv | grep -i opentelemetry
+  % ./haproxy -vv | grep -i -E "opentelemetry|otel"
   --- command output ----------
   Built with OpenTelemetry support (filter version 2.3.0, C++ version 1.26.0, C Wrapper version 3.4.0-1028).
           [OTEL] opentelemetry
   --- command output ----------
+
+HAProxy 3.5 and later list the filter classes where the earlier versions list
+the filter keywords, and the OTel filter class is named 'otel' there.  The list
+holds the classes of the build, so 'lua' appears in it when HAProxy was built
+with USE_LUA=1.  The grep keeps the class list but not the header line of that
+list:
+
+  % ./haproxy -vv | grep -i -E "opentelemetry|otel"
+  --- command output ----------
+  Built with OpenTelemetry support (filter version 2.3.0, C++ version 1.26.0, C Wrapper version 3.4.0-1028).
+          trace, cache-store, decomp-req, decomp-res, spoe, lua, http-comp-req, http-comp-res, bwlim-in, bwlim-out, fcgi, otel
+  --- command output ----------
+
+That class list names the OTel filter on a build where HAProxy initializes its
+filter classes before the register stage, which HAProxy 3.5 and later do.  On a
+tree that initializes them from the register stage the filter behaves the same
+way, and the 'show filter classes' CLI command is what names the class.
 
 A summary of all OTel build options:
 
@@ -207,7 +224,7 @@ parsing, scope and event handling is exercised, but no telemetry is produced and
 the OTel configuration file is not even read.  Such an executable reports the
 C++ version as "none", which tells it apart from a real build:
 
-  % ./haproxy -vv | grep -i opentelemetry
+  % ./haproxy -vv | grep -i -E "opentelemetry|otel"
   --- command output ----------
   Built with OpenTelemetry support (filter version 2.3.0, C++ version none, C Wrapper version 3.4.0-0).
           [OTEL] opentelemetry
@@ -282,6 +299,47 @@ instrumentation sections (see section 4.1).  The YAML configuration for the
 OpenTelemetry SDK is a separate file, referenced by the 'config' keyword inside
 the "otel-instrumentation" section (see section 4.2).  A filter line with no
 id is accepted with a warning.
+
+HAProxy 3.5 declares filters as instances of a filter class, and the OTel filter
+registers the class 'otel' for that mode.  The filter can therefore be declared
+with the 'filter-config' directive instead:
+
+   frontend otel-test
+     ...
+     filter-config otel id <id> [enabled] config <file> [<name>]
+     ...
+
+The instance id is mandatory, and it is the filter id of the legacy line above,
+so both declarations name a filter the same way: the 'otel-group' rules and the
+CLI commands refer to the id alone.  The 'config' parameter and the optional
+section name mean what they mean on the legacy line, the same file path and
+a top-level OTel scope defaulting to the filter id.  An instance is declared
+disabled unless the word 'enabled' follows the id, and the 'filter-enable',
+'filter-disable' and 'filter-sequence' directives then act on it; the filter
+sits right after the 'trace' filter on both sides until a sequence moves it.
+HAProxy requires the 'id' and 'enabled' words first, in that order.  HAProxy
+refuses to mix the legacy 'filter' line with the 'filter-*' ones in one proxy,
+and a version earlier than 3.5 knows no 'filter-config' keyword at all, so the
+legacy declaration is what every version from 3.2 on accepts.
+
+A named defaults section with filter directives may be inherited by frontends
+only or by backends only.  HAProxy refuses inheritance by listen sections, other
+defaults sections, or a mix of frontends and backends.
+
+The copies a named defaults section leaves in the proxies that inherit it keep
+the id of that declaration and count as one declaration, so an instance written
+in such a section is not a duplicate in them.  Two proxies that each write their
+own line with the same id are still refused, and an override is refused only
+while another proxy retains an inherited copy with that id; the override is
+accepted once no proxy keeps a copy.
+
+Creating an OTel backend through the CLI requires 'insecure-fork-wanted' in the
+global section.  In a worker without that option HAProxy blocks new threads and
+processes, and the addon refuses the creation before SDK providers can start
+export threads.  Instances created during startup do not require it.
+
+The 'insecure-fork-wanted' option disables HAProxy's protection against new
+threads and processes.  Enable it only if that security tradeoff is acceptable.
 
 An optional section name after the file path selects the top-level OTel scope
 to use; it defaults to the filter id, so several filters may share one scope.
@@ -1813,6 +1871,19 @@ to start.  A group section those lines leave out is an error on its own.  The
 scopes of the group are checked against that rule set as well: a sample fetch or
 a condition that cannot be evaluated there is reported as a warning at load.
 
+An 'otel-group' action in a named defaults section uses the filter instance
+of the proxy executing the rule.  On HAProxy 3.5 and later, the filter and group
+names are checked separately for every inheriting proxy, just as they are for
+an action declared directly in that proxy; a section no proxy inherits leaves
+the action unresolved, the filter instances of a defaults section never being
+finalized, and is refused at load.  With 'tune.defaults.purge' enabled, HAProxy
+removes an unused section before the checks run, so that no rule is refused.
+A named section whose only inheriting proxies are disabled or stopped is left
+unchecked: HAProxy runs no post-proxy check for such a proxy, so the action
+stays unresolved without an error.  An earlier HAProxy resolves that same rule
+against the defaults section itself, which holds no filter declaration, and
+refuses it the same way.
+
 
 otel-group <name>
   Creates a new OTel group definition named <name>.  The name is unique within
@@ -2085,9 +2156,10 @@ current value of the respective setting.
 By default, the commands operate on all configured OTel filter instances at
 once.  Every command except 'debug', whose setting is process-global, takes
 an optional "@<filter>" token right after the subcommand keyword that limits
-it to the single instance whose filter id matches <filter>; the id is the one
-set with the 'id' keyword on the filter line, and it is unique across all the
-proxies ("otel-filter" by default).  For 'logging' and 'rate', the state or
+it to the instances whose filter id matches <filter>; the id is the one set on
+the filter line, or the instance id of a 'filter-config' line, and a filter
+written in a named defaults section answers to it in every proxy that inherits
+the section ("otel-filter" by default).  For 'logging' and 'rate', the state or
 value argument then follows the token, mirroring the "[@<ver>]" selector of
 the HAProxy 'show map' family of commands.  A surplus argument, like a target
 given without its leading '@', and a token that names an unknown filter are

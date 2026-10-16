@@ -134,6 +134,8 @@ the correct free function:
   scopes     List of all available scopes.
   cnt        Various counters related to filter operation.
   smp_args   Deferred sample fetch arguments to resolve at check time.
+  group_rules Bindings of inherited actions, one per inheriting proxy; only a
+              filter class build creates them.
 
 This structure does not use FLT_OTEL_CONF_HDR because it is not part of any
 list -- it is the unique root, owned by the filter instance.
@@ -454,7 +456,7 @@ pattern:
 
   1. Allocates flt_otel_conf with OTELC_CALLOC.
   2. Stores the proxy reference.
-  3. Initializes the groups, scopes and smp_args lists.
+  3. Initializes the groups, scopes, smp_args and group_rules lists.
 
 
 6  Deallocation
@@ -545,14 +547,17 @@ recursive teardown from parent to leaf.
 
 The flt_otel_conf_free function (conf.c) is hand-written:
 
-  1. Frees the id, cfg_file and sec_name strings.
-  2. Calls flt_otel_conf_instr_free for the instrumentation.
-  3. Destroys the groups list (which recursively frees placeholders).
-  4. Destroys the scopes list (which recursively frees contexts, spans,
+  1. Removes the inherited-action bindings, which only a filter class build
+     creates, isolating the calling thread first whenever that cleanup runs
+     outside thread isolation.
+  2. Frees the id, cfg_file and sec_name strings.
+  3. Calls flt_otel_conf_instr_free for the instrumentation.
+  4. Destroys the groups list (which recursively frees placeholders).
+  5. Destroys the scopes list (which recursively frees contexts, spans,
      instruments, log records, and all their children).
-  5. Deletes and frees each sample fetch argument still on the smp_args list,
+  6. Deletes and frees each sample fetch argument still on the smp_args list,
      which only an error path leaves unresolved.
-  6. Frees the root structure and sets the pointer to NULL.
+  7. Frees the root structure and sets the pointer to NULL.
 
 
 7  Summary of Init/Free Pairs

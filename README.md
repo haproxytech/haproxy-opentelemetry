@@ -30,6 +30,9 @@ observability framework.
 - **Multiple filter instances** -- several filters, each with its own id and
   configuration, run simultaneously in one HAProxy process; they may share a
   section of the OTel configuration file or use separate files.
+- **Both filter declaration modes** -- the legacy `filter opentelemetry` line on
+  every supported HAProxy version, and the `filter-config otel` instance of the
+  `otel` filter class from HAProxy 3.5 on.
 - **Rate limiting** -- percentage-based sampling (0.0--100.0) for controlling
   overhead.
 - **ACL integration** -- fine-grained conditional execution at instrumentation,
@@ -126,7 +129,7 @@ PKG_CONFIG_PATH=/opt/lib/pkgconfig make -j8 TARGET=linux-glibc EXTRA_MAKE="../ha
 #### Verifying the build
 
 ```
-./haproxy -vv | grep -i opentelemetry
+./haproxy -vv | grep -i -E "opentelemetry|otel"
 ```
 
 If the filter is built in, the output contains:
@@ -135,6 +138,22 @@ If the filter is built in, the output contains:
 Built with OpenTelemetry support (filter version 2.3.0, C++ version 1.26.0, C Wrapper version 3.4.0-1028).
 	[OTEL] opentelemetry
 ```
+
+From HAProxy 3.5 on, the second line is the list of filter classes instead,
+where the OTel filter is the `otel` class; the header line of that list does not
+match the grep.  The list holds the classes of the build, so `lua` appears in it
+when HAProxy was built with `USE_LUA=1`:
+
+```
+Built with OpenTelemetry support (filter version 2.3.0, C++ version 1.26.0, C Wrapper version 3.4.0-1028).
+        trace, cache-store, decomp-req, decomp-res, spoe, lua, http-comp-req, http-comp-res, bwlim-in, bwlim-out, fcgi, otel
+```
+
+The class appears there on a HAProxy that initializes its filter classes before
+the register stage, which HAProxy 3.5 and later do.  On a tree that initializes
+them from the register stage the addon registers the class one stage later, the
+filter works the same way, and the `show filter classes` CLI command is what
+names the class.
 
 #### Library path at runtime
 
@@ -174,6 +193,41 @@ section name may follow the file: it selects the `[<name>]` section of the OTel
 configuration file and defaults to the filter id, so several filters can share
 one section.  Any number of filters may be declared, on one proxy or across
 proxies, and every instance runs with its own library context.
+
+From HAProxy 3.5 on, the filter is also declared as an instance of the `otel`
+filter class:
+
+```
+frontend my-frontend
+    ...
+    filter-config otel id <id> [enabled] config <file> [<name>]
+    ...
+```
+
+The instance id is the filter id of the legacy line, so the rules and the CLI
+commands that name a filter keep working unchanged.
+
+A filter instance declared in a named `defaults` section may be inherited by
+frontends only or by backends only.  HAProxy refuses inheritance by `listen`
+sections, other `defaults` sections, or a mix of frontends and backends.
+
+Inherited copies keep the declaration's id and count as one declaration.  Two
+proxies that each write the same id on their own line are still refused.  An
+override is refused only when another proxy retains an inherited copy with the
+same id.  If no inherited copy remains, the override is accepted.
+
+The instance is disabled unless `enabled` is written, and then `filter-enable`,
+`filter-disable` and `filter-sequence` act on it.  An earlier HAProxy than 3.5
+knows no `filter-config` keyword at all, so the legacy `filter opentelemetry`
+line is what every supported version takes.
+
+Creating an OTel backend through the CLI requires `insecure-fork-wanted` in the
+global section.  In a worker without that option HAProxy blocks new threads and
+processes, and the addon refuses the creation before SDK providers can start
+export threads.  Instances created during startup do not require it.
+
+The `insecure-fork-wanted` option disables HAProxy's protection against new
+threads and processes.  Enable it only if that security tradeoff is acceptable.
 
 #### OTel configuration file structure
 
@@ -306,7 +360,7 @@ Available via the HAProxy CLI socket (prefix: `flt-otel`):
 
 When invoked without arguments, `rate`, `logging`, `noflush` and `debug` display
 the current value.  The optional `@<filter>` token, accepted by every command
-except `debug`, restricts a command to the single filter instance whose id
+except `debug`, restricts a command to the filter instances whose filter id
 matches; without it, a command operates on every configured instance at once.
 Surplus arguments are rejected.
 

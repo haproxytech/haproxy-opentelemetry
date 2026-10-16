@@ -88,11 +88,14 @@ since the stand-in is a static archive that is linked into the executable.
 
 An executable built this way identifies itself in the build options:
 
-  % ./haproxy -vv | grep -i opentelemetry
+  % ./haproxy -vv | grep -i -E "opentelemetry|otel"
   --- command output ----------
   Built with OpenTelemetry support (filter version 2.3.0, C++ version none, C Wrapper version 3.4.0-0).
           [OTEL] opentelemetry
   --- command output ----------
+
+On HAProxy 3.5 and later the second line is the filter class list instead, in
+which the OTel filter is the 'otel' class (the main README shows that output).
 
 The C++ version reported as "none", together with the zero build counter, is how
 a stand-in linked executable can be told apart from a real one.

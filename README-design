@@ -361,11 +361,12 @@ the OTel filter trace TCP-mode proxies.
 
 4.4  CLI Update Propagation
 
-CLI set commands (cli.c) iterate all OTel filter instances across all proxies
-using the FLT_OTEL_PROXIES_LIST_START / FLT_OTEL_PROXIES_LIST_END macros
-(util.h) and atomically update the target field on each instance.  This ensures
-that "flt-otel disable" takes effect globally by default, while the optional
-"@<filter>" target token restricts a command to the one matching instance.
+CLI set commands (cli.c) iterate through all OTel filter instances across all
+proxies using the FLT_OTEL_PROXIES_LIST_START / FLT_OTEL_PROXIES_LIST_END macros
+(util.h) and atomically update the target field on each instance.  This in turn
+ensures that "flt-otel disable" takes effect globally by default, while the
+optional "@<filter>" target token limits a command to the instances whose filter
+id matches the target.
 
 
 5  Sample Evaluation Pipeline
@@ -788,20 +789,29 @@ Each registration points to flt_otel_group_parse() as the parse function.
     Sets the check, action and release callbacks.
 
   Check (flt_otel_group_check):
-    Resolves the string IDs to configuration pointers by walking the filter
-    configurations of the proxy, the filter instances of a proxy declared with
-    the new mode and the proxy filter list of one declared with the legacy
-    'filter' directive (flt_otel_conf_first() and flt_otel_conf_next(), see
-    src/util.c).  Replaces the string pointers with resolved flt_conf,
-    flt_otel_conf and flt_otel_conf_ph pointers.  Frees the original string
-    duplicates.
+    Resolves filter and group names through the proxy configuration cursors
+    of src/util.c.  Local rules replace their name strings with configuration
+    pointers.  Shared defaults rules retain their names for a later call to
+    flt_otel_group_check_inherited(), which resolves them for every inheriting
+    proxy, as flt_otel_group_defaults_used() tells such a section from one no
+    proxy uses.  Each binding belongs to the shared rule's proxy-keyed tree and
+    the filter configuration's group_rules list, so either owner can remove it.
+    An action of a section no proxy inherits is resolved against the section
+    itself, which holds no filter configuration, and is refused at load, as an
+    earlier HAProxy refuses it.
 
   Execute (flt_otel_group_action):
-    Finds the filter instance in the stream's filter list.  Validates rule->from
-    against the flt_otel_group_data[] table to determine the sample fetch
-    direction.  Iterates all scopes in the group and calls flt_otel_scope_run()
-    for each.  Always returns ACT_RET_CONT -- a group action never interrupts
-    rule processing.
+    Finds the filter instance in the stream's filter list, selecting the current
+    proxy's binding when the rule comes from a named defaults section.  Uses
+    flt_otel_group_data[] to determine the sample fetch direction and runs the
+    group's scopes with flt_otel_scope_run().  Returns ACT_RET_CONT without
+    interrupting rule processing.
+
+Runtime backend deletion can release a filter configuration from deferred work,
+after HAProxy has left thread isolation.  flt_otel_conf_free() isolates the
+calling thread before removing shared action bindings and releases only the
+isolation it acquired.  Startup and final shutdown need no isolation because no
+request threads run during that cleanup.
 
 11.3  Group Data Table
 
@@ -854,7 +864,7 @@ All set operations iterate every OTel filter instance across all proxies using
 FLT_OTEL_PROXIES_LIST_START / FLT_OTEL_PROXIES_LIST_END macros and atomically
 update the target field.  A single "flt-otel disable" command disables the
 filter in every proxy that has it configured; only an "@<filter>" target token
-limits it to the one matching instance.
+limits it to the instances whose filter id matches the target.
 
 12.3  Status Report
 
@@ -884,7 +894,8 @@ FLT_OTEL_FLUSH_CLI_S budget that flt_otel_flush_budget() (util.c) measures;
 a call that finds it spent is skipped, because the SDK reads a non-positive
 timeout as no timeout at all.  An exporter that cannot be reached therefore
 stalls the command for the budget, not for the sum of the per-call timeouts.
-The "@<filter>" target token limits the flush to the one matching instance.
+The "@<filter>" target token limits the flush to the instances whose filter id
+matches the target.
 
 The "flt-otel instruments" command reports, for every filter instance, the
 instruments declared in each scope.  A create-form instrument is shown with
