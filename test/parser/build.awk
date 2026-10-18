@@ -41,12 +41,12 @@
 # replaced with the path of the YAML configuration file and '@YMLBAD@' with
 # the path of the invalid one.
 #
-# The last index field is read from the generated file instead of a record
-# field, and names the build a case needs: 'vars' for one writing the
-# 'use-vars' storage word, which exists only with OTEL_USE_VARS=1, and 'yaml'
-# for one naming the invalid YAML file, which only a build linked against the
-# wrapper library reads.  The driver skips such a case when the build at hand
-# is not the one it asks for.
+# The last index field names the build a case needs.  An explicit '@need' record
+# field takes precedence; otherwise the generated file selects 'vars' for the
+# 'use-vars' storage word, which requires OTEL_USE_VARS=1, or 'yaml' for the
+# invalid YAML file, which needs the wrapper library.  The explicit 'class'
+# value asks for HAProxy 3.5 filter classes.  The driver skips a case when the
+# build at hand does not meet its requirement.
 #
 
 BEGIN {

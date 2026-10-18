@@ -7,8 +7,9 @@ The scenario tests run real traffic through real HAProxy instances and export
 real telemetry, which you then read yourself; they assert nothing on their own.
 The parser test starts no proxy at all.  It feeds generated configuration files
 to `haproxy -c` and checks that each one is accepted, or refused with the alert
-the case names.  The speed test measures what tracing costs in throughput and
-latency at every rate-limit level.
+the case names.  The backend test checks runtime creation through the admin CLI
+and its startup-only exception to the fork restriction.  The speed test measures
+what tracing costs in throughput and latency at every rate-limit level.
 
 ### Layout
 
@@ -20,10 +21,14 @@ rest of the directory:
 | Path | What it is |
 |------|------------|
 | `parser/` | The parser test cases, the rule table and the awk generators |
+| `backend/` | Configurations for startup and runtime backend creation |
+| `class/` | Configurations for the declaration through the filter class |
 | `_logs/` | Where a run leaves its HAProxy output and its result files |
-| `run-test-config.sh` | The single-instance runner behind every `run-<name>.sh` symlink |
+| `run-test-config.sh` | The single-instance runner the other `run-<name>.sh` symlinks use |
 | `run-fe-be.sh` | Starts the frontend on port 10080 and the backend on port 11080 |
+| `run-class.sh` | Starts the `class` scenario once the build carries a filter class |
 | `run-parser.sh` | Runs the parser cases and the coverage reports |
+| `run-backend.py` | Checks the filter class CLI and `add backend` with and without `insecure-fork-wanted` |
 | `run-trace.sh` | Runs the `trace` scenario with the native trace source started |
 | `test-speed.sh` | Runs the benchmark for one scenario or for all of them |
 | `copy-yml.sh` | Rewrites a template `otel.yml` for one scenario |
@@ -32,6 +37,7 @@ rest of the directory:
 | `haproxy-common.cfg` | The global and defaults sections every scenario includes |
 | `index.html` | The static page `thttpd` serves as the origin server |
 | `README-parser` | The parser test, its case format and its coverage reports |
+| `README-backend` | The runtime backend test and its expected CLI results |
 | `README-test-speed` | The benchmark: method, parameters and full results |
 | `README-speed-<name>` | The published result file of one benchmarked scenario |
 | `README-tools` | The OTLP/HTTP recorder and the replayer |
@@ -49,6 +55,7 @@ rest of the directory:
 | `updown` | Metrics only, an up-down counter recording a signed per-session delta | [README-updown](README-updown) |
 | `optctx` | A root span picked from the request: the session span continues the trace the client sent, or opens one of its own when no usable context arrived | [README-optctx](README-optctx) |
 | `empty` | The filter loaded with an instrumentation section and no scopes, to prove it starts and stops cleanly | [README-empty](README-empty) |
+| `class` | The filter declared as an instance of the `otel` class: an enabled instance exporting one span per request, a disabled one that stays detached, and an instance inherited from a defaults section together with a group action | [README-class](README-class) |
 | `err` | The runtime error path: hard-error episodes, swallowed soft errors and the counters that tally them | [README-err](README-err) |
 | `lua` | Values computed by a Lua script: a registered fetch, converter and action supply span attributes, a log record and a transaction variable read by a later scope | [README-lua](README-lua) |
 | `trace` | The native `otel` trace source: attachment, event, scope, action, span, context and error records at the user and state levels | [README-trace](README-trace) |
@@ -60,14 +67,19 @@ server.  The `ctx` scenario keeps its contexts in HAProxy variables, so it needs
 an executable built with `OTEL_USE_VARS=1`; a build without that option refuses
 its configuration.  The `lua` scenario likewise needs an executable built with
 `USE_LUA=1`, and the `trace` scenario one that carries HAProxy's native trace
-subsystem, which a `USE_TRACE=0` build drops.  Every runner takes an optional
-HAProxy binary, a pidfile and a log name, falls back to `../../haproxy/haproxy`
-and writes what the instance printed under `_logs/`:
+subsystem, which a `USE_TRACE=0` build drops.
+
+The shell scenario runners write their instance output under `_logs/` and take
+a PID file and a log name.  The `class` and `trace` runners require the HAProxy
+executable path; the other scripts use `../../haproxy/haproxy` by default.
 
 ```
 % ./run-sa.sh
 % ./run-fe-be.sh
 ```
+
+The backend test is the exception: `run-backend.py` takes the executable path as
+well, and its own arguments are described in [README-backend](README-backend).
 
 The exporters post to an OTLP/HTTP endpoint on `localhost:4318`, so reading the
 telemetry needs a collector there, or the OTLP/HTTP traffic recorder described
@@ -91,9 +103,9 @@ rejected and, when rejected, the alert text the rejection has to carry:
 ```
 
 The cases that write the `use-vars` storage word need an executable built with
-the `OTEL_USE_VARS=1` option, and the one that feeds an invalid YAML file needs
-a build linked against the wrapper library, which alone reads that file; the
-driver probes for both and skips every case that the build at hand cannot run,
+the `OTEL_USE_VARS=1` option.  The invalid YAML case needs the wrapper library,
+which alone reads that file, and filter-class cases need HAProxy 3.5 or later.
+The driver probes these requirements and skips cases that the build cannot run,
 counting them on the last output line.
 
 Two coverage reports run after a full pass.  The first reads the keyword tables
@@ -101,6 +113,26 @@ of `include/parser.h`, the second the entries and paragraphs of section 4.5
 itself.  A keyword or a rule with no case fails the run, so the written rules
 cannot drift away from the parser without the test saying so.  A run filtered
 with `-k` skips both reports.  Details are in [README-parser](README-parser).
+
+### Runtime backend test
+
+The backend test runs HAProxy with inherited OTel filter instances, then uses
+`add backend` to create another instance from the same named defaults section.
+Startup must work without `insecure-fork-wanted`; runtime creation must fail
+without that option and succeed with it.  The runner reads the filter classes
+and the instances of a proxy back through the CLI, enabled and disabled ones
+alike, then checks the rejection's cause and the registered backend names, and
+stops its own instances with USR1:
+
+```
+% ./run-backend.py ../../haproxy/haproxy
+```
+
+This test needs Python 3 and a HAProxy build with the OTel filter class, the
+runtime 'add backend' command and a libc that provides RLIMIT_NPROC.  It uses
+private Unix sockets, opens no TCP listener and needs no collector or origin
+server.  The configuration, the CLI commands, the expected results and saved
+logs are in README-backend.
 
 ### What tracing costs
 

@@ -500,6 +500,32 @@
         config @YML@
 @end
 
+@case top-filter-config-unknown-key
+@kw top:scope
+@tmpl whole
+@mode fltclsbadykw
+@need class
+@want err
+@match unknown keyword 'bogus'
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+@end
+
+@case top-filter-config-class-no-config
+@kw top:scope
+@tmpl whole
+@mode fltclsnocfg
+@need class
+@want err
+@match no configuration file specified
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+@end
+
 @case top-filter-no-id-warn-ok
 @kw top:scope
 @tmpl whole

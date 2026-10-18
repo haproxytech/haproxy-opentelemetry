@@ -1,0 +1,108 @@
+Runtime backend creation test (backend/)
+=======================================
+
+The backend test checks OTel filter instances inherited by 'add backend' from
+named defaults.  It runs HAProxy with and without 'insecure-fork-wanted', checks
+that the startup backend exists, and asks the admin CLI to create a backend at
+runtime.  The test checks the CLI result and the registered backend names, and
+requires the OTel parser's diagnostic when runtime creation is rejected.
+
+The runner starts its own HAProxy instances and stops them with USR1, using only
+its own process IDs.  Each instance has a private Unix socket in a temporary
+directory.  It sends no traffic and needs neither an origin server nor a local
+collector.  The SDK exporters write to /dev/null; the trace batch processor and
+metric reader use background threads.
+
+
+Requirements
+------------
+
+Use Python 3 and a HAProxy build with the OTel filter class and the runtime 'add
+backend' command.  The filter class exists from HAProxy 3.5 on; 'add backend' is
+older.  The rejection exists only in a build whose libc provides RLIMIT_NPROC,
+which HAProxy clears for the worker; a build without it fails the rejection
+check instead of reporting a passing test.
+
+The fixture sets 'chroot /' so runtime creation can still read the OTel and YAML
+files.  The runner supplies absolute configuration paths through environment
+variables, since HAProxy changes its working directory during startup.  This is
+an isolated test configuration, not a suggested production security setting.
+
+
+Files
+-----
+
+  backend/haproxy.cfg          Named defaults, the filter instances and the
+                               group action
+  backend/haproxy-insecure.cfg Enables 'insecure-fork-wanted' for the allow run
+  backend/otel.cfg             One OTel configuration section per instance,
+                               the group definition included
+  backend/otel.yml             SDK providers and local exporters
+  run-backend.py               Runner and assertions against the live admin CLI
+
+
+Running the test
+----------------
+
+From the test/ directory, give the runner the HAProxy executable to use.  The
+binary path is required, so invoking the runner without arguments prints help
+and exits without starting an instance:
+
+  % ./run-backend.py ../../haproxy/haproxy
+  % ./run-backend.py --help
+
+The runner prints a PASS for each accepted startup and each expected runtime
+creation result.  It exits 0 on success, EX_SOFTWARE (70) when a check fails or
+the executable cannot be started, EX_NOINPUT (66) when the executable file is
+missing, and EX_UNAVAILABLE (69) when it is not executable.  Invalid command
+arguments return EX_USAGE (64); explicit help exits 0.
+
+If a check fails and stopping HAProxy also fails, the runner reports the cleanup
+failure separately and keeps the original check failure as the final diagnostic.
+
+The final output line names a new directory under _logs/.  Its deny.log and
+allow.log files hold HAProxy's output; deny-cli.log and allow-cli.log hold the
+commands and their replies.  These logs remain after the runner removes its
+private socket directory and stops its instances.
+
+
+What is checked
+---------------
+
+The fixture declares OTel filter instances in its named defaults section, one
+enabled and one written without the 'enabled' word, and its 'backend startup'
+inherits them during startup.
+
+The section also carries an 'otel-group' action, which the proxies inheriting
+the section share, so the resolution of that action runs for the backend created
+at runtime as well: an action that cannot be resolved there fails the creation.
+The runner then issues these commands on the instance's admin socket:
+
+  show filter classes request
+  show filter instances startup request
+  show filter instance startup otel/backend-test
+  show filter instance startup otel/backend-test-off
+  show backend
+  add backend runtime from otel-backend-defaults
+  show backend
+
+The class list of the request side must name the 'otel' class, the instance list
+must name the instances in the order they were declared, and every instance
+report must carry the state 'enabled' and 'disabled'.  An instance inherited
+from the defaults section reads as 'enabled, inherited' or 'disabled, inherited'
+there, which the runner accepts.
+
+Without 'insecure-fork-wanted', the startup backend must exist, but runtime
+creation must fail and leave no registered 'runtime' backend.  The HAProxy log
+must carry the OTel parser's diagnostic, not just an unrelated creation error:
+
+  runtime creation requires 'insecure-fork-wanted'
+
+With 'insecure-fork-wanted', the startup backend must still exist, and runtime
+creation must succeed with 'runtime' present in the backend list.  This checks
+the startup/runtime distinction in flt_otel_parse_instance(), where the option
+is required only after HAProxy clears MODE_STARTING.
+
+The test ends at backend creation.  It does not publish the backend, register a
+server or send requests through it; traffic and telemetry belong to the other
+scenario tests.

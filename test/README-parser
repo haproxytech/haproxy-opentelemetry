@@ -65,9 +65,9 @@ the class list.  The class probe reads the header of the list, which tells a 3.5
 build from an older one, so the class cases run on any 3.5 tree, whether or not
 the addon's class is itself named in the list.  That depends on where the tree
 initializes its filter classes, and the filter itself works the same way either
-way.  A case whose build no other field of the case tells, as every case using a
-'filter-config' proxy variant does, names it in its '@need' field.  A case that
-the build at hand cannot run is reported as 'SKIP' and still counted on the last
+way.  A case whose build no other field of the case tells, as every case using
+a 'filter-config' proxy variant does, names it in its '@need' field.  A case
+that the build at hand cannot run is reported as 'SKIP' and counted on the last
 output line, while both coverage reports count it the way they count any other
 case, so skipping a case cannot hide a keyword or a rule that no case covers.
 
@@ -170,6 +170,15 @@ an instrumentation that names no configuration file, a name that a 'parent', a
 'link', a 'finish' or a 'set-var-ctx' refers to and that no otel-scope defines,
 a filter ID that another instance already carries, the names an 'otel-group'
 action resolves, and the warnings that the whole configuration decides.
+
+A set of cases declares the filter as an instance of the 'otel' class instead of
+the legacy line, and they are skipped on a build without the class.  They cover
+an instance written with the 'enabled' word and one written without it, the
+group names that a disabled instance resolves and rejects when undefined, the
+unknown keyword and the missing configuration file the OTel parser refuses on
+the class line, and the override of an instance a defaults section declares,
+refused while another proxy keeps the inherited copy and is accepted once no
+proxy does.
 
 
 Coverage

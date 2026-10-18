@@ -1,0 +1,127 @@
+Filter class test (class/)
+==========================
+
+The 'class' test declares its OTel filters as instances of the 'otel' filter
+class, the declaration mode HAProxy 3.5 and later offer beside the legacy filter
+'opentelemetry' line.  It runs traffic through the enabled instance and keeps a
+disabled one in place, so both states of a declared instance can be read back
+from the exported telemetry and from the CLI.  A second frontend inherits its
+filter instance and its group action from a named defaults section, which is
+how a shared action reaches the proxy that executes it.
+
+The declaration mode needs an executable that carries the filter class, which no
+HAProxy before 3.5 does.  The test needs an origin server on 127.0.0.1:8000 and
+a collector that listens for OTLP/HTTP on port 4318.
+
+
+Files
+-----
+
+  class/haproxy.cfg  Frontends declaring the filter instances
+  class/otel.cfg     One OTel configuration section per instance, the group
+                     definition included
+  class/otel.yml     Exporter, processor, reader and provider definitions
+
+
+Declarations
+------------
+
+  frontend otel-test-class-frontend
+    ...
+    filter-config otel id otel-test-class enabled config class/otel.cfg
+    filter-config otel id otel-test-class-off config class/otel.cfg
+
+The instance is disabled unless the word 'enabled' follows its id, so the first
+line attaches the filter to the streams of the frontend.  The second one is
+parsed, checked and initialized like the first, attaches to no stream, and reads
+the top-level OTel scope named after its own filter id; one configuration file
+therefore serves both.
+
+The CLI lists the instances in the order they were declared, and a disabled
+one reports its state:
+
+  request: otel/otel-test-class > otel/otel-test-class-off
+
+  class:      otel
+  id:         otel-test-class-off
+  state:      disabled
+  sides:      global request response
+  defined at: class/haproxy.cfg:18
+  args:       config class/otel.cfg
+
+A named defaults section declares one more instance, inherited by the second
+frontend together with a group action:
+
+  defaults otel-test-class-defaults
+    filter-config otel id otel-test-class-inherit enabled config class/otel.cfg
+    http-request otel-group otel-test-class-inherit otel-test-class-group
+
+  frontend otel-test-class-inherit-frontend
+    bind *:10081
+
+The action belongs to the section but runs in the proxy that inherits it, so it
+resolves against the filter configuration of that proxy.  The CLI names the
+inherited copy as such, and reports the site of the declaration, which is the
+line of the section:
+
+  request: otel/otel-test-class-inherit
+
+  class:      otel
+  id:         otel-test-class-inherit
+  state:      enabled, inherited
+  sides:      global request response
+  defined at: class/haproxy.cfg:33
+  args:       config class/otel.cfg
+
+
+Events
+------
+
+  Instance                   Scope             Event
+  -------------------------------------------------------------------------
+  otel-test-class            class-request     on-frontend-http-request
+  otel-test-class-off        class-off-request on-frontend-http-request
+  otel-test-class-inherit    inherit-scope     (none)
+
+The enabled instance opens a root span named 'class enabled request' on the
+frontend HTTP request.  The scope of the disabled instance keeps its own name,
+'class disabled request', but the instance attaches to no stream, so its span is
+never opened; the scope is checked like any other, so a mistake in it still
+fails the load.
+
+The scope of the inherited instance binds no event, so no event of its own runs
+it; the group action the defaults section declares is what runs it, and the span
+it opens is named 'inherited group request'.  A span exported by the inheriting
+frontend therefore proves that the action reached the filter instance of the
+proxy that inherited it, rather than that an event reached the scope.
+
+
+Running the test
+----------------
+
+The run-class.sh script requires the HAProxy executable path and starts one
+HAProxy instance with haproxy-common.cfg and class/haproxy.cfg after checking
+that the executable carries a filter class:
+
+  % ./run-class.sh ../../haproxy/haproxy
+  % ./run-class.sh --help
+
+When no arguments are given, the runner prints help to standard error and exits
+with EX_USAGE (64) without starting HAProxy.  Explicit '-h' or '--help' prints
+help to standard output and exits 0.
+
+Optional positional arguments select the PID file and log file, as in the other
+scenario runners.  A missing or non-executable binary path exits with EX_NOINPUT
+(66).  An executable that carries no filter class, or whose build options cannot
+be read at all, exits with EX_UNAVAILABLE (69).
+
+Send a request to each frontend and read what the OTLP/HTTP recorder captured:
+
+  % curl http://127.0.0.1:10080/
+  % curl http://127.0.0.1:10081/
+
+Only 'class enabled request' spans are exported for the first frontend, one per
+request, whatever the traffic; the disabled instance attaches to no stream and
+exports nothing.  The second frontend exports one 'inherited group request' span
+per request, opened by the group action its defaults section declares.  Stop the
+instance with 'kill -USR1' so the exporters flush what they still hold.
