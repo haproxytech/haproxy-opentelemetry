@@ -775,6 +775,27 @@
         span sp1 root
 @end
 
+@case check-filter-id-override-duplicate
+@kw top:scope
+@tmpl scope
+@mode fltover
+@need class
+@want err
+@match duplicated filter ID
+@body
+        span sp1 root
+@end
+
+@case check-filter-id-override-ok
+@kw top:scope
+@tmpl scope
+@mode fltovrok
+@need class
+@want ok
+@body
+        span sp1 root
+@end
+
 @case check-group-action-unused-defaults
 @kw group:otel-group
 @tmpl whole
@@ -802,6 +823,65 @@
 @need class
 @want ok
 @body
+        span sp1 root
+@end
+
+@case check-class-declared-ok
+@kw top:scope
+@tmpl scope
+@mode fltcls
+@need class
+@want ok
+@body
+        span sp1 root
+@end
+
+@case check-class-disabled-ok
+@kw top:scope
+@tmpl scope
+@mode fltclsoff
+@need class
+@want ok
+@body
+        span sp1 root
+@end
+
+@case check-class-disabled-group-ok
+@kw group:otel-group
+@tmpl whole
+@mode fltclsgrpoff
+@need class
+@want ok
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+
+    otel-group parser-group
+        scopes parser-scope
+
+    otel-scope parser-scope
+        span sp1 root
+@end
+
+@case check-class-disabled-group-undefined
+@kw group:otel-group
+@tmpl whole
+@mode fltclsgrpoffbad
+@need class
+@want err
+@match cannot find group 'other-group'
+@body
+[parser]
+    otel-instrumentation parser-instr
+        config @YML@
+        groups parser-group
+
+    otel-group parser-group
+        scopes parser-scope
+
+    otel-scope parser-scope
         span sp1 root
 @end
 
