@@ -15,10 +15,8 @@ endif
 ifneq ($(DEFINE),)
 DUMMY_CFLAGS  += $(DEFINE)
 endif
-ifneq ($(OTEL_DEBUG),)
-DUMMY_CFLAGS  += -DOTELC_DBG_MEM
-endif
 ifneq ($(OTEL_DEBUG:0=),)
+DUMMY_CFLAGS  += -DOTELC_DBG_MEM
 DUMMY_EXT      = _dbg
 DUMMY_CFLAGS  += -DDEBUG_OTEL
 endif

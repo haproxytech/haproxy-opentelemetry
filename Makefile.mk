@@ -34,7 +34,7 @@ OTEL_PKGSTAT = $(shell pkg-config --exists $(OTELC_WRAPPER)$(OTEL_DEBUG_EXT); ec
 OTEL_CFLAGS  = $(shell pkg-config --silence-errors --cflags $(OTELC_WRAPPER)$(OTEL_DEBUG_EXT))
 else
 ifneq ($(wildcard $(OTEL_INC)/$(OTELC_WRAPPER)/.*),)
-OTEL_CFLAGS = -I$(OTEL_INC) $(if $(OTEL_DEBUG),-DOTELC_DBG_MEM)
+OTEL_CFLAGS = -I$(OTEL_INC) $(if $(OTEL_DEBUG:0=),-DOTELC_DBG_MEM)
 endif
 endif
 

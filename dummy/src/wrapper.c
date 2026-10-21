@@ -19,7 +19,7 @@ struct otelc_ctx {
 	int unused;
 };
 
-#if defined(DEBUG) || defined(DEBUG_OTEL)
+#ifdef OTELC_DBG_MEM
 __thread int otelc_dbg_indent    = 0;
 int          otelc_dbg_level     = 0x07ff;
 int          otelc_dbg_tid_width = 2;
@@ -40,7 +40,7 @@ otelc_ext_thread_id_t otelc_ext_thread_id = otel_thread_id;
 
 
 /* No tracking table is reproduced; these only forward to the C library. */
-#if defined(DEBUG) || defined(DEBUG_OTEL)
+#ifdef OTELC_DBG_MEM
 void *otelc_dbg_malloc(const char *func, int line, size_t size)
 {
 	return malloc(size);
@@ -98,7 +98,7 @@ int otelc_dbg_mem_init(struct otelc_dbg_mem *mem, struct otelc_dbg_mem_data *dat
 #endif
 
 
-#if defined(DEBUG) || defined(DEBUG_OTEL)
+#ifdef OTELC_DBG_MEM
 /* The start stamp is claimed atomically, so concurrent first calls agree. */
 int64_t otelc_runtime(void)
 {
@@ -910,15 +910,29 @@ struct otelc_ctx *otelc_init(const char *cfgfile, const char *name, char **err)
 }
 
 
-/* No configuration is read, so the name always reports as found. */
+/* No configuration is read, so a valid context reports the name as found. */
 int otelc_ctx_nstate_get(const struct otelc_ctx *ctx, otelc_signal_t signal, char *errbuf, size_t errsize)
 {
+#define OTELC_CTX_NAME_DEF(a,b)   b,
+	static const char *nstate_msg[] = { OTELC_CTX_NAME_DEFINES };
+#undef OTELC_CTX_NAME_DEF
+	int retval;
+
 	OTELC_FUNC("%p, %d, %p, %zu", ctx, signal, errbuf, errsize);
 
-	if ((errbuf != NULL) && (errsize > 0))
-		*errbuf = '\0';
+	if ((ctx == NULL) || !OTELC_IN_RANGE(signal, (otelc_signal_t)OTELC_SIGNAL_TRACES, (otelc_signal_t)(OTELC_SIGNAL_MAX - 1))) {
+		if ((errbuf != NULL) && (errsize > 0))
+			(void)snprintf(errbuf, errsize, "%s", (ctx == NULL) ? "Invalid context" : "Invalid signal");
 
-	OTELC_RETURN_INT(OTELC_CTX_NAME_FOUND);
+		OTELC_RETURN_INT(OTELC_RET_ERROR);
+	}
+
+	retval = OTELC_CTX_NAME_FOUND;
+
+	if ((errbuf != NULL) && (errsize > 0))
+		(void)snprintf(errbuf, errsize, "%s", nstate_msg[retval]);
+
+	OTELC_RETURN_INT(retval);
 }
 
 
@@ -961,8 +975,9 @@ void otelc_deinit(struct otelc_ctx **ctx, struct otelc_tracer **tracer, struct o
 }
 
 
-/* Nothing is ever exported: all the int64_t counters read -1 (the value for
- * a field that does not apply), which the 0xff fill produces. */
+/* Nothing is ever exported, so the counters read as they do on a freshly
+ * started library: zeros everywhere, and -1 only where the wrapper API uses
+ * that value for a field which does not apply. */
 void otelc_pipeline_status_get(struct otelc_pipeline_status *status)
 {
 	OTELC_FUNC("%p", status);
@@ -970,7 +985,16 @@ void otelc_pipeline_status_get(struct otelc_pipeline_status *status)
 	if (status == NULL)
 		OTELC_RETURN();
 
-	(void)memset(status, 0xff, sizeof(*status));
+	(void)memset(status, 0, sizeof(*status));
+
+	status->traces.last_export_ms  = -1;
+	status->logs.last_export_ms    = -1;
+	status->metrics.dropped        = -1;
+	status->metrics.queue_depth    = -1;
+	status->metrics.queue_capacity = -1;
+	status->metrics.records_ok     = -1;
+	status->metrics.records_fail   = -1;
+	status->metrics.last_export_ms = -1;
 
 	OTELC_RETURN();
 }
@@ -982,7 +1006,7 @@ void otelc_ext_init(otelc_ext_malloc_t func_malloc, otelc_ext_free_t func_free, 
 {
 	OTELC_FUNC("%p, %p, %p", func_malloc, func_free, func_thread_id);
 
-#if defined(DEBUG) || defined(DEBUG_OTEL)
+#ifdef OTELC_DBG_MEM
 	otelc_ext_thread_id = (func_thread_id == NULL) ? otel_thread_id : func_thread_id;
 #endif
 
