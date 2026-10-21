@@ -83,7 +83,7 @@ enum OTELC_DBG_LEVEL_enum {
 #undef OTELC_DBG_LEVEL_DEF
 
 /* Debug tracing; the macro shapes must match the real header exactly. */
-#if defined(DEBUG) || defined(DEBUG_OTEL)
+#ifdef OTELC_DBG_MEM
 #  define OTELC_DBG_IFDEF(a,b)     a
 #  define OTELC_DBG_INDENT_STEP    2
 #  define OTELC_DBG_INDENT         otelc_dbg_indent, "                                        > "
@@ -156,7 +156,7 @@ extern int          otelc_dbg_tid_width;
 #define OTELC_SFREE(p)           do { if ((p) != NULL) OTELC_FREE(p); } while (0)
 #define OTELC_SFREE_CLEAR(p)     do { if ((p) != NULL) { OTELC_FREE(p); (p) = NULL; } } while (0)
 
-#if defined(DEBUG) || defined(DEBUG_OTEL)
+#ifdef OTELC_DBG_MEM
 void *otelc_dbg_malloc(const char *func, int line, size_t size);
 void *otelc_dbg_calloc(const char *func, int line, size_t nelem, size_t elsize);
 void *otelc_dbg_realloc(const char *func, int line, void *ptr, size_t size);
@@ -238,7 +238,7 @@ struct otelc_text_map {
 
 #define OTELC_TEXT_MAP_NEW(t,s)           otelc_text_map_new(OTELC_DBG_ARGS (t), (s))
 #define OTELC_TEXT_MAP_ADD(t,k,K,v,V,f)   otelc_text_map_add(OTELC_DBG_ARGS (t), (k), (K), (v), (V), (f))
-#if defined(DEBUG) || defined(DEBUG_OTEL)
+#ifdef OTELC_DBG_MEM
 #  define OTELC_TEXT_MAP_DUMP(p,d)        otelc_text_map_dump((p), (d))
 #else
 #  define OTELC_TEXT_MAP_DUMP(...)        while (0)
@@ -319,7 +319,7 @@ typedef void  (*otelc_ext_free_t)(void *);
 #endif
 typedef int   (*otelc_ext_thread_id_t)(void);
 
-#if defined(DEBUG) || defined(DEBUG_OTEL)
+#ifdef OTELC_DBG_MEM
 extern otelc_ext_thread_id_t otelc_ext_thread_id;
 #endif
 
@@ -559,7 +559,7 @@ int                    otelc_value_strtonum(struct otelc_value *value, otelc_val
 struct otelc_kv       *otelc_kv_new(size_t n);
 void                   otelc_kv_destroy(struct otelc_kv **kv, size_t n);
 
-#if defined(DEBUG) || defined(DEBUG_OTEL)
+#ifdef OTELC_DBG_MEM
 int64_t                otelc_runtime(void);
 void                   otelc_statistics(const struct otelc_meter *meter, char *buffer, size_t bufsiz);
 void                   otelc_text_map_dump(const struct otelc_text_map *text_map, const char *desc);

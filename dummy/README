@@ -60,12 +60,13 @@ that Makefile.mk links against:
   % make -j8 TARGET=linux-glibc EXTRA_MAKE="../haproxy-opentelemetry" OTEL_INC=../haproxy-opentelemetry/dummy/include OTEL_LIB=../haproxy-opentelemetry/dummy OTEL_DEBUG=1
 
 Makefile.mk hands OTEL_DEBUG on to the sub-make itself, so the archive always
-matches what the link line expects.  That agreement matters: the two defines
-DEBUG_OTEL and OTELC_DBG_MEM change the shape of the debug macros and of the
-external allocator types, so the filter and this archive must not disagree on
-them.  The archive can still be built by hand too, with 'make -C dummy' and
-the optional OTEL_DEBUG=1, which is useful for a quick compile check of the
-stand-in alone; the same OTEL_DEBUG must then be given to both makes.
+matches what the link line expects.  That agreement matters here: OTELC_DBG_MEM
+selects the debug macros and the external allocator types, while DEBUG_OTEL is
+what the filter keys its own tracing on, so the filter and this archive must not
+disagree on them.  The archive can still be built by hand, with the optional
+OTEL_DEBUG=1, by running 'make -C dummy'; that is useful for a quick compile
+check of the stand-in alone, and the same OTEL_DEBUG must then be given to both
+makes.
 
 The two build modes keep their object files apart, and the stand-in records
 its compiler flags in a stamp that recompiles the archive whenever any of them
@@ -127,15 +128,20 @@ through HAProxy pools or the other way round.
 5  Limitations
 ----------------------------------------------------------------------
 
-No telemetry is exported.  The export pipeline status is filled with the value
-that the wrapper API uses for a field which does not apply, so the CLI status
-table shows -1 counters on the trace and log rows and reports that nothing has
-ever been exported.
+No telemetry is exported.  The export pipeline status reports a freshly started
+library: the queue and export counters read zero, and -1 appears only where the
+wrapper API uses it for a field that does not apply, so the CLI status table
+reports that nothing has ever been exported.
 
 The OTel configuration file is not read.  The paths handed to otelc_init() and
 otelc_cfg_validate() are accepted without being opened, so any mistake in the
 YAML configuration goes unreported: the parse-time validation that rejects a
 broken file under the real library always succeeds here.
+
+The context name state is always reported as found.  A valid context and signal
+yield that state with its usual message, so a configuration that names a section
+the real library would not find still passes the parse-time signal checks; only
+an invalid context or signal reports an error.
 
 Context extraction never yields a valid span context.  A request that carries
 propagation headers is handled without error, but no parent linkage results
